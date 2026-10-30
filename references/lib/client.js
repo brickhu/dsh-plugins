@@ -2716,6 +2716,12 @@ window.__ModuleLoader__.load({
 				React.useEffect(() => {
 					if (typeof fetch !== 'function') return undefined
 					let cancelled = false
+					const iconUrlForHost = new Map()
+					for (const reference of all) {
+						const host = reference.host.replace(/^www\./, '')
+						const declared = (probes[reference.url] && probes[reference.url].icon) || ''
+						if (declared !== '' && !iconUrlForHost.has(host)) iconUrlForHost.set(host, declared)
+					}
 					const targets = []
 					for (const reference of all) {
 						const host = reference.host.replace(/^www\./, '')
@@ -2723,9 +2729,8 @@ window.__ModuleLoader__.load({
 						if (iconCache.hosts[host] !== undefined || iconCache.domains[domain] !== undefined) continue
 						const failedAt = iconFailedRef.current.get(host)
 						if ((failedAt !== undefined && Date.now() - failedAt < 60000) || iconQueueRef.current.has(host)) continue
-						iconQueueRef.current.delete(host)
 						iconQueueRef.current.add(host)
-						targets.push({ host, domain })
+						targets.push({ host, domain, declared: iconUrlForHost.get(host) || '' })
 						if (targets.length >= 6) break
 					}
 					if (targets.length === 0) return undefined
@@ -2746,35 +2751,51 @@ window.__ModuleLoader__.load({
 					const run = async () => {
 						for (const item of targets) {
 							if (cancelled) return
-							let dataUrl = await fetchIcon(`https://${item.host}/favicon.ico`)
-							if (dataUrl === '' && item.domain !== item.host) {
-								dataUrl = await fetchIcon(`https://${item.domain}/favicon.ico`)
-								if (dataUrl !== '') {
-									setIconCache((current) =>
-										current.domains[item.domain]
-											? current
-											: { ...current, domains: { ...current.domains, [item.domain]: dataUrl } },
-									)
-									continue
-								}
+							// Prefer the icon URL the page itself declares (probed earlier): many
+							// sites answer 404 on /favicon.ico while their real icon lives elsewhere.
+							const hostCandidates = [item.declared, `https://${item.host}/favicon.ico`].filter((value) => value !== '')
+							let cachedIn = ''
+							let dataUrl = ''
+							for (const candidate of hostCandidates) {
+								if (cancelled) return
+								dataUrl = await fetchIcon(candidate)
+								if (dataUrl !== '') break
 							}
 							if (dataUrl !== '') {
-								setIconCache((current) =>
-									current.hosts[item.host]
-										? current
-										: { ...current, hosts: { ...current.hosts, [item.host]: dataUrl } },
-								)
-								continue
+								cachedIn = 'hosts'
+							} else if (item.domain !== item.host) {
+								const domainCandidates = [
+									iconUrlForHost.get(item.domain) || '',
+									`https://${item.domain}/favicon.ico`,
+								].filter((value) => value !== '')
+								for (const candidate of domainCandidates) {
+									if (cancelled) return
+									dataUrl = await fetchIcon(candidate)
+									if (dataUrl !== '') break
+								}
+								if (dataUrl !== '') cachedIn = 'domains'
 							}
-							iconFailedRef.current.set(item.host, Date.now())
-							await new Promise((resolve) => setTimeout(resolve, 300))
+							if (cachedIn === 'hosts') {
+								setIconCache((current) =>
+									current.hosts[item.host] ? current : { ...current, hosts: { ...current.hosts, [item.host]: dataUrl } },
+								)
+							} else if (cachedIn === 'domains') {
+								setIconCache((current) =>
+									current.domains[item.domain]
+										? current
+										: { ...current, domains: { ...current.domains, [item.domain]: dataUrl } },
+								)
+							} else {
+								iconFailedRef.current.set(item.host, Date.now())
+								await new Promise((resolve) => setTimeout(resolve, 300))
+							}
 						}
 					}
 					run()
 					return () => {
 						cancelled = true
 					}
-				}, [all, iconCache])
+				}, [all, probes, iconCache])
 
 				// Persist the collected list (debounced) so the next open starts from it.
 				const linksSaveRef = React.useRef(null)
@@ -3878,7 +3899,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.58.2'
+		const BUILD = 'v0.58.3'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
