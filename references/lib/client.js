@@ -2992,7 +2992,7 @@ window.__ModuleLoader__.load({
 							for (const url of batch) next.add(url)
 							return next
 						})
-						Promise.resolve(runProbePass({ urls: batch, limit: batch.length })).finally(() => {
+						Promise.resolve(runProbePass({ urls: batch, limit: batch.length, silent: true })).finally(() => {
 							setAutoProbing((current) => {
 								const next = new Set(current)
 								for (const url of batch) next.delete(url)
@@ -3851,7 +3851,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.56.3'
+		const BUILD = 'v0.56.4'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
