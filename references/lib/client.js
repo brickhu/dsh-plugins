@@ -900,14 +900,17 @@ window.__ModuleLoader__.load({
 		}
 
 		function titleOf(reference, probes) {
-			const usable = (value) => typeof value === 'string' && value.trim() !== ''
+			// Strip bidi/zero-width marks before judging: some pages and labels contain only
+			// invisible characters, which rendered as a blank row.
+			const visible = (text) => String(text).replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff]/g, '').trim()
+			const usable = (value) => typeof value === 'string' && visible(value) !== ''
 			const probe = probes ? probes[reference.url] : undefined
-			if (usable(probe)) return probe.trim()
-			if (probe && typeof probe === 'object' && usable(probe.title)) return probe.title.trim()
+			if (usable(probe)) return visible(probe)
+			if (probe && typeof probe === 'object' && usable(probe.title)) return visible(probe.title)
 			// The conversation itself often carries a human title (Markdown link text,
 			// generated reference lists). Use it instead of showing the bare URL.
 			if (reference && usable(reference.title) && reference.titleFromPath === false) {
-				return reference.title.trim()
+				return visible(reference.title)
 			}
 			// Never render an empty row: fall back to the URL.
 			return reference.url
@@ -3883,7 +3886,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.59.5'
+		const BUILD = 'v0.59.6'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
