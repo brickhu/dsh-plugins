@@ -571,6 +571,9 @@ window.__ModuleLoader__.load({
 			if (match) scanText(match[1], { source: 'tool', tool: 'web_fetch' }, out)
 		}
 
+		/** Tool names whose arguments legitimately contain reference URLs. */
+		const WEB_TOOL_RE = /^(web_?fetch|web_?search|browser|navigate|fetch|search|browse)/i
+
 		/** Structural keys whose values are identifiers, never user-visible text. */
 		const SKIP_JSON_KEYS = new Set(['callId', 'id', 'rpcId', 'toolCallId', 'messageId', 'attemptId', 'sessionId', 'turn', 'step'])
 
@@ -649,6 +652,9 @@ window.__ModuleLoader__.load({
 				case 'tool/call': {
 					const name = typeof data.name === 'string' ? data.name : 'tool'
 					if (typeof data.callId === 'string') callNames.set(data.callId, name)
+					// URLs inside a shell/python command are implementation noise (curl probes,
+					// test fixtures); only web-facing tools carry real references in arguments.
+					if (!WEB_TOOL_RE.test(name)) return
 					if (typeof data.arguments === 'string') {
 						let parsed = null
 						try {
@@ -3874,7 +3880,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.59.2'
+		const BUILD = 'v0.59.3'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
