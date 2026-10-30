@@ -904,11 +904,14 @@ window.__ModuleLoader__.load({
 			// invisible characters, which rendered as a blank row.
 			const visible = (text) => String(text).replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff]/g, '').trim()
 			const usable = (value) => typeof value === 'string' && visible(value) !== ''
-			// The conversation carries the title (Markdown link text, or the title list a
-			// web tool returned). No remote metadata fetch is involved.
+			// The conversation's own title (Markdown link text / tool result titles) wins.
 			if (reference && usable(reference.title) && reference.titleFromPath === false) {
 				return visible(reference.title)
 			}
+			// Fallback: the page title probed by the Host, when cached.
+			const probe = probes ? probes[reference.url] : undefined
+			if (typeof probe === 'string' && usable(probe)) return visible(probe)
+			if (probe && typeof probe === 'object' && usable(probe.title)) return visible(probe.title)
 			// Never render an empty row: fall back to the URL.
 			return reference.url
 		}
@@ -3089,6 +3092,66 @@ window.__ModuleLoader__.load({
 					[],
 				)
 
+				// Title fallback pass: rows without a usable title (from the conversation) get
+				// their page title probed by the Host, one row at a time, while the panel is
+				// visible. Cached results are reused, so nothing repeats.
+				const titleProbeRef = React.useRef({ epoch: -1, urls: new Set(), timer: null, at: 0 })
+				const titleMissing = React.useMemo(
+					() =>
+						visible.filter((reference) => {
+							if (titleOf(reference, {}) !== reference.url) return false
+							return true
+						}),
+					[visible],
+				)
+				React.useEffect(() => {
+					if (!historyDone || !panelVisible || typeof fetch !== 'function') return undefined
+					const state = titleProbeRef.current
+					if (state.epoch !== sessionEpoch) {
+						state.epoch = sessionEpoch
+						state.urls = new Set()
+					}
+					const target = titleMissing.find((reference) => !state.urls.has(reference.url))
+					if (target === undefined) return undefined
+					if (state.timer !== null) clearTimeout(state.timer)
+					state.timer = setTimeout(() => {
+						state.timer = null
+						if (Date.now() - state.at < 1200) return
+						state.at = Date.now()
+						state.urls.add(target.url)
+						setAutoProbing((current) => new Set(current).add(target.url))
+						Promise.resolve(runProbePass({ urls: [target.url], limit: 1, silent: true })).finally(() => {
+							setAutoProbing((current) => {
+								const next = new Set(current)
+								next.delete(target.url)
+								return next
+							})
+						})
+					}, 800)
+					return () => {
+						if (state.timer !== null) {
+							clearTimeout(state.timer)
+							state.timer = null
+						}
+					}
+				}, [titleMissing, historyDone, panelVisible, sessionEpoch, runProbePass])
+
+				// Persist probe results (title fallbacks) across mounts.
+				const probeSaveRef = React.useRef(null)
+				React.useEffect(() => {
+					if (probeSaveRef.current !== null) clearTimeout(probeSaveRef.current)
+					probeSaveRef.current = setTimeout(() => {
+						probeSaveRef.current = null
+						if (Object.keys(probes).length > 0) saveProbes(probes)
+					}, 300)
+					return () => {
+						if (probeSaveRef.current !== null) {
+							clearTimeout(probeSaveRef.current)
+							probeSaveRef.current = null
+						}
+					}
+				}, [probes])
+
 				const copyList = React.useCallback(() => {
 					if (visible.length === 0) {
 						showNotice('当前没有可复制的链接')
@@ -3186,7 +3249,14 @@ window.__ModuleLoader__.load({
 							if (!current || !current.hasMore) break
 							pages += 1
 							try {
-								await session.loadOlder()
+								let settled = false
+								await Promise.race([
+									session.loadOlder().then(() => {
+										settled = true
+									}),
+									new Promise((resolve) => setTimeout(resolve, 8000)),
+								])
+								if (!settled) break
 								failures = 0
 								// Yield between pages so the panel never competes with the chat
 								// transport for the session store.
@@ -3707,7 +3777,7 @@ window.__ModuleLoader__.load({
 						h(
 							'span',
 							{ style: S.footerGrow },
-							historyDone && !snapshot.hasMore
+							historyDone
 								? `已收录 ${all.length} 条链接`
 								: snapshot.hasMore
 									? '正在加载历史…'
@@ -3745,7 +3815,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.60.1'
+		const BUILD = 'v0.60.2'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
