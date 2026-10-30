@@ -2501,7 +2501,7 @@ window.__ModuleLoader__.load({
 				const tab = tabInfo && tabInfo.tab ? tabInfo.tab : null
 				const [query, setQuery] = React.useState('')
 				const [loadingOlder, setLoadingOlder] = React.useState(false)
-				const [notice, setNotice] = React.useState(null)
+
 				const [ignored, setIgnored] = React.useState(() => loadIgnores(sessionId))
 				const [blockedHosts, setBlockedHosts] = React.useState(() => loadBlockedHosts())
 				const [linksCache, setLinksCache] = React.useState(() => loadLinksCache(sessionId))
@@ -2815,21 +2815,8 @@ window.__ModuleLoader__.load({
 					}
 				}, [menu])
 
-				const noticeTimerRef = React.useRef(null)
-				const showNotice = React.useCallback((text, actions) => {
-					setNotice({ text, actions: actions || [] })
-					if (noticeTimerRef.current !== null) clearTimeout(noticeTimerRef.current)
-					noticeTimerRef.current = setTimeout(() => {
-						noticeTimerRef.current = null
-						setNotice((current) => (current && current.text === text ? null : current))
-					}, 5200)
-				}, [])
-				React.useEffect(
-					() => () => {
-						if (noticeTimerRef.current !== null) clearTimeout(noticeTimerRef.current)
-					},
-					[],
-				)
+				// The panel has no toast surface: every status lives in the footer.
+				const showNotice = React.useCallback(() => {}, [])
 
 				/**
 				 * Probe page metadata on demand (never in the background): the panel must
@@ -3812,28 +3799,6 @@ window.__ModuleLoader__.load({
 					),
 					countTipNode,
 					rowMenu,
-					notice
-						? h(
-								'div',
-								{ style: S.notice },
-								h('span', { style: S.noticeText }, notice.text),
-								notice.actions.map((action, index) =>
-									h(
-										'button',
-										{
-											key: `action-${index}`,
-											type: 'button',
-											style: S.noticeAction,
-											onClick: () => {
-												setNotice(null)
-												action.run()
-											},
-										},
-										action.label,
-									),
-								),
-							)
-						: null,
 				)
 			}
 		}
@@ -3851,7 +3816,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.56.4'
+		const BUILD = 'v0.57.0'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
