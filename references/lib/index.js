@@ -21,7 +21,7 @@ import { lookup } from 'node:dns/promises'
 export const inject = ['web', 'webServer']
 
 /** Host build stamp, echoed to the panel so a stale bundle is detectable. */
-export const BUILD = 'v0.58.3'
+export const BUILD = 'v0.59.1'
 /**
  * The desktop browser reaches the network through the system proxy; the Host's own
  * Node requests bypass it. Detect that proxy so probes can use the same route.
@@ -478,6 +478,7 @@ async function probePage(ctx, cache, url, options) {
 				icon: cached.icon || '',
 				ok: cached.ok !== false,
 				reason: cached.reason || (cached.ok === false ? 'failed' : 'ok'),
+				status: typeof cached.status === 'number' ? cached.status : 0,
 			}
 		}
 	}
@@ -495,7 +496,7 @@ async function probePage(ctx, cache, url, options) {
 			if (!oldest.done) cache.delete(oldest.value)
 		}
 		cache.set(url, entry)
-		return { title: '', dead: true, icon: '', ok: false, reason: 'dns' }
+		return { title: '', dead: true, icon: '', ok: false, reason: 'dns', status: 0 }
 	}
 	try {
 		page = await ctx.web.fetch({ url }, AbortSignal.timeout(FETCH_TIMEOUT_MS))
@@ -530,8 +531,9 @@ async function probePage(ctx, cache, url, options) {
 		const oldest = cache.keys().next()
 		if (!oldest.done) cache.delete(oldest.value)
 	}
-	cache.set(url, { title, dead, icon, ok, reason, at: now })
-	return { title, dead, icon, ok, reason }
+	const status = page && typeof page.statusCode === 'number' ? page.statusCode : 0
+	cache.set(url, { title, dead, icon, ok, reason, at: now, status })
+	return { title, dead, icon, ok, reason, status }
 }
 
 /**

@@ -1010,46 +1010,58 @@ window.__ModuleLoader__.load({
 		}
 
 		/**
-		 * Favicon bytes cache, keyed by host first and by registrable domain second:
-		 * `hosts["developers.openai.com"]` wins over `domains["openai.com"]`, and the hash
-		 * identicon is the final fallback.
+		 * Hosts table: host → cached favicon bytes (data URL). Exact hosts and registrable
+		 * domains share one map: rendering looks up `hosts[host]` then `hosts[domain]`.
 		 */
-		const ICON_CACHE_KEY = 'dsh-links.hosticons.v2'
-		const ICON_CACHE_LIMIT = 600
+		const HOSTS_TABLE_KEY = 'dsh-links.hosts.v1'
+		const HOSTS_TABLE_LIMIT = 800
 		const ICON_ROUTE = '/dsh-links/icon'
 
-		/** @returns {{hosts: Record<string, string>, domains: Record<string, string>}} cached icon bytes. */
-		function loadIconCache() {
+		/**
+		 * Load the hosts table, migrating the earlier split cache once.
+		 * @returns {Record<string, string>} icon data URL by host or domain.
+		 */
+		function loadHostsTable() {
 			const store = ignoreStore()
-			if (!store) return { hosts: {}, domains: {} }
-			try {
-				const raw = store.getItem(ICON_CACHE_KEY)
-				const parsed = raw ? JSON.parse(raw) : null
-				const pick = (source) => {
-					const result = {}
-					if (!source || typeof source !== 'object') return result
-					for (const [key, value] of Object.entries(source)) {
-						if (typeof key === 'string' && typeof value === 'string' && value.indexOf('data:') === 0) result[key] = value
-					}
-					return result
+			if (!store) return {}
+			const pick = (source) => {
+				const result = {}
+				if (!source || typeof source !== 'object') return result
+				for (const [key, value] of Object.entries(source)) {
+					if (typeof key === 'string' && typeof value === 'string' && value.indexOf('data:') === 0) result[key] = value
 				}
-				return { hosts: pick(parsed && parsed.hosts), domains: pick(parsed && parsed.domains) }
+				return result
+			}
+			try {
+				const raw = store.getItem(HOSTS_TABLE_KEY)
+				const parsed = raw ? JSON.parse(raw) : null
+				const current = pick(parsed)
+				if (Object.keys(current).length > 0) return current
+				// one-time migration from v0.58's { hosts, domains } shape
+				const legacyRaw = store.getItem('dsh-links.hosticons.v2')
+				if (!legacyRaw) return current
+				const legacy = JSON.parse(legacyRaw)
+				return { ...pick(legacy && legacy.domains), ...pick(legacy && legacy.hosts) }
 			} catch (error) {
-				return { hosts: {}, domains: {} }
+				return {}
 			}
 		}
 
 		/**
-		 * Persist the favicon bytes cache.
-		 * @param {{hosts: Record<string, string>, domains: Record<string, string>}} cache - cache state.
+		 * Persist the hosts table.
+		 * @param {Record<string, string>} table - icon data URL by host or domain.
 		 * @returns {void}
 		 */
-		function saveIconCache(cache) {
+		function saveHostsTable(table) {
 			const store = ignoreStore()
 			if (!store) return
 			try {
-				const trim = (source) => Object.fromEntries(Object.entries(source || {}).slice(-ICON_CACHE_LIMIT))
-				store.setItem(ICON_CACHE_KEY, JSON.stringify({ hosts: trim(cache.hosts), domains: trim(cache.domains) }))
+				const entries = Object.entries(table || {}).slice(-HOSTS_TABLE_LIMIT)
+				if (entries.length === 0) {
+					store.removeItem(HOSTS_TABLE_KEY)
+					return
+				}
+				store.setItem(HOSTS_TABLE_KEY, JSON.stringify(Object.fromEntries(entries)))
 			} catch (error) {
 				/* quota: icons stay in memory for this mount */
 			}
@@ -1612,10 +1624,10 @@ window.__ModuleLoader__.load({
 		 * main list. Nothing is deleted: the row stays reachable from that section.
 		 */
 		const META_DEAD_REASONS = new Set(['gone', 'dns', 'refused', 'blocked'])
-		/** localStorage key holding probed metadata across mounts. */
-		const META_STORE_KEY = 'dsh-links.probes.v3'
-		/** Legacy keys (v2 persisted "dead" verdicts that hid links after a network change). */
-		const LEGACY_STORE_KEYS = ['dsh-links.probes.v2', 'dsh-links.probes.v1', 'dsh-links.titles.v1']
+		/** Global link-items table: url → {title, host, icon, status, ok, reason, at}. */
+		const META_STORE_KEY = 'dsh-links.linkitems.v1'
+		/** Legacy metadata keys, read once for migration. */
+		const LEGACY_STORE_KEYS = ['dsh-links.probes.v3', 'dsh-links.probes.v2', 'dsh-links.probes.v1', 'dsh-links.titles.v1']
 		/** Maximum remembered probes; the oldest entries fall out first. */
 		const META_STORE_LIMIT = 600
 
@@ -1635,10 +1647,12 @@ window.__ModuleLoader__.load({
 			const ok = value.ok !== false
 			const reason = typeof value.reason === 'string' ? value.reason : ok ? 'ok' : dead ? 'gone' : 'failed'
 			const at = typeof value.at === 'number' && Number.isFinite(value.at) ? value.at : 0
+			const host = typeof value.host === 'string' ? value.host : ''
+			const status = typeof value.status === 'number' && Number.isFinite(value.status) ? value.status : 0
 			// Old caches may hold "dead" verdicts from a bad network moment; ignore them.
 			if (dead) return null
 			if (title === '' && icon === '' && ok) return null
-			return { title, icon, dead: false, ok, reason, at }
+			return { title, icon, host, status, dead: false, ok, reason, at }
 		}
 
 		/**
@@ -1687,7 +1701,28 @@ window.__ModuleLoader__.load({
 					if (probe.dead === true) return false
 					return probe.title !== '' || probe.icon !== ''
 				})
-				const kept = entries.slice(-META_STORE_LIMIT)
+				const kept = entries.slice(-META_STORE_LIMIT).map(([url, probe]) => {
+					let host = typeof probe.host === 'string' ? probe.host : ''
+					if (host === '') {
+						try {
+							host = new URL(url).hostname.toLowerCase()
+						} catch (error) {
+							host = ''
+						}
+					}
+					return [
+						url,
+						{
+							title: probe.title,
+							host,
+							status: typeof probe.status === 'number' ? probe.status : 0,
+							icon: probe.icon,
+							ok: probe.ok !== false,
+							reason: probe.reason,
+							at: probe.at,
+						},
+					]
+				})
 				// Never delete the stored metadata: an empty in-memory map (for example right
 				// after a rescan clears it) must not wipe titles and icons gathered earlier.
 				if (kept.length === 0) return
@@ -1724,9 +1759,17 @@ window.__ModuleLoader__.load({
 						const probes = {}
 						for (const [url, page] of Object.entries(pages)) {
 							if (!page || typeof page !== 'object') continue
+							let host = ''
+							try {
+								host = new URL(url).hostname.toLowerCase()
+							} catch (error) {
+								host = ''
+							}
 							probes[url] = {
 								title: typeof page.title === 'string' ? page.title : '',
 								icon: typeof page.icon === 'string' ? page.icon : '',
+								host,
+								status: typeof page.status === 'number' && Number.isFinite(page.status) ? page.status : 0,
 								dead: page.dead === true,
 								ok: page.ok !== false,
 								reason: typeof page.reason === 'string' ? page.reason : '',
@@ -2530,14 +2573,15 @@ window.__ModuleLoader__.load({
 				const scannedSeqRef = React.useRef(linksCache.seq)
 				const scannedMinSeqRef = React.useRef(linksCache.minSeq)
 				const completeRef = React.useRef(linksCache.complete === true)
+				const scanStateRef = React.useRef(null)
 				const [completeState, setCompleteState] = React.useState(linksCache.complete === true)
 				const isRowHidden = React.useCallback(
 					(reference) => isIgnored(reference, ignored) || hostIgnored(reference.host, Array.from(blockedHosts)),
 					[ignored, blockedHosts],
 				)
 				const [pinned, setPinned] = React.useState(() => loadPins())
-				const [hostIcons, setHostIcons] = React.useState(() => loadHostIcons())
-				const [iconCache, setIconCache] = React.useState(() => loadIconCache())
+				const [hostsTable, setHostsTable] = React.useState(() => loadHostsTable())
+
 				const [customTitles, setCustomTitles] = React.useState(() => loadCustomTitles())
 				const [titleEditor, setTitleEditor] = React.useState(null)
 				const titleEditorInputRef = React.useRef(null)
@@ -2596,56 +2640,7 @@ window.__ModuleLoader__.load({
 					setAutoDone(0)
 					scanStoreRef.current = { cache: new Map(), callNames: new Map() }
 				}
-				const hostIconsFromProbes = React.useMemo(() => hostIconMap(probes), [probes])
-				React.useEffect(() => {
-					if (hostIconsFromProbes.size === 0) return
-					setHostIcons((current) => {
-						const next = { ...current }
-						let changed = false
-						for (const [host, icon] of hostIconsFromProbes) {
-							if (next[host] === icon) continue
-							next[host] = icon
-							changed = true
-						}
-						return changed ? next : current
-					})
-				}, [hostIconsFromProbes])
-				const savedHostIconsRef = React.useRef(null)
-				React.useEffect(() => {
-					const previous = savedHostIconsRef.current
-					savedHostIconsRef.current = hostIcons
-					if (previous === null || previous === hostIcons) return
-					saveHostIcons(hostIcons)
-				}, [hostIcons])
-				const savedBlockedRef = React.useRef(null)
-				React.useEffect(() => {
-					const previous = savedBlockedRef.current
-					savedBlockedRef.current = blockedHosts
-					if (previous === null || previous === blockedHosts) return
-					saveBlockedHosts(blockedHosts)
-				}, [blockedHosts])
-
-				const savedPinsRef = React.useRef(null)
-				React.useEffect(() => {
-					const previous = savedPinsRef.current
-					savedPinsRef.current = pinned
-					if (previous === null) return
-					if (previous === pinned) return
-					savePins(pinned)
-				}, [pinned])
-
-				const savedIgnoresRef = React.useRef(null)
-				React.useEffect(() => {
-					const previous = savedIgnoresRef.current
-					savedIgnoresRef.current = { sessionId, ignored }
-					// Mount and session switches only read: writing back here would erase a
-					// stored table whenever the read failed.
-					if (previous === null || previous.sessionId !== sessionId) return
-					if (previous.ignored === ignored) return
-					saveIgnores(sessionId, ignored)
-				}, [sessionId, ignored])
-				// The list is the union of the per-conversation cache and the current window:
-				// it can grow but never shrink, and it is rebuilt cheaply from a local scan.
+				// Rows = conversation items table (cached rows ∪ current window scan).
 				const all = React.useMemo(() => {
 					const store = scanStoreRef.current
 					const scanned = aggregate(snapshot.entries, store.cache, store.callNames)
@@ -2659,37 +2654,18 @@ window.__ModuleLoader__.load({
 					}
 					scannedSeqRef.current = newest
 					scannedMinSeqRef.current = lowest
-					if (!snapshot.hasMore) {
-						// Complete window: the scan is authoritative.
-						return scanned
-					}
-					// Still loading: keep showing cached rows, refreshed by the scan (counts are
-					// replaced, never added, so badges cannot inflate).
+					if (!snapshot.hasMore) return scanned
 					if (linksCache.rows.length === 0) return scanned
 					return mergeRows(linksCache.rows, scanned)
 				}, [snapshot, linksCache])
 
-				// Persist manual title overrides (debounced).
-				const titlesSaveRef = React.useRef(null)
-				React.useEffect(() => {
-					if (titlesSaveRef.current !== null) clearTimeout(titlesSaveRef.current)
-					titlesSaveRef.current = setTimeout(() => {
-						titlesSaveRef.current = null
-						saveCustomTitles(customTitles)
-					}, 300)
-					return () => {
-						if (titlesSaveRef.current !== null) clearTimeout(titlesSaveRef.current)
-						titlesSaveRef.current = null
-					}
-				}, [customTitles])
-
 				// Persist the favicon cache (debounced) and flush it when the panel unmounts, so
 				// switching conversations never loses icons that were just fetched.
-				const iconCacheRef = React.useRef(iconCache)
-				iconCacheRef.current = iconCache
+				const hostsTableRef = React.useRef(hostsTable)
+				hostsTableRef.current = hostsTable
 				React.useEffect(
 					() => () => {
-						saveIconCache(iconCacheRef.current)
+						saveHostsTable(hostsTableRef.current)
 					},
 					[],
 				)
@@ -2698,7 +2674,7 @@ window.__ModuleLoader__.load({
 					if (iconSaveRef.current !== null) clearTimeout(iconSaveRef.current)
 					iconSaveRef.current = setTimeout(() => {
 						iconSaveRef.current = null
-						saveIconCache(iconCache)
+						saveHostsTable(hostsTable)
 					}, 250)
 					return () => {
 						if (iconSaveRef.current !== null) {
@@ -2706,7 +2682,7 @@ window.__ModuleLoader__.load({
 							iconSaveRef.current = null
 						}
 					}
-				}, [iconCache])
+				}, [hostsTable])
 
 				// Fetch missing favicons one at a time through the Host proxy, then cache bytes.
 				const iconQueueRef = React.useRef(new Set())
@@ -2726,7 +2702,7 @@ window.__ModuleLoader__.load({
 					for (const reference of all) {
 						const host = reference.host.replace(/^www\./, '')
 						const domain = rootDomain(reference.host)
-						if (iconCache.hosts[host] !== undefined || iconCache.domains[domain] !== undefined) continue
+						if (hostsTable[host] !== undefined || hostsTable[domain] !== undefined) continue
 						const failedAt = iconFailedRef.current.get(host)
 						if ((failedAt !== undefined && Date.now() - failedAt < 60000) || iconQueueRef.current.has(host)) continue
 						iconQueueRef.current.add(host)
@@ -2775,15 +2751,10 @@ window.__ModuleLoader__.load({
 								}
 								if (dataUrl !== '') cachedIn = 'domains'
 							}
-							if (cachedIn === 'hosts') {
-								setIconCache((current) =>
-									current.hosts[item.host] ? current : { ...current, hosts: { ...current.hosts, [item.host]: dataUrl } },
-								)
-							} else if (cachedIn === 'domains') {
-								setIconCache((current) =>
-									current.domains[item.domain]
-										? current
-										: { ...current, domains: { ...current.domains, [item.domain]: dataUrl } },
+							const cacheKey = cachedIn === 'hosts' ? item.host : cachedIn === 'domains' ? item.domain : ''
+							if (cacheKey !== '') {
+								setHostsTable((current) =>
+									current[cacheKey] ? current : { ...current, [cacheKey]: dataUrl },
 								)
 							} else {
 								iconFailedRef.current.set(item.host, Date.now())
@@ -2795,7 +2766,7 @@ window.__ModuleLoader__.load({
 					return () => {
 						cancelled = true
 					}
-				}, [all, probes, iconCache])
+				}, [all, probes, hostsTable])
 
 				// Persist the collected list (debounced) so the next open starts from it.
 				const linksSaveRef = React.useRef(null)
@@ -3035,7 +3006,7 @@ window.__ModuleLoader__.load({
 						const hasTitle = titleOf(reference, probes) !== reference.url
 						const host = reference.host.replace(/^www\./, '')
 						const domain = rootDomain(reference.host)
-						const hasIcon = iconCache.hosts[host] !== undefined || iconCache.domains[domain] !== undefined
+						const hasIcon = hostsTable[host] !== undefined || hostsTable[domain] !== undefined
 						return !(hasTitle && hasIcon)
 					})
 					if (candidates.length === 0) {
@@ -3074,7 +3045,7 @@ window.__ModuleLoader__.load({
 							autoRefreshRef.current.timer = null
 						}
 					}
-				}, [visible, probes, iconCache, historyDone, panelVisible, sessionEpoch, runProbePass])
+				}, [visible, probes, hostsTable, historyDone, panelVisible, sessionEpoch, runProbePass])
 
 				const openReference = React.useCallback((reference, event) => {
 					const external = !!(event && (event.metaKey || event.ctrlKey || event.altKey))
@@ -3179,13 +3150,12 @@ window.__ModuleLoader__.load({
 						const refreshHost = reference.host.replace(/^www\./, '')
 						const refreshDomain = rootDomain(reference.host)
 						iconFailedRef.current.delete(refreshHost)
-						setIconCache((current) => {
-							if (current.hosts[refreshHost] === undefined && current.domains[refreshDomain] === undefined) return current
-							const hosts = { ...current.hosts }
-							const domains = { ...current.domains }
-							delete hosts[refreshHost]
-							delete domains[refreshDomain]
-							return { hosts, domains }
+						setHostsTable((current) => {
+							if (current[refreshHost] === undefined && current[refreshDomain] === undefined) return current
+							const next = { ...current }
+							delete next[refreshHost]
+							delete next[refreshDomain]
+							return next
 						})
 						setRefreshingUrls((current) => {
 							if (current.has(url)) return current
@@ -3415,7 +3385,7 @@ window.__ModuleLoader__.load({
 								const hash = hashIconFor(reference.host)
 								const host = reference.host.replace(/^www\./, '')
 								const domain = rootDomain(reference.host)
-								const cached = iconCache.hosts[host] || iconCache.domains[domain] || ''
+								const cached = hostsTable[host] || hostsTable[domain] || ''
 								return [cached !== '' ? cached : hash, hash]
 							})(),
 							iconEpoch: metaEpoch,
@@ -3899,7 +3869,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.58.3'
+		const BUILD = 'v0.59.1'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
