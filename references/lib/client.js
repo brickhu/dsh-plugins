@@ -732,7 +732,9 @@ window.__ModuleLoader__.load({
 				reference.tags.sort((left, right) => TAGS.indexOf(left) - TAGS.indexOf(right))
 			}
 			if (match.title !== '' && reference.titleFromPath) {
-				reference.title = match.title
+				// First explicit title wins: repeated mentions rarely agree, and flipping the
+				// label on every re-scan would make the list unstable.
+				reference.title = normalizeTitle(match.title)
 				reference.titleFromPath = false
 			}
 			if (match.inCode) reference.inCode = true
@@ -897,6 +899,19 @@ window.__ModuleLoader__.load({
 			if (Array.isArray(reference.turns) && reference.turns.length > 0) return reference.turns.length
 			if (typeof reference.turnCount === 'number' && reference.turnCount > 0) return reference.turnCount
 			return typeof reference.count === 'number' ? reference.count : 0
+		}
+
+		/**
+		 * Collapse whitespace in a candidate title so cosmetic differences do not look like
+		 * distinct titles (newlines, repeated spaces, zero-width marks).
+		 * @param {string} value - raw title.
+		 * @returns {string} normalized title.
+		 */
+		function normalizeTitle(value) {
+			return String(value || '')
+				.replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff]/g, '')
+				.replace(/\s+/g, ' ')
+				.trim()
 		}
 
 		function titleOf(reference, probes) {
@@ -3815,7 +3830,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.60.2'
+		const BUILD = 'v0.60.3'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
