@@ -897,6 +897,11 @@ window.__ModuleLoader__.load({
 			const probe = probes ? probes[reference.url] : undefined
 			if (typeof probe === 'string' && probe !== '') return probe
 			if (probe && typeof probe === 'object' && typeof probe.title === 'string' && probe.title !== '') return probe.title
+			// The conversation itself often carries a human title (Markdown link text,
+			// generated reference lists). Use it instead of showing the bare URL.
+			if (reference && typeof reference.title === 'string' && reference.title !== '' && reference.titleFromPath === false) {
+				return reference.title
+			}
 			return reference.url
 		}
 
@@ -3869,7 +3874,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.59.1'
+		const BUILD = 'v0.59.2'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
