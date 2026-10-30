@@ -1594,6 +1594,8 @@ window.__ModuleLoader__.load({
 		const META_OK_TTL_MS = 24 * 60 * 60 * 1000
 		/** A failed probe (timeout, bot block) is retried after this long. */
 		const META_RETRY_MS = 5 * 60 * 1000
+		/** How long a successfully read title/icon stays fresh before the background pass refreshes it. */
+		const META_FRESH_MS = 24 * 60 * 60 * 1000
 		/** A row judged dead is re-checked after this long, in case the page is back. */
 		const META_DEAD_RECHECK_MS = 6 * 60 * 60 * 1000
 		/** Shown when the Host probe route cannot be reached at all. */
@@ -2532,6 +2534,11 @@ window.__ModuleLoader__.load({
 				const [menu, setMenu] = React.useState(null)
 				const [countTip, setCountTip] = React.useState(null)
 				const [tooltip, setTooltip] = React.useState(null)
+				const [panelVisible, setPanelVisible] = React.useState(true)
+				const [autoProbing, setAutoProbing] = React.useState(() => new Set())
+				const [sessionEpoch, setSessionEpoch] = React.useState(0)
+				const autoRefreshRef = React.useRef({ timer: null, at: 0 })
+				const rootRef = React.useRef(null)
 				const [refreshingUrls, setRefreshingUrls] = React.useState(() => new Set())
 				const [splashDone, setSplashDone] = React.useState(false)
 				const [historyDone, setHistoryDone] = React.useState(false)
@@ -2560,6 +2567,9 @@ window.__ModuleLoader__.load({
 					setProbes((current) => ({ ...loadProbes(), ...current }))
 					setMenu(null)
 					setProbeError('')
+					setSessionEpoch((epoch) => epoch + 1)
+					autoRefreshRef.current = { timer: null, at: 0 }
+					setAutoProbing(new Set())
 					scanStoreRef.current = { cache: new Map(), callNames: new Map() }
 				}
 				const hostIconsFromProbes = React.useMemo(() => hostIconMap(probes), [probes])
@@ -2837,8 +2847,8 @@ window.__ModuleLoader__.load({
 					const limit = options && typeof options.limit === 'number' ? options.limit : 16
 					const refreshCache = !!(options && options.refreshCache)
 					if (refreshing || typeof fetch !== 'function' || visible.length === 0) return
-					const targets = []
-					for (const reference of visible) {
+					const targets = Array.isArray(options && options.urls) ? options.urls.slice(0, limit) : []
+					if (targets.length === 0) for (const reference of visible) {
 						const probe = probes[reference.url]
 						if (!refreshCache && probe) {
 							if (probe.title) continue
@@ -2910,7 +2920,6 @@ window.__ModuleLoader__.load({
 				const autoRanRef = React.useRef(false)
 				React.useEffect(() => {
 					if (autoRanRef.current || !historyDone) return undefined
-					if (!showSplash && !hasCachedRows) return undefined
 					autoRanRef.current = true
 					let settled = false
 					const finish = () => {
@@ -2924,6 +2933,71 @@ window.__ModuleLoader__.load({
 					runProbePass({ limit: 8, refreshCache: false }).then(finish, finish)
 					return () => clearTimeout(timeout)
 				}, [showSplash, hasCachedRows, runProbePass])
+
+				// Only refresh metadata while the panel is actually on screen.
+				React.useEffect(() => {
+					const node = rootRef.current
+					if (!node || typeof IntersectionObserver !== 'function') return undefined
+					const observer = new IntersectionObserver(
+						(entries) => {
+							const entry = entries[0]
+							setPanelVisible(!!entry && entry.isIntersecting)
+						},
+						{ threshold: 0.05 },
+					)
+					observer.observe(node)
+					return () => observer.disconnect()
+				}, [])
+
+				// Auto-refresh missing / stale metadata for on-screen rows in small batches.
+				// Each URL carries a status (`probing`, fresh `ok`, retryable `failed`, `stale`),
+				// so a pass only touches what actually needs it, and switching conversations
+				// restarts the process for the newly bound session.
+				const autoRefreshAttemptedRef = React.useRef({ epoch: -1, urls: new Set() })
+				React.useEffect(() => {
+					if (!historyDone || !panelVisible) return undefined
+					const attempted = autoRefreshAttemptedRef.current
+					if (attempted.epoch !== sessionEpoch) {
+						attempted.epoch = sessionEpoch
+						attempted.urls = new Set()
+					}
+					const now = Date.now()
+					const candidates = visible.filter((reference) => {
+						if (attempted.urls.has(reference.url)) return false
+						const probe = probes[reference.url]
+						if (!probe) return true
+						if (!probe.title) return now - (probe.at || 0) >= META_RETRY_MS
+						const freshFor = probe.ok === false ? META_RETRY_MS : META_FRESH_MS
+						return now - (probe.at || 0) >= freshFor
+					})
+					if (candidates.length === 0) return undefined
+					if (autoRefreshRef.current.timer !== null) clearTimeout(autoRefreshRef.current.timer)
+					autoRefreshRef.current.timer = setTimeout(() => {
+						autoRefreshRef.current.timer = null
+						if (Date.now() - autoRefreshRef.current.at < 5000) return
+						autoRefreshRef.current.at = Date.now()
+						const batch = candidates.slice(0, 8).map((reference) => reference.url)
+						for (const url of batch) attempted.urls.add(url)
+						setAutoProbing((current) => {
+							const next = new Set(current)
+							for (const url of batch) next.add(url)
+							return next
+						})
+						Promise.resolve(runProbePass({ urls: batch, limit: batch.length })).finally(() => {
+							setAutoProbing((current) => {
+								const next = new Set(current)
+								for (const url of batch) next.delete(url)
+								return next
+							})
+						})
+					}, 1500)
+					return () => {
+						if (autoRefreshRef.current.timer !== null) {
+							clearTimeout(autoRefreshRef.current.timer)
+							autoRefreshRef.current.timer = null
+						}
+					}
+				}, [visible, probes, historyDone, panelVisible, sessionEpoch, runProbePass])
 
 				const openReference = React.useCallback((reference, event) => {
 					const external = !!(event && (event.metaKey || event.ctrlKey || event.altKey))
@@ -3271,7 +3345,7 @@ window.__ModuleLoader__.load({
 							onTooltip: setTooltip,
 							onCountHover: (next) =>
 								setCountTip((current) => (current !== null && next !== null && current.key === next.key ? null : next)),
-							refreshing: refreshingUrls.has(reference.url),
+							refreshing: refreshingUrls.has(reference.url) || autoProbing.has(reference.url),
 							unreachable: isUnavailableProbe(probes, reference.url),
 						})
 					const sectionHeader = (key, label, count, open, toggle) =>
@@ -3551,7 +3625,7 @@ window.__ModuleLoader__.load({
 
 				return h(
 					'div',
-					{ style: S.root },
+					{ ref: rootRef, style: S.root },
 					h('style', { key: 'dsh-links-css' }, ROW_CSS),
 					all.length === 0
 						? null
@@ -3766,7 +3840,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.53.6'
+		const BUILD = 'v0.55.0'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
