@@ -2241,14 +2241,7 @@ window.__ModuleLoader__.load({
 			const fallbackIcon = typeof fallback === 'string' && fallback !== '' ? fallback : hashIconFor(reference.host)
 			const chosen = primary !== '' ? primary : fallbackIcon
 			const [failed, setFailed] = React.useState(false)
-			const src =
-				!failed && chosen.indexOf('data:') !== 0
-					? epoch
-						? `${chosen}${chosen.indexOf('?') >= 0 ? '&' : '?'}dsh=${epoch}`
-						: chosen
-					: !failed
-						? chosen
-						: fallbackIcon
+			const src = !failed ? chosen : fallbackIcon
 			return h('img', {
 				src,
 				alt: '',
@@ -2402,7 +2395,7 @@ window.__ModuleLoader__.load({
 								),
 							)
 						: h(Favicon, {
-								key: `${reference.key}:${iconEpoch || 0}`,
+								key: reference.key,
 								reference,
 								icon: Array.isArray(iconSources) ? iconSources[0] || icon : icon,
 								fallback: Array.isArray(iconSources) ? iconSources[1] : '',
@@ -3131,6 +3124,8 @@ window.__ModuleLoader__.load({
 				const refreshReference = React.useCallback(
 					async (reference) => {
 						const url = reference.url
+						ICON_CHOICE.delete(reference.key)
+						for (const iconUrl of Array.from(FAILED_ICON_URLS)) FAILED_ICON_URLS.delete(iconUrl)
 						setRefreshingUrls((current) => {
 							if (current.has(url)) return current
 							const next = new Set(current)
@@ -3862,7 +3857,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.57.7'
+		const BUILD = 'v0.57.8'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
