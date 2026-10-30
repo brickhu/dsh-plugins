@@ -2782,7 +2782,7 @@ window.__ModuleLoader__.load({
 				)
 				const hasCachedRows = linksCache.rows.length > 0
 				const showSplash =
-					allowSplash && !splashDone && !hasCachedRows && (missingMetadata || (!historyDone && snapshot.hasMore))
+					allowSplash && !splashDone && (missingMetadata || (!historyDone && snapshot.hasMore) || hasCachedRows)
 
 
 
@@ -3779,7 +3779,7 @@ window.__ModuleLoader__.load({
 							autoTotal > 0
 								? `正在加载第 ${Math.min(autoDone, autoTotal)} 条链接`
 								: historyDone && !snapshot.hasMore
-								? `已收录 ${all.length} 条链接 · 已扫描至 #${scannedSeqRef.current}`
+								? `已收录 ${all.length} 条链接`
 								: snapshot.hasMore
 									? '正在加载历史…'
 									: `已统计 ${snapshot.entries.length} 条事件`,
@@ -3816,7 +3816,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.57.0'
+		const BUILD = 'v0.57.1'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
