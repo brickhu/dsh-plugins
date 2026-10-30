@@ -2710,7 +2710,9 @@ window.__ModuleLoader__.load({
 
 				// Fetch missing favicons one at a time through the Host proxy, then cache bytes.
 				const iconQueueRef = React.useRef(new Set())
-				const iconFailedRef = React.useRef(new Set())
+				// host → timestamp of the last failed attempt; retried after a minute so a
+				// restarted Host (which can now reach the network) recovers by itself.
+				const iconFailedRef = React.useRef(new Map())
 				React.useEffect(() => {
 					if (typeof fetch !== 'function') return undefined
 					let cancelled = false
@@ -2719,7 +2721,9 @@ window.__ModuleLoader__.load({
 						const host = reference.host.replace(/^www\./, '')
 						const domain = rootDomain(reference.host)
 						if (iconCache.hosts[host] !== undefined || iconCache.domains[domain] !== undefined) continue
-						if (iconFailedRef.current.has(host) || iconQueueRef.current.has(host)) continue
+						const failedAt = iconFailedRef.current.get(host)
+						if ((failedAt !== undefined && Date.now() - failedAt < 60000) || iconQueueRef.current.has(host)) continue
+						iconQueueRef.current.delete(host)
 						iconQueueRef.current.add(host)
 						targets.push({ host, domain })
 						if (targets.length >= 6) break
@@ -2762,7 +2766,7 @@ window.__ModuleLoader__.load({
 								)
 								continue
 							}
-							iconFailedRef.current.add(item.host)
+							iconFailedRef.current.set(item.host, Date.now())
 							await new Promise((resolve) => setTimeout(resolve, 300))
 						}
 					}
@@ -3874,7 +3878,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.58.1'
+		const BUILD = 'v0.58.2'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
