@@ -3352,13 +3352,10 @@ window.__ModuleLoader__.load({
 								const domain = rootDomain(reference.host)
 								const probeIcon = (probes[reference.url] && probes[reference.url].icon) || ''
 								const domainIcon = hostIcons[domain] || ''
-								// Local bytes first, then the first remote URL that has not failed yet.
+								// Only locally cached favicon bytes are rendered; until one is cached the
+								// deterministic hash icon stands in, so the image never flashes.
 								for (const iconUrl of [probeIcon, domainIcon]) {
-									if (iconUrl === '') continue
-									if (iconData[iconUrl]) return [iconData[iconUrl], hash]
-								}
-								for (const iconUrl of [probeIcon, domainIcon]) {
-									if (iconUrl !== '' && !FAILED_ICON_URLS.has(iconUrl)) return [iconUrl, hash]
+									if (iconUrl !== '' && iconData[iconUrl]) return [iconData[iconUrl], hash]
 								}
 								return [hash, hash]
 							})(),
@@ -3843,7 +3840,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.57.3'
+		const BUILD = 'v0.57.4'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
