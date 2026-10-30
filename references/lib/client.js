@@ -2225,21 +2225,37 @@ window.__ModuleLoader__.load({
 		 * @param {{reference: object}} props - the row.
 		 * @returns {object} React element.
 		 */
-		function Favicon({ reference, sources, epoch }) {
-			const [index, setIndex] = React.useState(0)
-			const list = Array.isArray(sources)
-				? sources.filter((value) => typeof value === 'string' && value !== '')
-				: []
-			if (list.length === 0) list.push(hashIconFor(reference.host))
-			const base = list[index]
-			if (base === undefined) return h('span', { style: S.faviconFallback(primaryTag(reference)) }, '?')
-			const src = epoch && base.indexOf('data:') !== 0 ? `${base}${base.indexOf('?') >= 0 ? '&' : '?'}dsh=${epoch}` : base
+		/** Icon URLs that already failed to load in this page; never retried. */
+		const FAILED_ICON_URLS = new Set()
+
+		/**
+		 * The row icon. One source is chosen up front, so a re-render (probe update, hover)
+		 * never swaps the image and makes it flash; a failed load settles on the hash icon.
+		 * @param {{reference: object, icon: string, fallback: string, epoch: number}} props icon sources.
+		 * @returns {object} React element.
+		 */
+		function Favicon({ reference, icon, fallback, epoch }) {
+			const primary = typeof icon === 'string' && icon !== '' && !FAILED_ICON_URLS.has(icon) ? icon : ''
+			const fallbackIcon = typeof fallback === 'string' && fallback !== '' ? fallback : hashIconFor(reference.host)
+			const chosen = primary !== '' ? primary : fallbackIcon
+			const [failed, setFailed] = React.useState(false)
+			const src =
+				!failed && chosen.indexOf('data:') !== 0
+					? epoch
+						? `${chosen}${chosen.indexOf('?') >= 0 ? '&' : '?'}dsh=${epoch}`
+						: chosen
+					: !failed
+						? chosen
+						: fallbackIcon
 			return h('img', {
 				src,
 				alt: '',
 				style: S.favicon,
 				referrerPolicy: 'no-referrer',
-				onError: () => setIndex((current) => current + 1),
+				onError: () => {
+					if (primary !== '') FAILED_ICON_URLS.add(primary)
+					setFailed(true)
+				},
 			})
 		}
 
@@ -2383,7 +2399,8 @@ window.__ModuleLoader__.load({
 						: h(Favicon, {
 								key: `${reference.key}:${iconEpoch || 0}`,
 								reference,
-								sources: Array.isArray(iconSources) && iconSources.length > 0 ? iconSources : [icon],
+								icon: Array.isArray(iconSources) ? iconSources[0] || icon : icon,
+								fallback: Array.isArray(iconSources) ? iconSources[1] : '',
 								epoch: iconEpoch,
 							}),
 					h(
@@ -2700,6 +2717,7 @@ window.__ModuleLoader__.load({
 						for (const iconUrl of missing) {
 							if (cancelled || iconBudgetRef.current <= 0) return
 							iconBudgetRef.current -= 1
+							if (FAILED_ICON_URLS.has(iconUrl)) continue
 							try {
 								const target = new URL(ICON_ROUTE, typeof document !== 'undefined' && document.baseURI ? document.baseURI : 'http://127.0.0.1/')
 								target.searchParams.set('url', iconUrl)
@@ -2709,10 +2727,12 @@ window.__ModuleLoader__.load({
 									if (payload && typeof payload.dataUrl === 'string' && payload.dataUrl.indexOf('data:') === 0) {
 										const value = payload.dataUrl
 										setIconData((current) => (current[iconUrl] ? current : { ...current, [iconUrl]: value }))
+										continue
 									}
 								}
+								FAILED_ICON_URLS.add(iconUrl)
 							} catch (error) {
-								/* leave the letter fallback in place */
+								FAILED_ICON_URLS.add(iconUrl)
 							}
 							await new Promise((resolve) => setTimeout(resolve, 450))
 						}
@@ -3328,20 +3348,19 @@ window.__ModuleLoader__.load({
 							ignored: hidden === true,
 							title: customTitles[reference.key] || titleOf(reference, probes),
 							iconSources: (() => {
+								const hash = hashIconFor(reference.host)
 								const domain = rootDomain(reference.host)
 								const probeIcon = (probes[reference.url] && probes[reference.url].icon) || ''
 								const domainIcon = hostIcons[domain] || ''
-								const list = []
+								// Local bytes first, then the first remote URL that has not failed yet.
 								for (const iconUrl of [probeIcon, domainIcon]) {
 									if (iconUrl === '') continue
-									const cached = iconData[iconUrl]
-									const value = cached || iconUrl
-									if (list.indexOf(value) < 0) list.push(value)
+									if (iconData[iconUrl]) return [iconData[iconUrl], hash]
 								}
-								// The hash identicon is the final fallback: deterministic per host and
-								// never a guessed brand or a generated letter.
-								list.push(hashIconFor(reference.host))
-								return list
+								for (const iconUrl of [probeIcon, domainIcon]) {
+									if (iconUrl !== '' && !FAILED_ICON_URLS.has(iconUrl)) return [iconUrl, hash]
+								}
+								return [hash, hash]
 							})(),
 							iconEpoch: metaEpoch,
 							onOpen: openReference,
@@ -3824,7 +3843,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.57.2'
+		const BUILD = 'v0.57.3'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
