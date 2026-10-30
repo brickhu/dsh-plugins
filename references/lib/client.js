@@ -2534,6 +2534,8 @@ window.__ModuleLoader__.load({
 				const [tooltip, setTooltip] = React.useState(null)
 				const [panelVisible, setPanelVisible] = React.useState(true)
 				const [autoProbing, setAutoProbing] = React.useState(() => new Set())
+				const [autoTotal, setAutoTotal] = React.useState(0)
+				const [autoDone, setAutoDone] = React.useState(0)
 				const [sessionEpoch, setSessionEpoch] = React.useState(0)
 				const autoRefreshRef = React.useRef({ timer: null, at: 0 })
 				const rootRef = React.useRef(null)
@@ -2568,6 +2570,8 @@ window.__ModuleLoader__.load({
 					setSessionEpoch((epoch) => epoch + 1)
 					autoRefreshRef.current = { timer: null, at: 0 }
 					setAutoProbing(new Set())
+					setAutoTotal(0)
+					setAutoDone(0)
 					scanStoreRef.current = { cache: new Map(), callNames: new Map() }
 				}
 				const hostIconsFromProbes = React.useMemo(() => hostIconMap(probes), [probes])
@@ -2966,7 +2970,13 @@ window.__ModuleLoader__.load({
 						if (probe && probe.title && probe.icon) return false
 						return true
 					})
-					if (candidates.length === 0) return undefined
+					if (candidates.length === 0) {
+						if (autoTotal !== 0) {
+							setAutoTotal(0)
+							setAutoDone(0)
+						}
+						return undefined
+					}
 					if (autoRefreshRef.current.timer !== null) clearTimeout(autoRefreshRef.current.timer)
 					autoRefreshRef.current.timer = setTimeout(() => {
 						autoRefreshRef.current.timer = null
@@ -2975,6 +2985,8 @@ window.__ModuleLoader__.load({
 						// Exactly one URL per pass: one request in flight, one spinner at a time.
 						const batch = candidates.slice(0, 1).map((reference) => reference.url)
 						for (const url of batch) attempted.urls.add(url)
+						setAutoTotal((total) => (total > 0 ? total : candidates.length + attempted.urls.size - 1))
+						setAutoDone(attempted.urls.size)
 						setAutoProbing((current) => {
 							const next = new Set(current)
 							for (const url of batch) next.add(url)
@@ -3777,7 +3789,9 @@ window.__ModuleLoader__.load({
 						h(
 							'span',
 							{ style: S.footerGrow },
-							historyDone && !snapshot.hasMore
+							autoTotal > 0
+								? `正在加载第 ${Math.min(autoDone, autoTotal)} 条链接`
+								: historyDone && !snapshot.hasMore
 								? `已收录 ${all.length} 条链接 · 已扫描至 #${scannedSeqRef.current}`
 								: snapshot.hasMore
 									? '正在加载历史…'
@@ -3837,7 +3851,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.56.2'
+		const BUILD = 'v0.56.3'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
