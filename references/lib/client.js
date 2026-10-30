@@ -3361,6 +3361,10 @@ window.__ModuleLoader__.load({
 								for (const iconUrl of [probeIcon, domainIcon]) {
 									if (iconUrl !== '' && !FAILED_ICON_URLS.has(iconUrl)) return [iconUrl, hash]
 								}
+								// Last remote resort: the registrable domain's own favicon (e.g. an
+								// uncompiled docs subdomain still shows openai.com's icon).
+								const apexIcon = `https://${domain}/favicon.ico`
+								if (domain !== '' && !FAILED_ICON_URLS.has(apexIcon)) return [apexIcon, hash]
 								return [hash, hash]
 							})(),
 							iconEpoch: metaEpoch,
@@ -3844,7 +3848,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.57.5'
+		const BUILD = 'v0.57.6'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
