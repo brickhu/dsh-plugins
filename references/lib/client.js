@@ -2683,14 +2683,23 @@ window.__ModuleLoader__.load({
 					}
 				}, [customTitles])
 
-				// Persist the favicon byte cache (debounced).
+				// Persist the favicon cache (debounced) and flush it when the panel unmounts, so
+				// switching conversations never loses icons that were just fetched.
+				const iconCacheRef = React.useRef(iconCache)
+				iconCacheRef.current = iconCache
+				React.useEffect(
+					() => () => {
+						saveIconCache(iconCacheRef.current)
+					},
+					[],
+				)
 				const iconSaveRef = React.useRef(null)
 				React.useEffect(() => {
 					if (iconSaveRef.current !== null) clearTimeout(iconSaveRef.current)
 					iconSaveRef.current = setTimeout(() => {
 						iconSaveRef.current = null
 						saveIconCache(iconCache)
-					}, 600)
+					}, 250)
 					return () => {
 						if (iconSaveRef.current !== null) {
 							clearTimeout(iconSaveRef.current)
@@ -3865,7 +3874,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.58.0'
+		const BUILD = 'v0.58.1'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
