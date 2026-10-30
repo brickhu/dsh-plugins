@@ -2271,7 +2271,7 @@ window.__ModuleLoader__.load({
 		 *   onToggleMenu: Function}} props - row data and callbacks.
 		 * @returns {object} React element.
 		 */
-		function LinkRow({ reference, ignored, unreachable, title, icon, iconSources, iconEpoch, refreshing, status, onOpen, onToggleMenu, onCountHover, onTooltip }) {
+		function LinkRow({ reference, ignored, unreachable, title, icon, iconSources, iconEpoch, refreshing, onOpen, onToggleMenu, onCountHover, onTooltip }) {
 			const [hoveringOpen, setHoveringOpen] = React.useState(false)
 			const [marqueeShift, setMarqueeShift] = React.useState(0)
 			const titleRef = React.useRef(null)
@@ -2414,29 +2414,6 @@ window.__ModuleLoader__.load({
 						),
 					),
 				),
-				status === 'failed' || status === 'ok' || status === 'partial'
-					? h('span', {
-							key: 'status-dot',
-							title:
-								status === 'failed'
-									? '上次刷新失败：暂时读不到标题/图标'
-									: status === 'ok'
-										? '标题与图标已缓存'
-										: '标题已缓存，图标待刷新',
-							style: {
-								flex: 'none',
-								width: 5,
-								height: 5,
-								borderRadius: '50%',
-								background:
-									status === 'failed'
-										? 'var(--dsw-alias-state-warning-primary, #d97706)'
-										: status === 'ok'
-											? 'var(--dsw-alias-state-business-primary, #3b82f6)'
-											: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,0.6))',
-							},
-						})
-					: null,
 				h(
 					'span',
 					{
@@ -3362,12 +3339,6 @@ window.__ModuleLoader__.load({
 							onOpen: openReference,
 							onToggleMenu: (next) => setMenu((current) => (current && current.key === next.key ? null : next)),
 							onTooltip: setTooltip,
-							status: (() => {
-								const probe = probes[reference.url]
-								if (!probe) return ''
-								if (probe.ok === false) return 'failed'
-								return probe.title && probe.icon ? 'ok' : 'partial'
-							})(),
 							onCountHover: (next) =>
 								setCountTip((current) => (current !== null && next !== null && current.key === next.key ? null : next)),
 							refreshing: refreshingUrls.has(reference.url) || autoProbing.has(reference.url),
@@ -3865,7 +3836,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.56.0'
+		const BUILD = 'v0.56.1'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
