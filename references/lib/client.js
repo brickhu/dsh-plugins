@@ -3707,9 +3707,7 @@ window.__ModuleLoader__.load({
 						h(
 							'span',
 							{ style: S.footerGrow },
-							autoTotal > 0
-								? `正在加载第 ${Math.min(autoDone, autoTotal)} 条链接`
-								: historyDone && !snapshot.hasMore
+							historyDone && !snapshot.hasMore
 								? `已收录 ${all.length} 条链接`
 								: snapshot.hasMore
 									? '正在加载历史…'
@@ -3747,7 +3745,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.60.0'
+		const BUILD = 'v0.60.1'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
