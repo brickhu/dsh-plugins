@@ -2227,6 +2227,8 @@ window.__ModuleLoader__.load({
 		 */
 		/** Icon URLs that already failed to load in this page; never retried. */
 		const FAILED_ICON_URLS = new Set()
+		/** First icon that loaded for a row key, reused so re-renders never swap the image. */
+		const ICON_CHOICE = new Map()
 
 		/**
 		 * The row icon. One source is chosen up front, so a re-render (probe update, hover)
@@ -2234,7 +2236,7 @@ window.__ModuleLoader__.load({
 		 * @param {{reference: object, icon: string, fallback: string, epoch: number}} props icon sources.
 		 * @returns {object} React element.
 		 */
-		function Favicon({ reference, icon, fallback, epoch }) {
+		function Favicon({ reference, icon, fallback, epoch, onLoaded }) {
 			const primary = typeof icon === 'string' && icon !== '' && !FAILED_ICON_URLS.has(icon) ? icon : ''
 			const fallbackIcon = typeof fallback === 'string' && fallback !== '' ? fallback : hashIconFor(reference.host)
 			const chosen = primary !== '' ? primary : fallbackIcon
@@ -2252,6 +2254,9 @@ window.__ModuleLoader__.load({
 				alt: '',
 				style: S.favicon,
 				referrerPolicy: 'no-referrer',
+				onLoad: () => {
+					if (typeof onLoaded === 'function') onLoaded(chosen)
+				},
 				onError: () => {
 					if (primary !== '') FAILED_ICON_URLS.add(primary)
 					setFailed(true)
@@ -2402,6 +2407,9 @@ window.__ModuleLoader__.load({
 								icon: Array.isArray(iconSources) ? iconSources[0] || icon : icon,
 								fallback: Array.isArray(iconSources) ? iconSources[1] : '',
 								epoch: iconEpoch,
+								onLoaded: (chosen) => {
+									if (typeof chosen === 'string' && chosen !== '') ICON_CHOICE.set(reference.key, chosen)
+								},
 							}),
 					h(
 						'div',
@@ -3349,6 +3357,12 @@ window.__ModuleLoader__.load({
 							title: customTitles[reference.key] || titleOf(reference, probes),
 							iconSources: (() => {
 								const hash = hashIconFor(reference.host)
+								const remembered = ICON_CHOICE.get(reference.key)
+								if (remembered !== undefined) {
+									const upgraded = iconData[remembered]
+									if (upgraded !== undefined) return [upgraded, hash]
+									if (remembered.indexOf('data:') === 0 || !FAILED_ICON_URLS.has(remembered)) return [remembered, hash]
+								}
 								const domain = rootDomain(reference.host)
 								const probeIcon = (probes[reference.url] && probes[reference.url].icon) || ''
 								const domainIcon = hostIcons[domain] || ''
@@ -3848,7 +3862,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.57.6'
+		const BUILD = 'v0.57.7'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
