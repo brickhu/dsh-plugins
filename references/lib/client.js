@@ -3648,6 +3648,7 @@ window.__ModuleLoader__.load({
 					const items = isRowHidden(menuRow)
 						? [h(MenuItem, { key: 'restore', label: '恢复这个链接', onSelect: closeThen(restoreReference) })]
 						: [
+								h(MenuItem, { key: 'copy-link', label: '复制链接', onSelect: closeThen(copyReference) }),
 								h(MenuItem, {
 									key: 'pin',
 									label: pinned.has(menuRow.url) ? '取消固定' : '固定到顶部',
@@ -3880,7 +3881,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.59.3'
+		const BUILD = 'v0.59.4'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
