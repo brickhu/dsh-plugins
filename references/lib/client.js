@@ -2970,9 +2970,10 @@ window.__ModuleLoader__.load({
 					if (autoRefreshRef.current.timer !== null) clearTimeout(autoRefreshRef.current.timer)
 					autoRefreshRef.current.timer = setTimeout(() => {
 						autoRefreshRef.current.timer = null
-						if (Date.now() - autoRefreshRef.current.at < 5000) return
+						if (Date.now() - autoRefreshRef.current.at < 1500) return
 						autoRefreshRef.current.at = Date.now()
-						const batch = candidates.slice(0, 8).map((reference) => reference.url)
+						// Exactly one URL per pass: one request in flight, one spinner at a time.
+						const batch = candidates.slice(0, 1).map((reference) => reference.url)
 						for (const url of batch) attempted.urls.add(url)
 						setAutoProbing((current) => {
 							const next = new Set(current)
@@ -3836,7 +3837,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.56.1'
+		const BUILD = 'v0.56.2'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
