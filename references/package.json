@@ -1,0 +1,51 @@
+{
+  "name": "dsh-links-panel",
+  "version": "0.53.6",
+  "description": "Reference links panel for DeepSeek Harness: collects every URL of a conversation into the right sidebar with pins, turn counts, metadata and favicon caching. DSH 右栏「应用链接」面板。",
+  "license": "MIT",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/client.js",
+    "cordis.patch.yml",
+    "README.md",
+    "locale/*.json",
+    "icon.svg",
+    "LICENSE"
+  ],
+  "engines": {
+    "dsh": "0.2.1-rc.3"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
+      ]
+    }
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "links",
+    "references",
+    "sidebar"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}
