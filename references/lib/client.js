@@ -1009,40 +1009,47 @@ window.__ModuleLoader__.load({
 			return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 		}
 
-		/** Global favicon byte cache: icon URL → data URL, so no remote re-fetch per open. */
-		const ICON_DATA_KEY = 'dsh-links.icondata.v1'
-		const ICON_DATA_LIMIT = 400
+		/**
+		 * Favicon bytes cache, keyed by host first and by registrable domain second:
+		 * `hosts["developers.openai.com"]` wins over `domains["openai.com"]`, and the hash
+		 * identicon is the final fallback.
+		 */
+		const ICON_CACHE_KEY = 'dsh-links.hosticons.v2'
+		const ICON_CACHE_LIMIT = 600
 		const ICON_ROUTE = '/dsh-links/icon'
 
-		/** @returns {Record<string, string>} cached data URLs by icon URL. */
-		function loadIconData() {
+		/** @returns {{hosts: Record<string, string>, domains: Record<string, string>}} cached icon bytes. */
+		function loadIconCache() {
 			const store = ignoreStore()
-			if (!store) return {}
+			if (!store) return { hosts: {}, domains: {} }
 			try {
-				const raw = store.getItem(ICON_DATA_KEY)
+				const raw = store.getItem(ICON_CACHE_KEY)
 				const parsed = raw ? JSON.parse(raw) : null
-				if (!parsed || typeof parsed !== 'object') return {}
-				const result = {}
-				for (const [key, value] of Object.entries(parsed)) {
-					if (typeof key === 'string' && typeof value === 'string' && value.indexOf('data:') === 0) result[key] = value
+				const pick = (source) => {
+					const result = {}
+					if (!source || typeof source !== 'object') return result
+					for (const [key, value] of Object.entries(source)) {
+						if (typeof key === 'string' && typeof value === 'string' && value.indexOf('data:') === 0) result[key] = value
+					}
+					return result
 				}
-				return result
+				return { hosts: pick(parsed && parsed.hosts), domains: pick(parsed && parsed.domains) }
 			} catch (error) {
-				return {}
+				return { hosts: {}, domains: {} }
 			}
 		}
 
 		/**
-		 * Persist the favicon byte cache.
-		 * @param {Record<string, string>} data - data URLs by icon URL.
+		 * Persist the favicon bytes cache.
+		 * @param {{hosts: Record<string, string>, domains: Record<string, string>}} cache - cache state.
 		 * @returns {void}
 		 */
-		function saveIconData(data) {
+		function saveIconCache(cache) {
 			const store = ignoreStore()
 			if (!store) return
 			try {
-				const entries = Object.entries(data).slice(-ICON_DATA_LIMIT)
-				store.setItem(ICON_DATA_KEY, JSON.stringify(Object.fromEntries(entries)))
+				const trim = (source) => Object.fromEntries(Object.entries(source || {}).slice(-ICON_CACHE_LIMIT))
+				store.setItem(ICON_CACHE_KEY, JSON.stringify({ hosts: trim(cache.hosts), domains: trim(cache.domains) }))
 			} catch (error) {
 				/* quota: icons stay in memory for this mount */
 			}
@@ -2400,9 +2407,6 @@ window.__ModuleLoader__.load({
 								icon: Array.isArray(iconSources) ? iconSources[0] || icon : icon,
 								fallback: Array.isArray(iconSources) ? iconSources[1] : '',
 								epoch: iconEpoch,
-								onLoaded: (chosen) => {
-									if (typeof chosen === 'string' && chosen !== '') ICON_CHOICE.set(reference.key, chosen)
-								},
 							}),
 					h(
 						'div',
@@ -2533,7 +2537,7 @@ window.__ModuleLoader__.load({
 				)
 				const [pinned, setPinned] = React.useState(() => loadPins())
 				const [hostIcons, setHostIcons] = React.useState(() => loadHostIcons())
-				const [iconData, setIconData] = React.useState(() => loadIconData())
+				const [iconCache, setIconCache] = React.useState(() => loadIconCache())
 				const [customTitles, setCustomTitles] = React.useState(() => loadCustomTitles())
 				const [titleEditor, setTitleEditor] = React.useState(null)
 				const titleEditorInputRef = React.useRef(null)
@@ -2685,7 +2689,7 @@ window.__ModuleLoader__.load({
 					if (iconSaveRef.current !== null) clearTimeout(iconSaveRef.current)
 					iconSaveRef.current = setTimeout(() => {
 						iconSaveRef.current = null
-						saveIconData(iconData)
+						saveIconCache(iconCache)
 					}, 600)
 					return () => {
 						if (iconSaveRef.current !== null) {
@@ -2693,56 +2697,71 @@ window.__ModuleLoader__.load({
 							iconSaveRef.current = null
 						}
 					}
-				}, [iconData])
+				}, [iconCache])
 
 				// Fetch missing favicons one at a time through the Host proxy, then cache bytes.
 				const iconQueueRef = React.useRef(new Set())
-				const iconBudgetRef = React.useRef(12)
+				const iconFailedRef = React.useRef(new Set())
 				React.useEffect(() => {
 					if (typeof fetch !== 'function') return undefined
 					let cancelled = false
-					const missing = []
+					const targets = []
 					for (const reference of all) {
+						const host = reference.host.replace(/^www\./, '')
 						const domain = rootDomain(reference.host)
-						const probeIcon = (probes[reference.url] && probes[reference.url].icon) || ''
-						const domainIcon = hostIcons[domain] || ''
-						for (const iconUrl of [probeIcon, domainIcon]) {
-							if (iconUrl === '' || iconData[iconUrl] !== undefined || iconQueueRef.current.has(iconUrl)) continue
-							iconQueueRef.current.add(iconUrl)
-							missing.push(iconUrl)
-						}
-						if (missing.length >= 6 || iconBudgetRef.current <= 0) break
+						if (iconCache.hosts[host] !== undefined || iconCache.domains[domain] !== undefined) continue
+						if (iconFailedRef.current.has(host) || iconQueueRef.current.has(host)) continue
+						iconQueueRef.current.add(host)
+						targets.push({ host, domain })
+						if (targets.length >= 6) break
 					}
-					if (missing.length === 0) return undefined
+					if (targets.length === 0) return undefined
+					const fetchIcon = async (iconUrl) => {
+						try {
+							const target = new URL(ICON_ROUTE, typeof document !== 'undefined' && document.baseURI ? document.baseURI : 'http://127.0.0.1/')
+							target.searchParams.set('url', iconUrl)
+							const response = await fetch(target)
+							if (!response || !response.ok) return ''
+							const payload = await response.json()
+							return payload && typeof payload.dataUrl === 'string' && payload.dataUrl.indexOf('data:') === 0
+								? payload.dataUrl
+								: ''
+						} catch (error) {
+							return ''
+						}
+					}
 					const run = async () => {
-						for (const iconUrl of missing) {
-							if (cancelled || iconBudgetRef.current <= 0) return
-							iconBudgetRef.current -= 1
-							if (FAILED_ICON_URLS.has(iconUrl)) continue
-							try {
-								const target = new URL(ICON_ROUTE, typeof document !== 'undefined' && document.baseURI ? document.baseURI : 'http://127.0.0.1/')
-								target.searchParams.set('url', iconUrl)
-								const response = await fetch(target)
-								if (response && response.ok) {
-									const payload = await response.json()
-									if (payload && typeof payload.dataUrl === 'string' && payload.dataUrl.indexOf('data:') === 0) {
-										const value = payload.dataUrl
-										setIconData((current) => (current[iconUrl] ? current : { ...current, [iconUrl]: value }))
-										continue
-									}
+						for (const item of targets) {
+							if (cancelled) return
+							let dataUrl = await fetchIcon(`https://${item.host}/favicon.ico`)
+							if (dataUrl === '' && item.domain !== item.host) {
+								dataUrl = await fetchIcon(`https://${item.domain}/favicon.ico`)
+								if (dataUrl !== '') {
+									setIconCache((current) =>
+										current.domains[item.domain]
+											? current
+											: { ...current, domains: { ...current.domains, [item.domain]: dataUrl } },
+									)
+									continue
 								}
-								FAILED_ICON_URLS.add(iconUrl)
-							} catch (error) {
-								FAILED_ICON_URLS.add(iconUrl)
 							}
-							await new Promise((resolve) => setTimeout(resolve, 450))
+							if (dataUrl !== '') {
+								setIconCache((current) =>
+									current.hosts[item.host]
+										? current
+										: { ...current, hosts: { ...current.hosts, [item.host]: dataUrl } },
+								)
+								continue
+							}
+							iconFailedRef.current.add(item.host)
+							await new Promise((resolve) => setTimeout(resolve, 300))
 						}
 					}
 					run()
 					return () => {
 						cancelled = true
 					}
-				}, [all, probes, hostIcons, iconData])
+				}, [all, iconCache])
 
 				// Persist the collected list (debounced) so the next open starts from it.
 				const linksSaveRef = React.useRef(null)
@@ -2980,10 +2999,9 @@ window.__ModuleLoader__.load({
 						// the URL probe cache lacks it: a real title plus any local icon source
 						// means nothing has to be fetched.
 						const hasTitle = titleOf(reference, probes) !== reference.url
+						const host = reference.host.replace(/^www\./, '')
 						const domain = rootDomain(reference.host)
-						const probeIcon = (probe && probe.icon) || ''
-						const iconUrl = probeIcon || hostIcons[domain] || ''
-						const hasIcon = iconUrl !== '' && (iconData[iconUrl] !== undefined || probeIcon !== '')
+						const hasIcon = iconCache.hosts[host] !== undefined || iconCache.domains[domain] !== undefined
 						return !(hasTitle && hasIcon)
 					})
 					if (candidates.length === 0) {
@@ -3022,7 +3040,7 @@ window.__ModuleLoader__.load({
 							autoRefreshRef.current.timer = null
 						}
 					}
-				}, [visible, probes, hostIcons, iconData, historyDone, panelVisible, sessionEpoch, runProbePass])
+				}, [visible, probes, iconCache, historyDone, panelVisible, sessionEpoch, runProbePass])
 
 				const openReference = React.useCallback((reference, event) => {
 					const external = !!(event && (event.metaKey || event.ctrlKey || event.altKey))
@@ -3124,8 +3142,17 @@ window.__ModuleLoader__.load({
 				const refreshReference = React.useCallback(
 					async (reference) => {
 						const url = reference.url
-						ICON_CHOICE.delete(reference.key)
-						for (const iconUrl of Array.from(FAILED_ICON_URLS)) FAILED_ICON_URLS.delete(iconUrl)
+						const refreshHost = reference.host.replace(/^www\./, '')
+						const refreshDomain = rootDomain(reference.host)
+						iconFailedRef.current.delete(refreshHost)
+						setIconCache((current) => {
+							if (current.hosts[refreshHost] === undefined && current.domains[refreshDomain] === undefined) return current
+							const hosts = { ...current.hosts }
+							const domains = { ...current.domains }
+							delete hosts[refreshHost]
+							delete domains[refreshDomain]
+							return { hosts, domains }
+						})
 						setRefreshingUrls((current) => {
 							if (current.has(url)) return current
 							const next = new Set(current)
@@ -3352,29 +3379,10 @@ window.__ModuleLoader__.load({
 							title: customTitles[reference.key] || titleOf(reference, probes),
 							iconSources: (() => {
 								const hash = hashIconFor(reference.host)
-								const remembered = ICON_CHOICE.get(reference.key)
-								if (remembered !== undefined) {
-									const upgraded = iconData[remembered]
-									if (upgraded !== undefined) return [upgraded, hash]
-									if (remembered.indexOf('data:') === 0 || !FAILED_ICON_URLS.has(remembered)) return [remembered, hash]
-								}
+								const host = reference.host.replace(/^www\./, '')
 								const domain = rootDomain(reference.host)
-								const probeIcon = (probes[reference.url] && probes[reference.url].icon) || ''
-								const domainIcon = hostIcons[domain] || ''
-								// Locally cached bytes win; otherwise the site's own favicon URL is
-								// rendered once (the browser reaches it through the system proxy), and
-								// only a failed load settles on the deterministic hash icon.
-								for (const iconUrl of [probeIcon, domainIcon]) {
-									if (iconUrl !== '' && iconData[iconUrl]) return [iconData[iconUrl], hash]
-								}
-								for (const iconUrl of [probeIcon, domainIcon]) {
-									if (iconUrl !== '' && !FAILED_ICON_URLS.has(iconUrl)) return [iconUrl, hash]
-								}
-								// Last remote resort: the registrable domain's own favicon (e.g. an
-								// uncompiled docs subdomain still shows openai.com's icon).
-								const apexIcon = `https://${domain}/favicon.ico`
-								if (domain !== '' && !FAILED_ICON_URLS.has(apexIcon)) return [apexIcon, hash]
-								return [hash, hash]
+								const cached = iconCache.hosts[host] || iconCache.domains[domain] || ''
+								return [cached !== '' ? cached : hash, hash]
 							})(),
 							iconEpoch: metaEpoch,
 							onOpen: openReference,
@@ -3857,7 +3865,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.57.8'
+		const BUILD = 'v0.58.0'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
