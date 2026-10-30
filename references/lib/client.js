@@ -2955,7 +2955,15 @@ window.__ModuleLoader__.load({
 						const probe = probes[reference.url]
 						// Cached locally (both title and favicon) → never fetch it again.
 						if (probe && probe.title && probe.icon) return false
-						return true
+						// The row may render fine from the per-conversation rows cache even when
+						// the URL probe cache lacks it: a real title plus any local icon source
+						// means nothing has to be fetched.
+						const hasTitle = titleOf(reference, probes) !== reference.url
+						const domain = rootDomain(reference.host)
+						const probeIcon = (probe && probe.icon) || ''
+						const iconUrl = probeIcon || hostIcons[domain] || ''
+						const hasIcon = iconUrl !== '' && (iconData[iconUrl] !== undefined || probeIcon !== '')
+						return !(hasTitle && hasIcon)
 					})
 					if (candidates.length === 0) {
 						if (autoTotal !== 0) {
@@ -2993,7 +3001,7 @@ window.__ModuleLoader__.load({
 							autoRefreshRef.current.timer = null
 						}
 					}
-				}, [visible, probes, historyDone, panelVisible, sessionEpoch, runProbePass])
+				}, [visible, probes, hostIcons, iconData, historyDone, panelVisible, sessionEpoch, runProbePass])
 
 				const openReference = React.useCallback((reference, event) => {
 					const external = !!(event && (event.metaKey || event.ctrlKey || event.altKey))
@@ -3816,7 +3824,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.57.1'
+		const BUILD = 'v0.57.2'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
