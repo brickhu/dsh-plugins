@@ -2611,6 +2611,18 @@ window.__ModuleLoader__.load({
 					[ignored, blockedHosts],
 				)
 				const [pinned, setPinned] = React.useState(() => loadPins())
+				const pinnedRef = React.useRef(pinned)
+				pinnedRef.current = pinned
+				// Pins are global and must survive every reload/restart.
+				React.useEffect(() => {
+					savePins(pinned)
+				}, [pinned])
+				React.useEffect(
+					() => () => {
+						savePins(pinnedRef.current)
+					},
+					[],
+				)
 				const [hostsTable, setHostsTable] = React.useState(() => loadHostsTable())
 
 				const [customTitles, setCustomTitles] = React.useState(() => loadCustomTitles())
@@ -3830,7 +3842,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.60.3'
+		const BUILD = 'v0.60.4'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
