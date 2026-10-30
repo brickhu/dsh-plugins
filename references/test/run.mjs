@@ -498,10 +498,12 @@ const titles = {
 	'https://fixtures.dev/a': { title: '官方文档', icon: '', dead: false, ok: true },
 	'https://youtu.be/x': { title: '视频', icon: '', dead: false, ok: true },
 }
-// The title is the page's <title>, never a captured conversation label.
-assert.equal(titleOf(row({ title: '官方文档' })), 'https://fixtures.dev/a')
-assert.equal(titleOf(row({ title: '视频' })), 'https://fixtures.dev/a')
-assert.equal(titleOf(row({}), titles), '官方文档')
+// Titles come from the conversation (Markdown link text / tool result titles).
+assert.equal(titleOf(row({ title: '官方文档', titleFromPath: false })), '官方文档')
+assert.equal(titleOf(row({ title: '视频', titleFromPath: false })), '视频')
+// Path-derived placeholders are not titles: the URL is shown instead.
+assert.equal(titleOf(row({ title: '官方文档', titleFromPath: true })), 'https://fixtures.dev/a')
+assert.equal(titleOf(row({})), 'https://fixtures.dev/a')
 
 const markdown = markdownOf([
 	row({ count: 3 }),
@@ -511,18 +513,18 @@ const markdown = markdownOf([
 assert.equal(
 	markdown,
 	[
-		'- [官方文档](<https://fixtures.dev/a>)（3 轮）',
+		'- [https://fixtures.dev/a](<https://fixtures.dev/a>)（3 轮）',
 		'- [https://github.com/o/r](<https://github.com/o/r>)',
-		'- [视频](<https://youtu.be/x>)',
+		'- [https://youtu.be/x](<https://youtu.be/x>)',
 	].join('\n'),
 )
 assert.equal(markdownOf([]), '')
 // Labels that need escaping stay valid Markdown links.
-const probeFor = (url, title) => ({ [url]: { title, icon: '', dead: false, ok: true } })
-assert.ok(markdownOf([row({})], probeFor('https://fixtures.dev/a', '[草稿] 文档')).includes('- [\\[草稿\\] 文档](<https://fixtures.dev/a>)'))
-assert.ok(markdownOf([row({})], probeFor('https://fixtures.dev/a', 'Record<string, T>')).includes('- [Record\\<string, T\\>](<https://fixtures.dev/a>)'))
+const labelled = (title) => [row({ title, titleFromPath: false })]
+assert.ok(markdownOf(labelled('[草稿] 文档')).includes('- [\\[草稿\\] 文档](<https://fixtures.dev/a>)'))
+assert.ok(markdownOf(labelled('Record<string, T>')).includes('- [Record\\<string, T\\>](<https://fixtures.dev/a>)'))
 const backslashTitle = 'C:\\Users\\Docs'
-assert.ok(markdownOf([row({})], probeFor('https://fixtures.dev/a', backslashTitle)).includes(`- [${escapeLabel(backslashTitle)}](<https://fixtures.dev/a>)`))
+assert.ok(markdownOf(labelled(backslashTitle)).includes(`- [${escapeLabel(backslashTitle)}](<https://fixtures.dev/a>)`))
 // A URL with an unbalanced parenthesis stays a valid destination in angle brackets.
 assert.ok(markdownOf([row({ url: 'https://x.com/s?q=(a' })]).includes('(<https://x.com/s?q=(a>)'))
 

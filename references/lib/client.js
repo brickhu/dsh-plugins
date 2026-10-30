@@ -904,11 +904,8 @@ window.__ModuleLoader__.load({
 			// invisible characters, which rendered as a blank row.
 			const visible = (text) => String(text).replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff]/g, '').trim()
 			const usable = (value) => typeof value === 'string' && visible(value) !== ''
-			const probe = probes ? probes[reference.url] : undefined
-			if (usable(probe)) return visible(probe)
-			if (probe && typeof probe === 'object' && usable(probe.title)) return visible(probe.title)
-			// The conversation itself often carries a human title (Markdown link text,
-			// generated reference lists). Use it instead of showing the bare URL.
+			// The conversation carries the title (Markdown link text, or the title list a
+			// web tool returned). No remote metadata fetch is involved.
 			if (reference && usable(reference.title) && reference.titleFromPath === false) {
 				return visible(reference.title)
 			}
@@ -2708,12 +2705,6 @@ window.__ModuleLoader__.load({
 				React.useEffect(() => {
 					if (typeof fetch !== 'function') return undefined
 					let cancelled = false
-					const iconUrlForHost = new Map()
-					for (const reference of all) {
-						const host = reference.host.replace(/^www\./, '')
-						const declared = (probes[reference.url] && probes[reference.url].icon) || ''
-						if (declared !== '' && !iconUrlForHost.has(host)) iconUrlForHost.set(host, declared)
-					}
 					const targets = []
 					for (const reference of all) {
 						const host = reference.host.replace(/^www\./, '')
@@ -2722,7 +2713,7 @@ window.__ModuleLoader__.load({
 						const failedAt = iconFailedRef.current.get(host)
 						if ((failedAt !== undefined && Date.now() - failedAt < 60000) || iconQueueRef.current.has(host)) continue
 						iconQueueRef.current.add(host)
-						targets.push({ host, domain, declared: iconUrlForHost.get(host) || '' })
+						targets.push({ host, domain })
 						if (targets.length >= 6) break
 					}
 					if (targets.length === 0) return undefined
@@ -2745,7 +2736,7 @@ window.__ModuleLoader__.load({
 							if (cancelled) return
 							// Prefer the icon URL the page itself declares (probed earlier): many
 							// sites answer 404 on /favicon.ico while their real icon lives elsewhere.
-							const hostCandidates = [item.declared, `https://${item.host}/favicon.ico`].filter((value) => value !== '')
+							const hostCandidates = [`https://${item.host}/favicon.ico`]
 							let cachedIn = ''
 							let dataUrl = ''
 							for (const candidate of hostCandidates) {
@@ -2756,10 +2747,7 @@ window.__ModuleLoader__.load({
 							if (dataUrl !== '') {
 								cachedIn = 'hosts'
 							} else if (item.domain !== item.host) {
-								const domainCandidates = [
-									iconUrlForHost.get(item.domain) || '',
-									`https://${item.domain}/favicon.ico`,
-								].filter((value) => value !== '')
+								const domainCandidates = [`https://${item.domain}/favicon.ico`]
 								for (const candidate of domainCandidates) {
 									if (cancelled) return
 									dataUrl = await fetchIcon(candidate)
@@ -2782,7 +2770,7 @@ window.__ModuleLoader__.load({
 					return () => {
 						cancelled = true
 					}
-				}, [all, probes, hostsTable])
+				}, [all, hostsTable])
 
 				// Persist the collected list (debounced) so the next open starts from it.
 				const linksSaveRef = React.useRef(null)
@@ -2965,24 +2953,10 @@ window.__ModuleLoader__.load({
 					return () => clearTimeout(timer)
 				}, [showSplash])
 
-				// One pass when the tab first opens; the splash stays until it ends, then the
-				// search box and the list appear.
-				const autoRanRef = React.useRef(false)
+				// Reveal the list as soon as the conversation history is loaded.
 				React.useEffect(() => {
-					if (autoRanRef.current || !historyDone) return undefined
-					autoRanRef.current = true
-					let settled = false
-					const finish = () => {
-						if (settled) return
-						settled = true
-						setSplashDone(true)
-					}
-					// Never let the splash linger: a linear pass over blocked hosts can take
-					// minutes, so reveal the list long before the pass finishes.
-					const timeout = setTimeout(finish, 5000)
-					runProbePass({ limit: 8, refreshCache: false }).then(finish, finish)
-					return () => clearTimeout(timeout)
-				}, [showSplash, hasCachedRows, runProbePass])
+					if (historyDone) setSplashDone(true)
+				}, [historyDone])
 
 				// Only refresh metadata while the panel is actually on screen.
 				React.useEffect(() => {
@@ -2998,70 +2972,6 @@ window.__ModuleLoader__.load({
 					observer.observe(node)
 					return () => observer.disconnect()
 				}, [])
-
-				// Auto-refresh missing / stale metadata for on-screen rows in small batches.
-				// Each URL carries a status (`probing`, fresh `ok`, retryable `failed`, `stale`),
-				// so a pass only touches what actually needs it, and switching conversations
-				// restarts the process for the newly bound session.
-				const autoRefreshAttemptedRef = React.useRef({ epoch: -1, urls: new Set() })
-				React.useEffect(() => {
-					if (!historyDone || !panelVisible || !splashDone) return undefined
-					const attempted = autoRefreshAttemptedRef.current
-					if (attempted.epoch !== sessionEpoch) {
-						attempted.epoch = sessionEpoch
-						attempted.urls = new Set()
-					}
-					const candidates = visible.filter((reference) => {
-						if (attempted.urls.has(reference.url)) return false
-						const probe = probes[reference.url]
-						// Cached locally (both title and favicon) → never fetch it again.
-						if (probe && probe.title && probe.icon) return false
-						// The row may render fine from the per-conversation rows cache even when
-						// the URL probe cache lacks it: a real title plus any local icon source
-						// means nothing has to be fetched.
-						const hasTitle = titleOf(reference, probes) !== reference.url
-						const host = reference.host.replace(/^www\./, '')
-						const domain = rootDomain(reference.host)
-						const hasIcon = hostsTable[host] !== undefined || hostsTable[domain] !== undefined
-						return !(hasTitle && hasIcon)
-					})
-					if (candidates.length === 0) {
-						if (autoTotal !== 0) {
-							setAutoTotal(0)
-							setAutoDone(0)
-						}
-						return undefined
-					}
-					if (autoRefreshRef.current.timer !== null) clearTimeout(autoRefreshRef.current.timer)
-					autoRefreshRef.current.timer = setTimeout(() => {
-						autoRefreshRef.current.timer = null
-						if (Date.now() - autoRefreshRef.current.at < 1500) return
-						autoRefreshRef.current.at = Date.now()
-						// Exactly one URL per pass: one request in flight, one spinner at a time.
-						const batch = candidates.slice(0, 1).map((reference) => reference.url)
-						for (const url of batch) attempted.urls.add(url)
-						setAutoTotal((total) => (total > 0 ? total : candidates.length + attempted.urls.size - 1))
-						setAutoDone(attempted.urls.size)
-						setAutoProbing((current) => {
-							const next = new Set(current)
-							for (const url of batch) next.add(url)
-							return next
-						})
-						Promise.resolve(runProbePass({ urls: batch, limit: batch.length, silent: true })).finally(() => {
-							setAutoProbing((current) => {
-								const next = new Set(current)
-								for (const url of batch) next.delete(url)
-								return next
-							})
-						})
-					}, 1500)
-					return () => {
-						if (autoRefreshRef.current.timer !== null) {
-							clearTimeout(autoRefreshRef.current.timer)
-							autoRefreshRef.current.timer = null
-						}
-					}
-				}, [visible, probes, hostsTable, historyDone, panelVisible, sessionEpoch, runProbePass])
 
 				const openReference = React.useCallback((reference, event) => {
 					const external = !!(event && (event.metaKey || event.ctrlKey || event.altKey))
@@ -3160,63 +3070,21 @@ window.__ModuleLoader__.load({
 					[showNotice],
 				)
 
+				// Refresh the row's favicon: evict its host/domain entry, then let the icon queue
+				// fetch it again. Titles come from the conversation, so nothing else is fetched.
 				const refreshReference = React.useCallback(
-					async (reference) => {
-						const url = reference.url
-						const refreshHost = reference.host.replace(/^www\./, '')
-						const refreshDomain = rootDomain(reference.host)
-						iconFailedRef.current.delete(refreshHost)
+					(reference) => {
+						const host = reference.host.replace(/^www\./, '')
+						const domain = rootDomain(reference.host)
+						iconFailedRef.current.delete(host)
+						iconQueueRef.current.delete(host)
 						setHostsTable((current) => {
-							if (current[refreshHost] === undefined && current[refreshDomain] === undefined) return current
+							if (current[host] === undefined && current[domain] === undefined) return current
 							const next = { ...current }
-							delete next[refreshHost]
-							delete next[refreshDomain]
+							delete next[host]
+							delete next[domain]
 							return next
 						})
-						setRefreshingUrls((current) => {
-							if (current.has(url)) return current
-							const next = new Set(current)
-							next.add(url)
-							return next
-						})
-						try {
-							const answer = await fetchProbes([url], true)
-							if (!answer || !answer.probes) {
-								setProbeError(answer && answer.error ? `探测请求失败：${answer.error}` : META_UNAVAILABLE_NOTICE)
-								return
-							}
-							setProbeError('')
-							if (answer.build) setHostBuild(answer.build)
-							const result = answer.probes
-							const now = Date.now()
-							setProbes((current) => {
-								const next = { ...current }
-								for (const [probedUrl, probe] of Object.entries(result)) {
-									const previous = next[probedUrl]
-									next[probedUrl] = {
-										title: probe.title || (previous && previous.title) || '',
-										icon: probe.icon || (previous && previous.icon) || '',
-										dead: probe.dead === true,
-										ok: probe.ok !== false,
-										reason: typeof probe.reason === 'string' ? probe.reason : '',
-										at: now,
-									}
-								}
-								return next
-							})
-							setMetaEpoch((epoch) => epoch + 1)
-							const refreshed = result[url]
-							if (!refreshed || !refreshed.title) {
-								showNotice(`${titleOf(reference)} 刷新失败：当前网络无法读取该站点（链接已保留）`)
-							}
-						} finally {
-							setRefreshingUrls((current) => {
-								if (!current.has(url)) return current
-								const next = new Set(current)
-								next.delete(url)
-								return next
-							})
-						}
 					},
 					[],
 				)
@@ -3277,23 +3145,16 @@ window.__ModuleLoader__.load({
 								}
 							}
 						}
-						// Rebuild the list from the full conversation, then re-read metadata.
+						// Rebuild the conversation list; drop cached favicons so they refresh.
 						setLinksCache({ rows: [], seq: 0, minSeq: 0, complete: false })
 						clearLinksCache(sessionId)
-						setProbes({})
-						setIconData({})
-						const updated = await runProbePass({ limit: 80, refreshCache: true, silent: true })
-						showNotice(
-							updated > 0
-								? `已重新扫描，更新了 ${updated} 条链接的标题/图标`
-								: '已重新扫描；这些站点当前网络无法读取（链接已保留）',
-						)
-					} catch (error) {
-						showNotice('重新扫描失败')
+						setHostsTable({})
+						iconFailedRef.current.clear()
+						iconQueueRef.current.clear()
 					} finally {
 						setRescanning(false)
 					}
-				}, [binding, rescanning, runProbePass, sessionId, showNotice])
+				}, [binding, rescanning, sessionId])
 
 				const loadOlder = React.useCallback(async () => {
 					const session = binding && binding.session
@@ -3886,7 +3747,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.59.6'
+		const BUILD = 'v0.60.0'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
