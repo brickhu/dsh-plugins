@@ -2889,7 +2889,13 @@ window.__ModuleLoader__.load({
 							if (cancelled) return
 							// Prefer the icon URL the page itself declares (probed earlier): many
 							// sites answer 404 on /favicon.ico while their real icon lives elsewhere.
-							const hostCandidates = [`https://${item.host}/favicon.ico`]
+							// Many sites answer 403/404 on /favicon.ico but expose an
+							// apple-touch-icon; try the common locations in order.
+							const hostCandidates = [
+								`https://${item.host}/favicon.ico`,
+								`https://${item.host}/apple-touch-icon.png`,
+								`https://${item.host}/favicon.svg`,
+							]
 							let cachedIn = ''
 							let dataUrl = ''
 							for (const candidate of hostCandidates) {
@@ -2900,7 +2906,11 @@ window.__ModuleLoader__.load({
 							if (dataUrl !== '') {
 								cachedIn = 'hosts'
 							} else if (item.domain !== item.host) {
-								const domainCandidates = [`https://${item.domain}/favicon.ico`]
+								const domainCandidates = [
+									`https://${item.domain}/favicon.ico`,
+									`https://${item.domain}/apple-touch-icon.png`,
+									`https://${item.domain}/favicon.svg`,
+								]
 								for (const candidate of domainCandidates) {
 									if (cancelled) return
 									dataUrl = await fetchIcon(candidate)
@@ -3749,7 +3759,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.69.4'
+		const BUILD = 'v0.69.5'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
