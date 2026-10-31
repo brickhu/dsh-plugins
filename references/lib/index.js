@@ -20,8 +20,24 @@ import { lookup } from 'node:dns/promises'
 
 export const inject = ['web', 'webServer']
 
+/** Serializes every outbound request this plugin makes: one at a time, always. */
+let outboundChain = Promise.resolve()
+/**
+ * Run one network task after all previously queued ones finished.
+ * @param {() => Promise<any>} task - work that touches the network.
+ * @returns {Promise<any>} the task result.
+ */
+function withOutboundLock(task) {
+	const run = outboundChain.then(task, task)
+	outboundChain = run.then(
+		() => undefined,
+		() => undefined,
+	)
+	return run
+}
+
 /** Host build stamp, echoed to the panel so a stale bundle is detectable. */
-export const BUILD = 'v0.72.0'
+export const BUILD = 'v0.72.1'
 /**
  * The desktop browser reaches the network through the system proxy; the Host's own
  * Node requests bypass it. Detect that proxy so probes can use the same route.
