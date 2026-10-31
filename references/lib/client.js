@@ -3132,13 +3132,10 @@ window.__ModuleLoader__.load({
 								}
 							}
 						}
-						// Rebuild the conversation list; drop cached favicons and the one-time
-						// title attempt log so titles are re-probed once more.
+						// Rebuild only this conversation's list. The global favicon cache stays:
+						// rescanning one conversation must not wipe icons collected elsewhere.
 						setLinksCache({ rows: [], seq: 0, minSeq: 0, complete: false })
 						clearLinksCache(sessionId)
-						setHostsTable({})
-						iconFailedRef.current.clear()
-						iconQueueRef.current.clear()
 
 					} finally {
 						setRescanning(false)
@@ -3752,7 +3749,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.69.3'
+		const BUILD = 'v0.69.4'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
