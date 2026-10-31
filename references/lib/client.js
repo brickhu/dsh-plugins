@@ -1119,64 +1119,6 @@ window.__ModuleLoader__.load({
 			return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 		}
 
-		/**
-		 * Hosts table: host → cached favicon bytes (data URL). Exact hosts and registrable
-		 * domains share one map: rendering looks up `hosts[host]` then `hosts[domain]`.
-		 */
-		const HOSTS_TABLE_KEY = 'dsh-links.hosts.v1'
-		const HOSTS_TABLE_LIMIT = 800
-		const ICON_ROUTE = '/dsh-links/icon'
-
-		/**
-		 * Load the hosts table, migrating the earlier split cache once.
-		 * @returns {Record<string, string>} icon data URL by host or domain.
-		 */
-		function loadHostsTable() {
-			const store = ignoreStore()
-			if (!store) return {}
-			const pick = (source) => {
-				const result = {}
-				if (!source || typeof source !== 'object') return result
-				for (const [key, value] of Object.entries(source)) {
-					if (typeof key === 'string' && typeof value === 'string' && value.indexOf('data:') === 0) result[key] = value
-				}
-				return result
-			}
-			try {
-				const raw = store.getItem(HOSTS_TABLE_KEY)
-				const parsed = raw ? JSON.parse(raw) : null
-				const current = pick(parsed)
-				if (Object.keys(current).length > 0) return current
-				// one-time migration from v0.58's { hosts, domains } shape
-				const legacyRaw = store.getItem('dsh-links.hosticons.v2')
-				if (!legacyRaw) return current
-				const legacy = JSON.parse(legacyRaw)
-				return { ...pick(legacy && legacy.domains), ...pick(legacy && legacy.hosts) }
-			} catch (error) {
-				return {}
-			}
-		}
-
-		/**
-		 * Persist the hosts table.
-		 * @param {Record<string, string>} table - icon data URL by host or domain.
-		 * @returns {void}
-		 */
-		function saveHostsTable(table) {
-			const store = ignoreStore()
-			if (!store) return
-			try {
-				const entries = Object.entries(table || {}).slice(-HOSTS_TABLE_LIMIT)
-				if (entries.length === 0) {
-					store.removeItem(HOSTS_TABLE_KEY)
-					return
-				}
-				store.setItem(HOSTS_TABLE_KEY, JSON.stringify(Object.fromEntries(entries)))
-			} catch (error) {
-				/* quota: icons stay in memory for this mount */
-			}
-		}
-
 		/** Per-session cache of already collected reference rows. */
 		const LINKS_CACHE_PREFIX = 'dsh-links.links.v3:'
 		const LINKS_CACHE_LIMIT = 1500
@@ -2431,35 +2373,18 @@ window.__ModuleLoader__.load({
 		 * @param {{reference: object}} props - the row.
 		 * @returns {object} React element.
 		 */
-		/** Icon URLs that already failed to load in this page; never retried. */
-		const FAILED_ICON_URLS = new Set()
-		/** First icon that loaded for a row key, reused so re-renders never swap the image. */
-		const ICON_CHOICE = new Map()
-
 		/**
-		 * The row icon. One source is chosen up front, so a re-render (probe update, hover)
-		 * never swaps the image and makes it flash; a failed load settles on the hash icon.
-		 * @param {{reference: object, icon: string, fallback: string, epoch: number}} props icon sources.
+		 * The row icon: the deterministic hash mark for the host, rendered as a data URL.
+		 * No remote favicon request is made for any row.
+		 * @param {{reference: object}} props - row reference.
 		 * @returns {object} React element.
 		 */
-		function Favicon({ reference, icon, fallback, epoch, onLoaded }) {
-			const primary = typeof icon === 'string' && icon !== '' && !FAILED_ICON_URLS.has(icon) ? icon : ''
-			const fallbackIcon = typeof fallback === 'string' && fallback !== '' ? fallback : hashIconFor(reference.host)
-			const chosen = primary !== '' ? primary : fallbackIcon
-			const [failed, setFailed] = React.useState(false)
-			const src = !failed ? chosen : fallbackIcon
+		function Favicon({ reference }) {
 			return h('img', {
-				src,
+				src: hashIconFor(reference.host),
 				alt: '',
 				style: S.favicon,
 				referrerPolicy: 'no-referrer',
-				onLoad: () => {
-					if (typeof onLoaded === 'function') onLoaded(chosen)
-				},
-				onError: () => {
-					if (primary !== '') FAILED_ICON_URLS.add(primary)
-					setFailed(true)
-				},
 			})
 		}
 
@@ -2748,7 +2673,6 @@ window.__ModuleLoader__.load({
 					},
 					[],
 				)
-				const [hostsTable, setHostsTable] = React.useState(() => loadHostsTable())
 
 				const [customTitles, setCustomTitles] = React.useState(() => loadCustomTitles())
 				const [titleEditor, setTitleEditor] = React.useState(null)
@@ -2827,114 +2751,6 @@ window.__ModuleLoader__.load({
 
 				// Persist the favicon cache (debounced) and flush it when the panel unmounts, so
 				// switching conversations never loses icons that were just fetched.
-				const hostsTableRef = React.useRef(hostsTable)
-				hostsTableRef.current = hostsTable
-				React.useEffect(
-					() => () => {
-						saveHostsTable(hostsTableRef.current)
-					},
-					[],
-				)
-				const iconSaveRef = React.useRef(null)
-				React.useEffect(() => {
-					if (iconSaveRef.current !== null) clearTimeout(iconSaveRef.current)
-					iconSaveRef.current = setTimeout(() => {
-						iconSaveRef.current = null
-						saveHostsTable(hostsTable)
-					}, 250)
-					return () => {
-						if (iconSaveRef.current !== null) {
-							clearTimeout(iconSaveRef.current)
-							iconSaveRef.current = null
-						}
-					}
-				}, [hostsTable])
-
-				// Fetch missing favicons one at a time through the Host proxy, then cache bytes.
-				const iconQueueRef = React.useRef(new Set())
-				// host → timestamp of the last failed attempt; retried after a minute so a
-				// restarted Host (which can now reach the network) recovers by itself.
-				const iconFailedRef = React.useRef(new Map())
-				React.useEffect(() => {
-					if (typeof fetch !== 'function') return undefined
-					let cancelled = false
-					const targets = []
-					for (const reference of all) {
-						const host = reference.host.replace(/^www\./, '')
-						const domain = rootDomain(reference.host)
-						if (hostsTable[host] !== undefined || hostsTable[domain] !== undefined) continue
-						const failedAt = iconFailedRef.current.get(host)
-						if ((failedAt !== undefined && Date.now() - failedAt < 60000) || iconQueueRef.current.has(host)) continue
-						iconQueueRef.current.add(host)
-						targets.push({ host, domain })
-						if (targets.length >= 6) break
-					}
-					if (targets.length === 0) return undefined
-					const fetchIcon = async (iconUrl) => {
-						try {
-							const target = new URL(ICON_ROUTE, typeof document !== 'undefined' && document.baseURI ? document.baseURI : 'http://127.0.0.1/')
-							target.searchParams.set('url', iconUrl)
-							const response = await fetch(target)
-							if (!response || !response.ok) return ''
-							const payload = await response.json()
-							return payload && typeof payload.dataUrl === 'string' && payload.dataUrl.indexOf('data:') === 0
-								? payload.dataUrl
-								: ''
-						} catch (error) {
-							return ''
-						}
-					}
-					const run = async () => {
-						for (const item of targets) {
-							if (cancelled) return
-							// Prefer the icon URL the page itself declares (probed earlier): many
-							// sites answer 404 on /favicon.ico while their real icon lives elsewhere.
-							// Many sites answer 403/404 on /favicon.ico but expose an
-							// apple-touch-icon; try the common locations in order.
-							const hostCandidates = [
-								`https://${item.host}/favicon.ico`,
-								`https://${item.host}/apple-touch-icon.png`,
-								`https://${item.host}/favicon.svg`,
-							]
-							let cachedIn = ''
-							let dataUrl = ''
-							for (const candidate of hostCandidates) {
-								if (cancelled) return
-								dataUrl = await fetchIcon(candidate)
-								if (dataUrl !== '') break
-							}
-							if (dataUrl !== '') {
-								cachedIn = 'hosts'
-							} else if (item.domain !== item.host) {
-								const domainCandidates = [
-									`https://${item.domain}/favicon.ico`,
-									`https://${item.domain}/apple-touch-icon.png`,
-									`https://${item.domain}/favicon.svg`,
-								]
-								for (const candidate of domainCandidates) {
-									if (cancelled) return
-									dataUrl = await fetchIcon(candidate)
-									if (dataUrl !== '') break
-								}
-								if (dataUrl !== '') cachedIn = 'domains'
-							}
-							const cacheKey = cachedIn === 'hosts' ? item.host : cachedIn === 'domains' ? item.domain : ''
-							if (cacheKey !== '') {
-								setHostsTable((current) =>
-									current[cacheKey] ? current : { ...current, [cacheKey]: dataUrl },
-								)
-							} else {
-								iconFailedRef.current.set(item.host, Date.now())
-								await new Promise((resolve) => setTimeout(resolve, 300))
-							}
-						}
-					}
-					run()
-					return () => {
-						cancelled = true
-					}
-				}, [all, hostsTable])
-
 				// Persist the collected list (debounced) so the next open starts from it.
 				const linksSaveRef = React.useRef(null)
 				React.useEffect(() => {
@@ -3065,25 +2881,6 @@ window.__ModuleLoader__.load({
 						}
 					},
 					[tab],
-				)
-
-				// Refresh the row's favicon: evict its host/domain entry, then let the icon queue
-				// fetch it again. Titles come from the conversation, so nothing else is fetched.
-				const refreshReference = React.useCallback(
-					(reference) => {
-						const host = reference.host.replace(/^www\./, '')
-						const domain = rootDomain(reference.host)
-						iconFailedRef.current.delete(host)
-						iconQueueRef.current.delete(host)
-						setHostsTable((current) => {
-							if (current[host] === undefined && current[domain] === undefined) return current
-							const next = { ...current }
-							delete next[host]
-							delete next[domain]
-							return next
-						})
-					},
-					[],
 				)
 
 				const copyList = React.useCallback(() => {
@@ -3273,13 +3070,8 @@ window.__ModuleLoader__.load({
 							ignored: hidden === true,
 							title: customTitles[reference.key] || titleOf(reference, {}),
 							fresh: freshKeys.has(reference.key),
-							iconSources: (() => {
-								const hash = hashIconFor(reference.host)
-								const host = reference.host.replace(/^www\./, '')
-								const domain = rootDomain(reference.host)
-								const cached = hostsTable[host] || hostsTable[domain] || ''
-								return [cached !== '' ? cached : hash, hash]
-							})(),
+							// Icons are local-only: a deterministic hash mark per host, no network.
+							iconSources: [hashIconFor(reference.host), hashIconFor(reference.host)],
 							iconEpoch: metaEpoch,
 							onOpen: openReference,
 							onToggleMenu: (next) => setMenu((current) => (current && current.key === next.key ? null : next)),
@@ -3541,7 +3333,6 @@ window.__ModuleLoader__.load({
 									onSelect: closeThen((row) => openReference(row, { metaKey: true })),
 								}),
 								menuSeparator('sep-1'),
-								h(MenuItem, { key: 'refresh', label: '刷新链接信息', onSelect: closeThen(refreshReference) }),
 								h(MenuItem, { key: 'rename', label: '修改标题…', onSelect: closeThen(openTitleEditor) }),
 								menuSeparator('sep-2'),
 								h(MenuItem, { key: 'ignore-link', label: '隐藏这个链接', onSelect: closeThen(hideLinkOnly) }),
@@ -3759,7 +3550,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.69.5'
+		const BUILD = 'v0.70.0'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {

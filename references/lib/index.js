@@ -21,7 +21,7 @@ import { lookup } from 'node:dns/promises'
 export const inject = ['web', 'webServer']
 
 /** Host build stamp, echoed to the panel so a stale bundle is detectable. */
-export const BUILD = 'v0.69.5'
+export const BUILD = 'v0.70.0'
 /**
  * The desktop browser reaches the network through the system proxy; the Host's own
  * Node requests bypass it. Detect that proxy so probes can use the same route.
@@ -84,27 +84,6 @@ async function curlText(url, proxy) {
 }
 
 /**
- * Fetch a favicon as a buffer through curl and the system proxy.
- * @param {string} url - absolute favicon URL.
- * @param {string} proxy - curl proxy argument ('' for direct).
- * @returns {Promise<Buffer | null>} bytes.
- */
-async function curlBytes(url, proxy) {
-	try {
-		const { execFile } = await import('node:child_process')
-		const args = ['-sS', '-L', '--max-time', '8', '--connect-timeout', '5', '-A', 'Mozilla/5.0 (compatible; DSH-Links/1.0)', url]
-		if (proxy !== '') args.unshift('-x', proxy)
-		const stdout = await new Promise((resolve) => {
-			execFile('curl', args, { maxBuffer: ICON_MAX_BYTES * 2, encoding: 'buffer' }, (error, output) => resolve(error ? null : output))
-		})
-		if (!Buffer.isBuffer(stdout) || stdout.length === 0 || stdout.length > ICON_MAX_BYTES) return null
-		return stdout
-	} catch (error) {
-		return null
-	}
-}
-
-/**
  * Route the Host's own fetches through the desktop proxy when one is configured.
  * @returns {Promise<void>} resolution once the dispatcher is installed (or skipped).
  */
@@ -120,110 +99,6 @@ async function installProxyDispatcher() {
 	} catch (error) {
 		/* undici or the proxy URL is unavailable: stay direct */
 	}
-}
-
-/** Icon proxy route: returns a favicon as a data URL so the Client can cache it locally. */
-export const ICON_ROUTE_PATH = '/dsh-links/icon'
-/** Largest favicon accepted, in bytes. */
-const ICON_MAX_BYTES = 64 * 1024
-/** Icon cache entries kept in memory. */
-const ICON_CACHE_LIMIT = 600
-
-/**
- * Fetch one favicon through the Host network and return it as a data URL.
- * @param {string} url - absolute http(s) favicon URL.
- * @returns {Promise<{dataUrl: string} | null>} data URL or null.
- */
-async function fetchIconAsDataUrl(url) {
-	const sniff = (buffer) => {
-		if (buffer.length === 0 || buffer.length > ICON_MAX_BYTES) return null
-		if (buffer[0] === 0x89 && buffer[1] === 0x50) return 'image/png'
-		if (buffer[0] === 0x47 && buffer[1] === 0x49) return 'image/gif'
-		if (buffer[0] === 0xff && buffer[1] === 0xd8) return 'image/jpeg'
-		if (buffer[0] === 0x52 && buffer[1] === 0x49) return 'image/webp'
-		if (buffer[0] === 0x00 && buffer[1] === 0x00) return 'image/x-icon'
-		if (buffer.slice(0, 200).toString('utf8').indexOf('<svg') >= 0) return 'image/svg+xml'
-		return null
-	}
-	try {
-		await installProxyDispatcher()
-		const parsed = new URL(url)
-		if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
-		const response = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(8000) })
-		if (response.ok) {
-			const type = String(response.headers.get('content-type') || '')
-			if (type.startsWith('image/')) {
-				const buffer = Buffer.from(await response.arrayBuffer())
-				if (buffer.length > 0 && buffer.length <= ICON_MAX_BYTES) {
-					return { dataUrl: `data:${type.split(';')[0].trim()};base64,${buffer.toString('base64')}` }
-				}
-			}
-		}
-	} catch (error) {
-		/* fall through to the proxy path below */
-	}
-	const proxy = await systemProxy()
-	const bytes = await curlBytes(url, proxy)
-	if (bytes === null) return null
-	const mime = sniff(bytes)
-	if (mime === null) return null
-	return { dataUrl: `data:${mime};base64,${bytes.toString('base64')}` }
-}
-
-/**
- * Answer `GET /dsh-links/icon?url=…` with a cached data URL.
- * @param {Map<string, object>} cache - route cache.
- * @param {object} req - incoming request.
- * @param {object} res - response.
- * @returns {Promise<void>} completion.
- */
-async function handleIconRequest(cache, req, res) {
-	try {
-		const requestUrl = new URL(req.url || '/', 'http://127.0.0.1')
-		const target = requestUrl.searchParams.get('url') || ''
-		if (target === '') {
-			res.writeHead(400)
-			res.end()
-			return
-		}
-		let entry = cache.get(target)
-		if (entry === undefined) {
-			entry = await withOutboundLock(() => fetchIconAsDataUrl(target))
-			if (cache.size >= ICON_CACHE_LIMIT) cache.delete(cache.keys().next().value)
-			cache.set(target, entry)
-		}
-		if (!entry) {
-			res.writeHead(404)
-			res.end()
-			return
-		}
-		const payload = JSON.stringify({ dataUrl: entry.dataUrl, build: BUILD })
-		res.writeHead(200, {
-			'content-type': 'application/json; charset=utf-8',
-			'content-length': Buffer.byteLength(payload),
-			'cache-control': 'no-store',
-		})
-		res.end(payload)
-	} catch (error) {
-		if (!res.headersSent) res.writeHead(500)
-		res.end()
-	}
-}
-
-/** Serializes every outbound request this plugin makes: one at a time, always. */
-let outboundChain = Promise.resolve()
-/**
- * Run one network task after all previously queued ones finished.
- * @param {() => Promise<any>} task - work that touches the network.
- * @returns {Promise<any>} the task result.
- */
-function withOutboundLock(task) {
-	const run = outboundChain.then(task, task)
-	outboundChain = run.then(
-		() => undefined,
-		() => undefined,
-	)
-	return run
 }
 
 /**
@@ -662,7 +537,6 @@ async function handleMetaRequest(ctx, cache, req, res) {
  */
 export function apply(ctx) {
 	const cache = new Map()
-	const iconCache = new Map()
 	ctx.effect(
 		() =>
 			ctx.webServer.register({
@@ -671,15 +545,6 @@ export function apply(ctx) {
 				handler: (req, res) => handleMetaRequest(ctx, cache, req, res),
 			}),
 		'dsh-links: metadata route',
-	)
-	ctx.effect(
-		() =>
-			ctx.webServer.register({
-				kind: 'exact',
-				path: ICON_ROUTE_PATH,
-				handler: (req, res) => handleIconRequest(iconCache, req, res),
-			}),
-		'dsh-links: icon route',
 	)
 	ctx.effect(
 		() =>
