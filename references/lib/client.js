@@ -2894,6 +2894,56 @@ window.__ModuleLoader__.load({
 					})
 				}, [visible, showNotice])
 
+				const togglePin = React.useCallback(
+					(reference) => {
+						setPinned((current) => {
+							const next = new Set(current)
+							if (next.has(reference.url)) {
+								next.delete(reference.url)
+								showNotice('已取消固定')
+							} else {
+								next.add(reference.url)
+								showNotice('已固定到顶部')
+							}
+							return next
+						})
+					},
+					[showNotice],
+				)
+
+				const hideLinkOnly = React.useCallback((reference) => {
+					setIgnored((current) => withIgnore(current, reference, 'link'))
+				}, [])
+
+				// Batch hide is locked to the row's own host (a.baidu.com), never the
+				// registrable domain (baidu.com).
+				const ignoreDomain = React.useCallback((reference) => {
+					const host = reference.host.replace(/^www\./, '')
+					setIgnored((current) => withoutIgnore(current, reference))
+					setBlockedHosts((current) => {
+						const next = new Set(current)
+						for (const candidate of next) if (hostIgnored(reference.host, [candidate])) next.delete(candidate)
+						next.add(host)
+						return next
+					})
+				}, [])
+
+				const restoreReference = React.useCallback(
+					(reference) => {
+						setIgnored((current) => withoutIgnore(current, reference))
+						setBlockedHosts((current) => {
+							let changed = false
+							const next = new Set()
+							for (const host of current) {
+								if (hostIgnored(reference.host, [host])) changed = true
+								else next.add(host)
+							}
+							return changed ? next : current
+						})
+					},
+					[],
+				)
+
 				const copyReference = React.useCallback((reference) => {
 					copyText(reference.url).then((ok) => {
 						showNotice(ok ? '已复制链接' : '复制失败：浏览器没有授予剪贴板权限')
@@ -3550,7 +3600,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.70.0'
+		const BUILD = 'v0.70.1'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
