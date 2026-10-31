@@ -2296,6 +2296,8 @@ window.__ModuleLoader__.load({
 		/** Hover and focus affordances that inline styles cannot express. */
 		const ROW_CSS = `
 .dsh-links-row:hover{background:var(--dsw-alias-fill-l2,rgba(127,127,127,0.12))}
+.dsh-links-row-fresh{animation:dsh-links-row-in 1.6s ease-out}
+@keyframes dsh-links-row-in{0%{background:color-mix(in srgb,currentColor 14%,transparent)}100%{background:transparent}}
 .dsh-links-row:focus-visible{outline:2px solid var(--dsw-alias-label-primary,rgba(127,127,127,0.55));outline-offset:-2px}
 .dsh-links-title{opacity:0.8}
 .dsh-links-row:hover .dsh-links-title{opacity:1}
@@ -2448,7 +2450,7 @@ window.__ModuleLoader__.load({
 		 *   onToggleMenu: Function}} props - row data and callbacks.
 		 * @returns {object} React element.
 		 */
-		function LinkRow({ reference, ignored, unreachable, title, icon, iconSources, iconEpoch, refreshing, onOpen, onToggleMenu, onCountHover, onTooltip }) {
+		function LinkRow({ reference, ignored, unreachable, title, icon, iconSources, iconEpoch, refreshing, fresh, onOpen, onToggleMenu, onCountHover, onTooltip }) {
 			const [hoveringOpen, setHoveringOpen] = React.useState(false)
 			const [marqueeShift, setMarqueeShift] = React.useState(0)
 			const titleRef = React.useRef(null)
@@ -2495,7 +2497,7 @@ window.__ModuleLoader__.load({
 				'div',
 				{
 					ref: rowRef,
-					className: 'dsh-links-row',
+					className: fresh ? 'dsh-links-row dsh-links-row-fresh' : 'dsh-links-row',
 					style: ignored ? { ...S.row, opacity: 0.6 } : S.row,
 					'aria-label': urlTip,
 					role: 'link',
@@ -2945,6 +2947,31 @@ window.__ModuleLoader__.load({
 					() => visible.filter((reference) => !customTitles[reference.key] && titleOf(reference, probeView) === reference.url),
 					[visible, probeView, customTitles],
 				)
+				const [freshKeys, setFreshKeys] = React.useState(() => new Set())
+				const knownKeysRef = React.useRef(null)
+				React.useEffect(() => {
+					const current = new Set(all.map((reference) => reference.key))
+					const previous = knownKeysRef.current
+					knownKeysRef.current = current
+					if (previous === null) return
+					const added = []
+					for (const key of current) if (!previous.has(key)) added.push(key)
+					if (added.length === 0) return
+					setFreshKeys((existing) => {
+						const next = new Set(existing)
+						for (const key of added) next.add(key)
+						return next
+					})
+					const timer = setTimeout(() => {
+						setFreshKeys((existing) => {
+							if (existing.size === 0) return existing
+							const next = new Set(existing)
+							for (const key of added) next.delete(key)
+							return next
+						})
+					}, 1600)
+					return () => clearTimeout(timer)
+				}, [all])
 				const pinnedRows = React.useMemo(() => splitPinned(rows, pinned)[0], [rows, pinned])
 				const restRows = React.useMemo(() => splitPinned(rows, pinned)[1], [rows, pinned])
 
@@ -3469,6 +3496,7 @@ window.__ModuleLoader__.load({
 							reference,
 							ignored: hidden === true,
 							title: customTitles[reference.key] || titleOf(reference, probeView),
+							fresh: freshKeys.has(reference.key),
 							iconSources: (() => {
 								const hash = hashIconFor(reference.host)
 								const host = reference.host.replace(/^www\./, '')
@@ -3969,7 +3997,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.64.1'
+		const BUILD = 'v0.65.0'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
