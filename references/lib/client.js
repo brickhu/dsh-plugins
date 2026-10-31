@@ -965,6 +965,38 @@ window.__ModuleLoader__.load({
 				.trim()
 		}
 
+		/** URLs whose one-time title probe already ran (success or failure). */
+		const TITLE_ATTEMPTS_KEY = 'dsh-links.titleattempts.v1'
+		const TITLE_ATTEMPTS_LIMIT = 800
+
+		/** @returns {Set<string>} URLs already attempted. */
+		function loadTitleAttempts() {
+			const store = ignoreStore()
+			if (!store) return new Set()
+			try {
+				const raw = store.getItem(TITLE_ATTEMPTS_KEY)
+				const parsed = raw ? JSON.parse(raw) : null
+				return new Set(Array.isArray(parsed) ? parsed.filter((value) => typeof value === 'string') : [])
+			} catch (error) {
+				return new Set()
+			}
+		}
+
+		/**
+		 * Persist attempted URLs.
+		 * @param {Set<string>} attempts - URLs already attempted.
+		 * @returns {void}
+		 */
+		function saveTitleAttempts(attempts) {
+			const store = ignoreStore()
+			if (!store) return
+			try {
+				store.setItem(TITLE_ATTEMPTS_KEY, JSON.stringify(Array.from(attempts).slice(-TITLE_ATTEMPTS_LIMIT)))
+			} catch (error) {
+				/* quota */
+			}
+		}
+
 		function titleOf(reference, probes) {
 			// Strip bidi/zero-width marks before judging: some pages and labels contain only
 			// invisible characters, which rendered as a blank row.
@@ -3236,12 +3268,68 @@ window.__ModuleLoader__.load({
 					[],
 				)
 
+				// One-time title enrichment: a URL that never had a page title probed (and
+				// has no conversation title) is probed exactly once; attempts are remembered,
+				// so nothing is refreshed or retried later.
+				const titleAttemptsRef = React.useRef(null)
+				if (titleAttemptsRef.current === null) titleAttemptsRef.current = loadTitleAttempts()
+				const enrichRef = React.useRef({ epoch: -1, timer: null, at: 0 })
+				React.useEffect(() => {
+					if (!historyDone || !panelVisible || typeof fetch !== 'function') return undefined
+					const state = enrichRef.current
+					if (state.epoch !== sessionEpoch) state.epoch = sessionEpoch
+					const attempts = titleAttemptsRef.current
+					const target = visible.find((reference) => {
+						if (titleOf(reference, {}) !== reference.url) return false
+						if (probes[reference.url] !== undefined) return false
+						return !attempts.has(reference.url)
+					})
+					if (target === undefined) return undefined
+					if (state.timer !== null) clearTimeout(state.timer)
+					state.timer = setTimeout(() => {
+						state.timer = null
+						if (Date.now() - state.at < 1200) return
+						state.at = Date.now()
+						attempts.add(target.url)
+						saveTitleAttempts(attempts)
+						setAutoProbing((current) => new Set(current).add(target.url))
+						Promise.resolve(runProbePass({ urls: [target.url], limit: 1, silent: true })).finally(() => {
+							setAutoProbing((current) => {
+								const next = new Set(current)
+								next.delete(target.url)
+								return next
+							})
+						})
+					}, 700)
+					return () => {
+						if (state.timer !== null) {
+							clearTimeout(state.timer)
+							state.timer = null
+						}
+					}
+				}, [visible, probes, historyDone, panelVisible, sessionEpoch, runProbePass])
+
+				const probeSaveRef = React.useRef(null)
+				React.useEffect(() => {
+					if (probeSaveRef.current !== null) clearTimeout(probeSaveRef.current)
+					probeSaveRef.current = setTimeout(() => {
+						probeSaveRef.current = null
+						if (Object.keys(probes).length > 0) saveProbes(probes)
+					}, 300)
+					return () => {
+						if (probeSaveRef.current !== null) {
+							clearTimeout(probeSaveRef.current)
+							probeSaveRef.current = null
+						}
+					}
+				}, [probes])
+
 				const copyList = React.useCallback(() => {
 					if (visible.length === 0) {
 						showNotice('当前没有可复制的链接')
 						return
 					}
-					const text = markdownOf(visible, {})
+					const text = markdownOf(visible, probes)
 					copyText(text).then((ok) => {
 						showNotice(ok ? `已复制 ${visible.length} 条为 Markdown 引用清单` : '复制失败：浏览器没有授予剪贴板权限')
 					})
@@ -3292,12 +3380,24 @@ window.__ModuleLoader__.load({
 								}
 							}
 						}
-						// Rebuild the conversation list; drop cached favicons so they refresh.
+						// Rebuild the conversation list; drop cached favicons and the one-time
+						// title attempt log so titles are re-probed once more.
 						setLinksCache({ rows: [], seq: 0, minSeq: 0, complete: false })
 						clearLinksCache(sessionId)
 						setHostsTable({})
 						iconFailedRef.current.clear()
 						iconQueueRef.current.clear()
+						setProbes({})
+						titleAttemptsRef.current = new Set()
+						saveTitleAttempts(titleAttemptsRef.current)
+						const store = ignoreStore()
+						if (store) {
+							try {
+								store.removeItem(META_STORE_KEY)
+							} catch (error) {
+								/* nothing stored */
+							}
+						}
 					} finally {
 						setRescanning(false)
 					}
@@ -3411,7 +3511,7 @@ window.__ModuleLoader__.load({
 							key: reference.key,
 							reference,
 							ignored: hidden === true,
-							title: customTitles[reference.key] || titleOf(reference, {}),
+							title: customTitles[reference.key] || titleOf(reference, probes),
 							fresh: freshKeys.has(reference.key),
 							iconSources: (() => {
 								const hash = hashIconFor(reference.host)
@@ -3900,7 +4000,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.68.0'
+		const BUILD = 'v0.68.1'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
