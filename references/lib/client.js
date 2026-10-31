@@ -639,6 +639,30 @@ window.__ModuleLoader__.load({
 		 * @param {Map<string, string>} callNames - tool-call id → tool name.
 		 * @param {Array<object>} out - accumulator for matches.
 		 */
+		/**
+		 * Page title carried by a successful fetch result: the first readable line after the
+		 * "External web content follows" preamble.
+		 * @param {string} text - tool result text.
+		 * @returns {string} title, or '' when the result carries none.
+		 */
+		function fetchTitleFromResult(text) {
+			const marker = text.indexOf('External web content follows')
+			const body = marker >= 0 ? text.slice(marker) : text
+			const lines = body.split('\n')
+			for (const line of lines) {
+				const value = normalizeTitle(line)
+					.replace(/^#+\s*/, '')
+					.replace(/^[-*+]\s+/, '')
+					.replace(/^\d+[.)]\s+/, '')
+				if (value === '' || value.length < 4) continue
+				if (/^Fetched\s/i.test(value)) continue
+				if (/^External web content follows/i.test(value)) continue
+				if (/^\(Content truncated/i.test(value)) continue
+				return value.length > 120 ? `${value.slice(0, 119)}…` : value
+			}
+			return ''
+		}
+
 		function extractEvent(event, callNames, out) {
 			if (!event || typeof event.type !== 'string') return
 			const data = event.data || {}
@@ -671,12 +695,27 @@ window.__ModuleLoader__.load({
 					return
 				}
 				case 'tool/result': {
+					// Failed results prove nothing about a page.
+					if (data.message && data.message.isError === true) return
 					const toolCallId = toolResultCallId(event)
 					const name = (toolCallId && callNames.get(toolCallId)) || ''
 					const text = blocksText(data.message && data.message.content)
 					if (name === 'web_search') scanSearchResult(text, out)
 					else if (name === 'web_fetch') scanFetchResult(text, out)
 					else scanText(text, { source: 'tool', tool: name || 'tool' }, out)
+					// A successful fetch result begins with the page title line: reuse it as the
+					// link's title instead of fetching or guessing anything.
+					const fetched = /Fetched\s+(\S+)\s+\(HTTP\s+(\d{3})\)/i.exec(text)
+					if (fetched !== null && Number(fetched[2]) >= 200 && Number(fetched[2]) < 300) {
+						const normalized = normalizeUrl(fetched[1])
+						const title = fetchTitleFromResult(text)
+						if (normalized !== null && title !== '') {
+							// Attach the title to the match the scanner already produced.
+							for (const match of out) {
+								if (match.key === normalized.key && match.title === '') match.title = title
+							}
+						}
+					}
 					return
 				}
 				default:
@@ -3930,7 +3969,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.64.0'
+		const BUILD = 'v0.64.1'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {

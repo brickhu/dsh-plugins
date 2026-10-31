@@ -326,6 +326,7 @@ const resolvedFetch = []
 extractEvent(fetchResult, new Map([['c2', 'web_fetch']]), resolvedFetch)
 assert.equal(resolvedFetch.length, 1, 'web_fetch results contribute only their final address')
 assert.equal(resolvedFetch[0].url, 'https://final.fixtures.dev/page')
+assert.equal(resolvedFetch[0].title, 'body', 'the fetched page title line is reused')
 // While the window is still missing the call, the name is unknown and the text is scanned;
 // the cache must not keep that degraded result.
 const unresolvedFetch = []
