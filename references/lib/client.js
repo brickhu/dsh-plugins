@@ -3997,7 +3997,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.65.0'
+		const BUILD = 'v0.66.0'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
@@ -4165,6 +4165,98 @@ window.__ModuleLoader__.load({
 					'dsh-links: shortcut',
 				)
 			})
+			// Background tracker: keep each conversation's link rows up to date even while the
+			// panel is closed, so opening it later just renders an already-collected list.
+			ctx.effect(() => {
+				const sessions = ctx.sessions
+				if (!sessions || !sessions.list || typeof sessions.list.subscribe !== 'function') return () => {}
+				const trackers = new Map()
+
+				const collectIds = (snapshot) => {
+					const ids = new Set()
+					const visit = (value, depth) => {
+						if (!value || depth > 4) return
+						if (Array.isArray(value)) {
+							for (const item of value) visit(item, depth + 1)
+							return
+						}
+						if (typeof value !== 'object') return
+						for (const key of ['id', 'sessionId']) {
+							const candidate = value[key]
+							if (typeof candidate === 'string' && candidate.startsWith('session-')) ids.add(candidate)
+						}
+						for (const key of ['sessions', 'items', 'list', 'active', 'current']) {
+							if (value[key] !== undefined) visit(value[key], depth + 1)
+						}
+					}
+					visit(snapshot, 0)
+					return [...ids].slice(0, 5)
+				}
+
+				const attach = (sessionId) => {
+					if (trackers.has(sessionId)) return
+					let binding
+					try {
+						binding = sessions.binding(sessionId)
+					} catch (error) {
+						return
+					}
+					const source = binding && binding.eventSource
+					if (!source || typeof source.subscribe !== 'function') return
+					const tracker = { dispose: null, timer: null, state: { cache: new Map(), callNames: new Map(), seq: 0, rows: [] } }
+					const cached = loadLinksCache(sessionId)
+					tracker.state.seq = cached.seq || 0
+					tracker.state.rows = cached.rows || []
+					const flush = () => {
+						tracker.timer = null
+						try {
+							const snapshot = source.getSnapshot()
+							const fresh = Array.isArray(snapshot.entries)
+								? snapshot.entries.filter(
+										(entry) => entry && entry.event && typeof entry.event.seq === 'number' && entry.event.seq > tracker.state.seq,
+									)
+								: []
+							if (fresh.length === 0) return
+							const scanned = aggregate(fresh, tracker.state.cache, tracker.state.callNames)
+							const merged = mergeRows(tracker.state.rows, scanned)
+							tracker.state.rows = merged
+							let newest = tracker.state.seq
+							for (const entry of fresh) if (entry.event.seq > newest) newest = entry.event.seq
+							tracker.state.seq = newest
+							saveLinksCache(sessionId, merged, newest, 0, false)
+						} catch (error) {
+							/* the panel will rebuild this conversation when opened */
+						}
+					}
+					const schedule = () => {
+						if (tracker.timer !== null) return
+						tracker.timer = setTimeout(flush, 400)
+					}
+					schedule()
+					tracker.dispose = source.subscribe(schedule)
+					trackers.set(sessionId, tracker)
+				}
+
+				const sync = () => {
+					let ids = []
+					try {
+						ids = collectIds(sessions.list.getSnapshot())
+					} catch (error) {
+						ids = []
+					}
+					for (const sessionId of ids) attach(sessionId)
+				}
+				sync()
+				const off = sessions.list.subscribe(sync)
+				return () => {
+					off()
+					for (const tracker of trackers.values()) {
+						if (tracker.timer !== null) clearTimeout(tracker.timer)
+						if (typeof tracker.dispose === 'function') tracker.dispose()
+					}
+					trackers.clear()
+				}
+			}, 'dsh-links: background tracker')
 		}
 
 		exports.apply = apply
