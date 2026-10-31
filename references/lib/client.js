@@ -3371,11 +3371,6 @@ window.__ModuleLoader__.load({
 						? [h(MenuItem, { key: 'restore', label: '恢复这个链接', onSelect: closeThen(restoreReference) })]
 						: [
 								h(MenuItem, { key: 'copy-link', label: '复制链接', onSelect: closeThen(copyReference) }),
-								h(MenuItem, {
-									key: 'pin',
-									label: pinned.has(menuRow.url) ? '取消固定' : '固定到顶部',
-									onSelect: closeThen(togglePin),
-								}),
 								h(MenuItem, { key: 'open', label: '内置浏览器打开', onSelect: closeThen((row) => openReference(row, {})) }),
 								h(MenuItem, {
 									key: 'browser',
@@ -3390,6 +3385,11 @@ window.__ModuleLoader__.load({
 									key: 'ignore-domain',
 									label: `批量隐藏 ${hostLabel}`,
 									onSelect: closeThen(ignoreDomain),
+								}),
+								h(MenuItem, {
+									key: 'pin',
+									label: pinned.has(menuRow.url) ? '取消置顶' : '置顶这个链接',
+									onSelect: closeThen(togglePin),
 								}),
 							]
 					rowMenu = h(
@@ -3600,7 +3600,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.70.1'
+		const BUILD = 'v0.70.2'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
