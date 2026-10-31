@@ -731,11 +731,15 @@ window.__ModuleLoader__.load({
 				}
 				reference.tags.sort((left, right) => TAGS.indexOf(left) - TAGS.indexOf(right))
 			}
-			if (match.title !== '' && reference.titleFromPath) {
-				// First explicit title wins: repeated mentions rarely agree, and flipping the
-				// label on every re-scan would make the list unstable.
-				reference.title = normalizeTitle(match.title)
-				reference.titleFromPath = false
+			if (match.title !== '') {
+				// Later mentions are closer to how the page is described now: the newest
+				// explicit title wins, but only when it is actually newer.
+				const nextTitle = normalizeTitle(match.title)
+				if (nextTitle !== '' && event.seq >= (reference.titleSeq || 0)) {
+					reference.title = nextTitle
+					reference.titleFromPath = false
+					reference.titleSeq = event.seq
+				}
 			}
 			if (match.inCode) reference.inCode = true
 			if (typeof event.seq === 'number') {
@@ -914,6 +918,29 @@ window.__ModuleLoader__.load({
 				.trim()
 		}
 
+		/**
+		 * Build a readable title from the text around a URL's latest mention.
+		 * @param {object} reference - reference row.
+		 * @returns {string} derived title, or '' when the context has nothing usable.
+		 */
+		function contextTitle(reference) {
+			const occurrences = Array.isArray(reference && reference.occurrences) ? reference.occurrences : []
+			const latest = occurrences.length > 0 ? occurrences[occurrences.length - 1] : null
+			const raw = latest && typeof latest.snippet === 'string' ? latest.snippet : ''
+			const cleaned = raw
+				.replace(/https?:\/\/\S+/g, ' ')
+				.replace(/[`*_>#|]/g, ' ')
+				.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+				.replace(/\s+/g, ' ')
+				.replace(/^[\s\-–—:：,，.。;；!！?？()（）\[\]【】<>《》"“”'‘’]+/, '')
+				.replace(/[\s\-–—:：,，.。;；]+$/, '')
+				.replace(/[\s]*(和|与|及|以及|and|or|、)$/i, '')
+				.trim()
+			// Too little context left after removing URLs is not a title.
+			if (cleaned === '' || cleaned.length < 8) return ''
+			return cleaned.length > 48 ? `${cleaned.slice(0, 47)}…` : cleaned
+		}
+
 		function titleOf(reference, probes) {
 			// Strip bidi/zero-width marks before judging: some pages and labels contain only
 			// invisible characters, which rendered as a blank row.
@@ -923,8 +950,11 @@ window.__ModuleLoader__.load({
 			if (reference && usable(reference.title) && reference.titleFromPath === false) {
 				return visible(reference.title)
 			}
-			// Never render an empty row: fall back to the URL. Titles are never fetched
-			// remotely; only what the conversation itself carries is used.
+			// No explicit title anywhere: derive a readable one from the surrounding context
+			// of the latest mention (never a remote fetch).
+			const generated = contextTitle(reference)
+			if (generated !== '') return generated
+			// Never render an empty row: fall back to the URL.
 			return reference.url
 		}
 
@@ -3779,7 +3809,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.61.0'
+		const BUILD = 'v0.62.0'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
