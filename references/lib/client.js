@@ -3735,7 +3735,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.69.0'
+		const BUILD = 'v0.69.1'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
