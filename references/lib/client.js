@@ -923,11 +923,8 @@ window.__ModuleLoader__.load({
 			if (reference && usable(reference.title) && reference.titleFromPath === false) {
 				return visible(reference.title)
 			}
-			// Fallback: the page title probed by the Host, when cached.
-			const probe = probes ? probes[reference.url] : undefined
-			if (typeof probe === 'string' && usable(probe)) return visible(probe)
-			if (probe && typeof probe === 'object' && usable(probe.title)) return visible(probe.title)
-			// Never render an empty row: fall back to the URL.
+			// Never render an empty row: fall back to the URL. Titles are never fetched
+			// remotely; only what the conversation itself carries is used.
 			return reference.url
 		}
 
@@ -3119,66 +3116,6 @@ window.__ModuleLoader__.load({
 					[],
 				)
 
-				// Title fallback pass: rows without a usable title (from the conversation) get
-				// their page title probed by the Host, one row at a time, while the panel is
-				// visible. Cached results are reused, so nothing repeats.
-				const titleProbeRef = React.useRef({ epoch: -1, urls: new Set(), timer: null, at: 0 })
-				const titleMissing = React.useMemo(
-					() =>
-						visible.filter((reference) => {
-							if (titleOf(reference, {}) !== reference.url) return false
-							return true
-						}),
-					[visible],
-				)
-				React.useEffect(() => {
-					if (!historyDone || !panelVisible || typeof fetch !== 'function') return undefined
-					const state = titleProbeRef.current
-					if (state.epoch !== sessionEpoch) {
-						state.epoch = sessionEpoch
-						state.urls = new Set()
-					}
-					const target = titleMissing.find((reference) => !state.urls.has(reference.url))
-					if (target === undefined) return undefined
-					if (state.timer !== null) clearTimeout(state.timer)
-					state.timer = setTimeout(() => {
-						state.timer = null
-						if (Date.now() - state.at < 1200) return
-						state.at = Date.now()
-						state.urls.add(target.url)
-						setAutoProbing((current) => new Set(current).add(target.url))
-						Promise.resolve(runProbePass({ urls: [target.url], limit: 1, silent: true })).finally(() => {
-							setAutoProbing((current) => {
-								const next = new Set(current)
-								next.delete(target.url)
-								return next
-							})
-						})
-					}, 800)
-					return () => {
-						if (state.timer !== null) {
-							clearTimeout(state.timer)
-							state.timer = null
-						}
-					}
-				}, [titleMissing, historyDone, panelVisible, sessionEpoch, runProbePass])
-
-				// Persist probe results (title fallbacks) across mounts.
-				const probeSaveRef = React.useRef(null)
-				React.useEffect(() => {
-					if (probeSaveRef.current !== null) clearTimeout(probeSaveRef.current)
-					probeSaveRef.current = setTimeout(() => {
-						probeSaveRef.current = null
-						if (Object.keys(probes).length > 0) saveProbes(probes)
-					}, 300)
-					return () => {
-						if (probeSaveRef.current !== null) {
-							clearTimeout(probeSaveRef.current)
-							probeSaveRef.current = null
-						}
-					}
-				}, [probes])
-
 				const copyList = React.useCallback(() => {
 					if (visible.length === 0) {
 						showNotice('当前没有可复制的链接')
@@ -3842,7 +3779,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.60.5'
+		const BUILD = 'v0.61.0'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
