@@ -501,9 +501,9 @@ const titles = {
 // Titles come from the conversation (Markdown link text / tool result titles).
 assert.equal(titleOf(row({ title: '官方文档', titleFromPath: false })), '官方文档')
 assert.equal(titleOf(row({ title: '视频', titleFromPath: false })), '视频')
-// Path-derived placeholders are not titles: the URL is shown instead.
-assert.equal(titleOf(row({ title: '官方文档', titleFromPath: true }), titles), 'https://fixtures.dev/a')
-assert.equal(titleOf(row({}), titles), 'https://fixtures.dev/a')
+// Path-derived placeholders are not titles; the page's probed <title> is used instead.
+assert.equal(titleOf(row({ title: '官方文档', titleFromPath: true }), titles), '官方文档')
+assert.equal(titleOf(row({}), titles), '官方文档')
 assert.equal(titleOf(row({})), 'https://fixtures.dev/a')
 
 const markdown = markdownOf([
@@ -514,9 +514,9 @@ const markdown = markdownOf([
 assert.equal(
 	markdown,
 	[
-		'- [https://fixtures.dev/a](<https://fixtures.dev/a>)（3 轮）',
+		'- [官方文档](<https://fixtures.dev/a>)（3 轮）',
 		'- [https://github.com/o/r](<https://github.com/o/r>)',
-		'- [https://youtu.be/x](<https://youtu.be/x>)',
+		'- [视频](<https://youtu.be/x>)',
 	].join('\n'),
 )
 assert.equal(markdownOf([]), '')
