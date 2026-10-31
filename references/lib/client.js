@@ -1170,7 +1170,7 @@ window.__ModuleLoader__.load({
 				if (!parsed || typeof parsed !== 'object') return {}
 				const result = {}
 				for (const [host, url] of Object.entries(parsed)) {
-					if (typeof host === 'string' && typeof url === 'string' && /^https?:\/\//i.test(url)) result[host] = url
+					if (typeof host === 'string' && typeof url === 'string' && /^(https?:\/\/|data:image\/)/i.test(url)) result[host] = url
 				}
 				return result
 			} catch (error) {
@@ -2874,6 +2874,74 @@ window.__ModuleLoader__.load({
 				React.useEffect(() => {
 					saveFaviconLibrary(faviconLibrary)
 				}, [faviconLibrary])
+				// Host-level favicon probing: for hosts with no library entry, ask the Host for
+				// the usual icon locations — strictly one host at a time, never in parallel.
+				const faviconQueueRef = React.useRef(new Set())
+				const faviconFailedRef = React.useRef(new Map())
+				React.useEffect(() => {
+					if (!historyDone || !panelVisible || typeof fetch !== 'function') return undefined
+					let cancelled = false
+					const hosts = []
+					for (const reference of all) {
+						const host = reference.host.replace(/^www\./, '')
+						const domain = rootDomain(reference.host)
+						if (faviconLibrary[host] !== undefined || faviconLibrary[domain] !== undefined) continue
+						if (faviconQueueRef.current.has(host)) continue
+						const failedAt = faviconFailedRef.current.get(host)
+						if (failedAt !== undefined && Date.now() - failedAt < 10 * 60 * 1000) continue
+						faviconQueueRef.current.add(host)
+						hosts.push({ host, domain })
+						if (hosts.length >= 4) break
+					}
+					if (hosts.length === 0) return undefined
+					const loadIcon = async (iconUrl) => {
+						try {
+							const target = new URL('/dsh-links/favicon', typeof document !== 'undefined' && document.baseURI ? document.baseURI : 'http://127.0.0.1/')
+							target.searchParams.set('url', iconUrl)
+							const response = await fetch(target)
+							if (!response || !response.ok) return ''
+							const payload = await response.json()
+							return payload && typeof payload.dataUrl === 'string' && payload.dataUrl.indexOf('data:') === 0 ? payload.dataUrl : ''
+						} catch (error) {
+							return ''
+						}
+					}
+					const run = async () => {
+						for (const item of hosts) {
+							if (cancelled) return
+							const candidates = [
+								`https://${item.host}/favicon.ico`,
+								`https://${item.host}/apple-touch-icon.png`,
+								`https://${item.host}/favicon.png`,
+								`https://${item.host}/favicon.svg`,
+							]
+							if (item.domain !== item.host) {
+								candidates.push(
+									`https://${item.domain}/favicon.ico`,
+									`https://${item.domain}/apple-touch-icon.png`,
+									`https://${item.domain}/favicon.png`,
+									`https://${item.domain}/favicon.svg`,
+								)
+							}
+							let found = ''
+							for (const candidate of candidates) {
+								if (cancelled) return
+								found = await loadIcon(candidate)
+								if (found !== '') break
+							}
+							if (found !== '') {
+								setFaviconLibrary((current) => (current[item.host] ? current : { ...current, [item.host]: found }))
+							} else {
+								faviconFailedRef.current.set(item.host, Date.now())
+							}
+							await new Promise((resolve) => setTimeout(resolve, 400))
+						}
+					}
+					run()
+					return () => {
+						cancelled = true
+					}
+				}, [all, faviconLibrary, historyDone, panelVisible])
 				React.useEffect(() => {
 					const hints = faviconHintsRef.current
 					if (hints.size === 0) return
@@ -3704,7 +3772,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.71.0'
+		const BUILD = 'v0.72.0'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {

@@ -21,7 +21,7 @@ import { lookup } from 'node:dns/promises'
 export const inject = ['web', 'webServer']
 
 /** Host build stamp, echoed to the panel so a stale bundle is detectable. */
-export const BUILD = 'v0.71.0'
+export const BUILD = 'v0.72.0'
 /**
  * The desktop browser reaches the network through the system proxy; the Host's own
  * Node requests bypass it. Detect that proxy so probes can use the same route.
@@ -189,6 +189,85 @@ async function handleTitlesRequest(ctx, req, res) {
 
 /** The route the Client calls; keep in sync with `TITLE_ROUTE` in client.js. */
 export const ROUTE_PATH = '/dsh-links/meta'
+/** Host-level favicon fetch: returns the icon bytes as a data URL. */
+export const FAVICON_ROUTE_PATH = '/dsh-links/favicon'
+/** Largest favicon accepted, in bytes. */
+const FAVICON_MAX_BYTES = 64 * 1024
+
+/**
+ * Fetch one favicon URL through the Host network (curl + system proxy) and return it
+ * as a data URL. Binary data is not readable through `ctx.web`, so curl does the work.
+ * @param {string} url - absolute http(s) favicon URL.
+ * @returns {Promise<{dataUrl: string} | null>} data URL or null.
+ */
+async function fetchFaviconDataUrl(url) {
+	try {
+		const parsed = new URL(url)
+		if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
+	} catch (error) {
+		return null
+	}
+	const proxy = await systemProxy()
+	try {
+		const { execFile } = await import('node:child_process')
+		const args = ['-sS', '-L', '--max-time', '8', '--connect-timeout', '5', '-A', 'Mozilla/5.0 (compatible; DSH-Links/1.0)', url]
+		if (proxy !== '') args.unshift('-x', proxy)
+		const stdout = await new Promise((resolve) => {
+			execFile('curl', args, { maxBuffer: FAVICON_MAX_BYTES * 2, encoding: 'buffer' }, (error, output) => resolve(error ? null : output))
+		})
+		if (!Buffer.isBuffer(stdout) || stdout.length === 0 || stdout.length > FAVICON_MAX_BYTES) return null
+		let mime = ''
+		if (stdout[0] === 0x89 && stdout[1] === 0x50) mime = 'image/png'
+		else if (stdout[0] === 0x47 && stdout[1] === 0x49) mime = 'image/gif'
+		else if (stdout[0] === 0xff && stdout[1] === 0xd8) mime = 'image/jpeg'
+		else if (stdout[0] === 0x52 && stdout[1] === 0x49) mime = 'image/webp'
+		else if (stdout[0] === 0x00 && stdout[1] === 0x00) mime = 'image/x-icon'
+		else if (stdout.slice(0, 300).toString('utf8').indexOf('<svg') >= 0) mime = 'image/svg+xml'
+		if (mime === '') return null
+		return { dataUrl: `data:${mime};base64,${stdout.toString('base64')}` }
+	} catch (error) {
+		return null
+	}
+}
+
+/**
+ * Answer `GET /dsh-links/favicon?url=…` with a data URL.
+ * @param {object} req - request.
+ * @param {object} res - response.
+ * @returns {Promise<void>} completion.
+ */
+async function handleFaviconRequest(req, res) {
+	try {
+		if (req.method !== 'GET') {
+			res.writeHead(405, { allow: 'GET' })
+			res.end()
+			return
+		}
+		const requestUrl = new URL(req.url || '/', 'http://127.0.0.1')
+		const target = requestUrl.searchParams.get('url') || ''
+		if (target === '') {
+			res.writeHead(400)
+			res.end()
+			return
+		}
+		const icon = await withOutboundLock(() => fetchFaviconDataUrl(target))
+		if (!icon) {
+			res.writeHead(404)
+			res.end()
+			return
+		}
+		const payload = JSON.stringify({ dataUrl: icon.dataUrl })
+		res.writeHead(200, {
+			'content-type': 'application/json; charset=utf-8',
+			'content-length': Buffer.byteLength(payload),
+			'cache-control': 'no-store',
+		})
+		res.end(payload)
+	} catch (error) {
+		if (!res.headersSent) res.writeHead(500)
+		res.end()
+	}
+}
 /** Most URLs one request may ask about. */
 export const MAX_BATCH = 12
 /** Longest accepted title, in characters. */
@@ -545,6 +624,15 @@ export function apply(ctx) {
 				handler: (req, res) => handleMetaRequest(ctx, cache, req, res),
 			}),
 		'dsh-links: metadata route',
+	)
+	ctx.effect(
+		() =>
+			ctx.webServer.register({
+				kind: 'exact',
+				path: FAVICON_ROUTE_PATH,
+				handler: (req, res) => handleFaviconRequest(req, res),
+			}),
+		'dsh-links: favicon route',
 	)
 	ctx.effect(
 		() =>
