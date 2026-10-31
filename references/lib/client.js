@@ -1211,6 +1211,7 @@ window.__ModuleLoader__.load({
 						tags: Array.isArray(row.tags) ? row.tags : [],
 						title: typeof row.title === 'string' ? row.title : '',
 						titleFromPath: row.titleFromPath !== false,
+						titleSeq: Number.isFinite(row.titleSeq) ? row.titleSeq : 0,
 						count: Number.isFinite(row.count) ? row.count : 1,
 						turnCount: Number.isFinite(row.turnCount) ? row.turnCount : Array.isArray(row.turns) ? row.turns.length : 1,
 						turns: Array.isArray(row.turns) ? row.turns.slice(0, 400) : [],
@@ -1257,6 +1258,7 @@ window.__ModuleLoader__.load({
 					pathname: row.pathname,
 					tags: row.tags,
 					title: row.title,
+					titleSeq: typeof row.titleSeq === 'number' ? row.titleSeq : 0,
 					titleFromPath: row.titleFromPath,
 					count: row.count,
 					turnCount: row.turnCount,
@@ -1317,9 +1319,13 @@ window.__ModuleLoader__.load({
 				previous.turnCount = turns.length
 				for (const tag of row.tags) if (previous.tags.indexOf(tag) < 0) previous.tags.push(tag)
 				previous.tags.sort((left, right) => TAGS.indexOf(left) - TAGS.indexOf(right))
-				if (row.title !== '' && previous.titleFromPath) {
+				// The newest mention wins even across scans: compare title sequence numbers.
+				const previousTitleSeq = typeof previous.titleSeq === 'number' ? previous.titleSeq : 0
+				const incomingTitleSeq = typeof row.titleSeq === 'number' ? row.titleSeq : previousTitleSeq
+				if (row.title !== '' && (previous.titleFromPath || incomingTitleSeq >= previousTitleSeq)) {
 					previous.title = row.title
-					previous.titleFromPath = false
+					previous.titleFromPath = row.titleFromPath === true
+					previous.titleSeq = incomingTitleSeq
 				}
 				previous.firstSeq = Math.min(previous.firstSeq, row.firstSeq)
 				previous.lastSeq = Math.max(previous.lastSeq, row.lastSeq)
@@ -3746,7 +3752,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.69.2'
+		const BUILD = 'v0.69.3'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
