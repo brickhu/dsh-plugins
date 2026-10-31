@@ -925,19 +925,36 @@ window.__ModuleLoader__.load({
 		 */
 		function contextTitle(reference) {
 			const occurrences = Array.isArray(reference && reference.occurrences) ? reference.occurrences : []
-			const latest = occurrences.length > 0 ? occurrences[occurrences.length - 1] : null
+			// Only natural-language mentions can describe a page: tool payloads and code
+			// snippets produce garbage like "assert.ok(rendered.includes(" as a title.
+			const usableText = (value) => {
+				if (typeof value !== 'string') return false
+				const text = value.trim()
+				if (text === '') return false
+				if (/[{}<>;\\]|=>|\$\{|\bconst\b|\bfunction\b|\bassert\.|\bimport\b/.test(text)) return false
+				return true
+			}
+			const candidates = occurrences.filter(
+				(entry) =>
+					entry &&
+					entry.source !== 'tool' &&
+					entry.inCode !== true &&
+					typeof entry.snippet === 'string' &&
+					usableText(entry.snippet),
+			)
+			const latest = candidates.length > 0 ? candidates[candidates.length - 1] : null
 			const raw = latest && typeof latest.snippet === 'string' ? latest.snippet : ''
 			const cleaned = raw
 				.replace(/https?:\/\/\S+/g, ' ')
 				.replace(/[`*_>#|]/g, ' ')
 				.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
 				.replace(/\s+/g, ' ')
-				.replace(/^[\s\-–—:：,，.。;；!！?？()（）\[\]【】<>《》"“”'‘’]+/, '')
-				.replace(/[\s\-–—:：,，.。;；]+$/, '')
+				.replace(/^[\s\-–—:：,，.。;；!！?？()（）\[\]【】<>《》"“”'‘’…]+/, '')
+				.replace(/[\s\-–—:：,，.。;；...]+$/, '')
 				.replace(/[\s]*(和|与|及|以及|and|or|、)$/i, '')
 				.trim()
-			// Too little context left after removing URLs is not a title.
 			if (cleaned === '' || cleaned.length < 8) return ''
+			if (/[{}<>;\\]|=>|\$\{/.test(cleaned)) return ''
 			return cleaned.length > 48 ? `${cleaned.slice(0, 47)}…` : cleaned
 		}
 
@@ -3809,7 +3826,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.62.0'
+		const BUILD = 'v0.62.1'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
