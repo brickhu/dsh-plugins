@@ -704,10 +704,13 @@ window.__ModuleLoader__.load({
 					if (data.message && data.message.isError === true) return
 					const toolCallId = toolResultCallId(event)
 					const name = (toolCallId && callNames.get(toolCallId)) || ''
+					// Only web-facing tools return reference material. bash/read/edit/... results
+					// are implementation noise (commands, source files, test fixtures).
+					if (!WEB_TOOL_RE.test(name)) return
 					const text = blocksText(data.message && data.message.content)
 					if (name === 'web_search') scanSearchResult(text, out)
 					else if (name === 'web_fetch') scanFetchResult(text, out)
-					else scanText(text, { source: 'tool', tool: name || 'tool' }, out)
+					else scanText(text, { source: 'tool', tool: name }, out)
 					// A successful fetch result begins with the page title line: reuse it as the
 					// link's title instead of fetching or guessing anything.
 					const fetched = /Fetched\s+(\S+)\s+\(HTTP\s+(\d{3})\)/i.exec(text)
@@ -3897,7 +3900,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.67.1'
+		const BUILD = 'v0.68.0'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {

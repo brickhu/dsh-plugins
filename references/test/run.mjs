@@ -327,11 +327,19 @@ extractEvent(fetchResult, new Map([['c2', 'web_fetch']]), resolvedFetch)
 assert.equal(resolvedFetch.length, 1, 'web_fetch results contribute only their final address')
 assert.equal(resolvedFetch[0].url, 'https://final.fixtures.dev/page')
 assert.equal(resolvedFetch[0].title, 'body', 'the fetched page title line is reused')
-// While the window is still missing the call, the name is unknown and the text is scanned;
-// the cache must not keep that degraded result.
+// While the window is still missing the call, the name is unknown; unknown tools never
+// contribute URLs (bash/read results are not references), and nothing is cached.
 const unresolvedFetch = []
 extractEvent(fetchResult, new Map(), unresolvedFetch)
-assert.ok(unresolvedFetch.length > 1, 'unknown tool falls back to scanning the whole result')
+assert.equal(unresolvedFetch.length, 0, 'unknown tools contribute no URLs')
+// bash/read results are ignored even when they contain many URLs.
+const bashResult = ev('tool/result', 8, toolResult({
+	toolCallId: 'c3',
+	content: [{ type: 'text', text: 'curl https://noise.fixtures.dev/x and https://other.fixtures.dev/y' }],
+}))
+const bashOut = []
+extractEvent(bashResult, new Map([['c3', 'bash']]), bashOut)
+assert.equal(bashOut.length, 0, 'bash results contribute no URLs')
 
 // --- per-seq extraction cache ----------------------------------------------
 const windowEntries = [
