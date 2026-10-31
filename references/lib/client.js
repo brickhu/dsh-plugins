@@ -417,6 +417,11 @@ window.__ModuleLoader__.load({
 			if (/[{}`]/.test(text)) return false
 			if (/\btype:\s*['"]/.test(text)) return false
 			if (/^(?:https?:|\/\/)/i.test(text)) return false
+			// Markdown link labels scraped from search results occasionally hold raw HTML
+			// (a table fragment), which is not a title.
+			if (/<\/?(?:table|thead|tbody|tr|td|th|img|div|span|p|br|html|body|svg|script|style)\b/i.test(text)) return false
+			if (/<table/i.test(text) || /<\/table>/i.test(text)) return false
+			if ((text.match(/\|/g) || []).length >= 2) return false
 			if (!/[\p{L}\p{N}]/u.test(text)) return false
 			return true
 		}
@@ -963,7 +968,7 @@ window.__ModuleLoader__.load({
 			const visible = (text) => String(text).replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff]/g, '').trim()
 			const usable = (value) => typeof value === 'string' && visible(value) !== ''
 			// The conversation's own title (Markdown link text / tool result titles) wins.
-			if (reference && usable(reference.title) && reference.titleFromPath === false) {
+			if (reference && usable(reference.title) && reference.titleFromPath === false && isUsableTitle(reference.title)) {
 				return visible(reference.title)
 			}
 			// Fallback: the page's own <title> (what the site says it is), probed once and
@@ -3997,7 +4002,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.66.0'
+		const BUILD = 'v0.66.1'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
