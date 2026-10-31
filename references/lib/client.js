@@ -650,6 +650,39 @@ window.__ModuleLoader__.load({
 		 * @param {string} text - tool result text.
 		 * @returns {string} title, or '' when the result carries none.
 		 */
+		/**
+		 * Collect favicon URLs mentioned by a fetched page's result text.
+		 * @param {string} text - fetch result body.
+		 * @param {string} pageUrl - the page the result belongs to.
+		 * @param {Map<string, string> | null} hints - host → favicon URL sink.
+		 * @returns {void}
+		 */
+		function collectFaviconHints(text, pageUrl, hints) {
+			if (!hints || typeof pageUrl !== 'string') return
+			let host = ''
+			try {
+				host = new URL(pageUrl).hostname.toLowerCase().replace(/^www\./, '')
+			} catch (error) {
+				return
+			}
+			if (host === '' || hints.has(host)) return
+			const pattern = /(?:https?:\/\/|\/)[^\s"'<>)]*(?:favicon|apple-touch-icon)[^\s"'<>)]*/gi
+			let match
+			while ((match = pattern.exec(text)) !== null) {
+				const cleaned = match[0].replace(/[.,;:)\]>'\"]+$/g, '').trim()
+				if (cleaned === '') continue
+				try {
+					const absolute = new URL(cleaned, pageUrl).href
+					if (/^https?:/i.test(absolute)) {
+						hints.set(host, absolute)
+						return
+					}
+				} catch (error) {
+					/* keep looking */
+				}
+			}
+		}
+
 		function fetchTitleFromResult(text) {
 			const marker = text.indexOf('External web content follows')
 			const body = marker >= 0 ? text.slice(marker) : text
@@ -668,7 +701,7 @@ window.__ModuleLoader__.load({
 			return ''
 		}
 
-		function extractEvent(event, callNames, out) {
+		function extractEvent(event, callNames, out, faviconHints) {
 			if (!event || typeof event.type !== 'string') return
 			const data = event.data || {}
 			switch (event.type) {
@@ -715,6 +748,7 @@ window.__ModuleLoader__.load({
 					// link's title instead of fetching or guessing anything.
 					const fetched = /Fetched\s+(\S+)\s+\(HTTP\s+(\d{3})\)/i.exec(text)
 					if (fetched !== null && Number(fetched[2]) >= 200 && Number(fetched[2]) < 300) {
+						collectFaviconHints(text, fetched[1], faviconHints)
 						const normalized = normalizeUrl(fetched[1])
 						const title = fetchTitleFromResult(text)
 						if (normalized !== null && title !== '') {
@@ -815,7 +849,7 @@ window.__ModuleLoader__.load({
 		 * @param {Map<string, string>} callNames - tool-call id → tool name.
 		 * @returns {Array<object>} reference rows.
 		 */
-		function aggregate(entries, cache, callNames) {
+		function aggregate(entries, cache, callNames, faviconHints) {
 			const refs = new Map()
 			if (!Array.isArray(entries)) return []
 			let turn = 0
@@ -833,7 +867,7 @@ window.__ModuleLoader__.load({
 					matches = cache.get(seq)
 				} else {
 					matches = []
-					extractEvent(event, callNames, matches)
+					extractEvent(event, callNames, matches, faviconHints)
 					if (seq !== null && entry.type !== 'transient' && cacheableEvent(event, callNames)) cache.set(seq, matches)
 				}
 				if (matches.length === 0) continue
@@ -1117,6 +1151,47 @@ window.__ModuleLoader__.load({
 			}
 			const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}"><rect width="${size}" height="${size}" rx="7" fill="hsl(${hue} 30% 92%)"/>${cells}</svg>`
 			return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+		}
+
+		/**
+		 * Global favicon library: host (or registrable domain) → favicon URL. It is filled
+		 * only from successful web_fetch results; nothing is fetched by the plugin itself.
+		 */
+		const FAVICON_LIBRARY_KEY = 'dsh-links.favicons.v1'
+		const FAVICON_LIBRARY_LIMIT = 800
+
+		/** @returns {Record<string, string>} favicon URL by host or domain. */
+		function loadFaviconLibrary() {
+			const store = ignoreStore()
+			if (!store) return {}
+			try {
+				const raw = store.getItem(FAVICON_LIBRARY_KEY)
+				const parsed = raw ? JSON.parse(raw) : null
+				if (!parsed || typeof parsed !== 'object') return {}
+				const result = {}
+				for (const [host, url] of Object.entries(parsed)) {
+					if (typeof host === 'string' && typeof url === 'string' && /^https?:\/\//i.test(url)) result[host] = url
+				}
+				return result
+			} catch (error) {
+				return {}
+			}
+		}
+
+		/**
+		 * Persist the favicon library.
+		 * @param {Record<string, string>} library - favicon URL by host.
+		 * @returns {void}
+		 */
+		function saveFaviconLibrary(library) {
+			const store = ignoreStore()
+			if (!store) return
+			try {
+				const entries = Object.entries(library).slice(-FAVICON_LIBRARY_LIMIT)
+				store.setItem(FAVICON_LIBRARY_KEY, JSON.stringify(Object.fromEntries(entries)))
+			} catch (error) {
+				/* quota */
+			}
 		}
 
 		/** Per-session cache of already collected reference rows. */
@@ -2379,12 +2454,16 @@ window.__ModuleLoader__.load({
 		 * @param {{reference: object}} props - row reference.
 		 * @returns {object} React element.
 		 */
-		function Favicon({ reference }) {
+		function Favicon({ reference, icon }) {
+			const [failed, setFailed] = React.useState(false)
+			const hash = hashIconFor(reference.host)
+			const src = failed || typeof icon !== 'string' || icon === '' ? hash : icon
 			return h('img', {
-				src: hashIconFor(reference.host),
+				src,
 				alt: '',
 				style: S.favicon,
 				referrerPolicy: 'no-referrer',
+				onError: () => setFailed(true),
 			})
 		}
 
@@ -2675,6 +2754,8 @@ window.__ModuleLoader__.load({
 				)
 
 				const [customTitles, setCustomTitles] = React.useState(() => loadCustomTitles())
+				const [faviconLibrary, setFaviconLibrary] = React.useState(() => loadFaviconLibrary())
+				const faviconHintsRef = React.useRef(new Map())
 				const [titleEditor, setTitleEditor] = React.useState(null)
 				const titleEditorInputRef = React.useRef(null)
 				const [ignoredSession, setIgnoredSession] = React.useState(sessionId)
@@ -2733,7 +2814,7 @@ window.__ModuleLoader__.load({
 				// Rows = conversation items table (cached rows ∪ current window scan).
 				const all = React.useMemo(() => {
 					const store = scanStoreRef.current
-					const scanned = aggregate(snapshot.entries, store.cache, store.callNames)
+					const scanned = aggregate(snapshot.entries, store.cache, store.callNames, faviconHintsRef.current)
 					let newest = scannedSeqRef.current
 					let lowest = scannedMinSeqRef.current
 					for (const entry of snapshot.entries || []) {
@@ -2790,6 +2871,25 @@ window.__ModuleLoader__.load({
 						.sort((left, right) => turnCountOf(right) - turnCountOf(left) || right.lastSeq - left.lastSeq)
 				}, [active, query])
 				const rows = React.useMemo(() => orderByDomain(visible), [visible])
+				React.useEffect(() => {
+					saveFaviconLibrary(faviconLibrary)
+				}, [faviconLibrary])
+				React.useEffect(() => {
+					const hints = faviconHintsRef.current
+					if (hints.size === 0) return
+					setFaviconLibrary((current) => {
+						let changed = false
+						const next = { ...current }
+						for (const [host, iconUrl] of hints) {
+							if (next[host] === undefined) {
+								next[host] = iconUrl
+								changed = true
+							}
+						}
+						hints.clear()
+						return changed ? next : current
+					})
+				}, [snapshot])
 				const [freshKeys, setFreshKeys] = React.useState(() => new Set())
 				const knownKeysRef = React.useRef(null)
 				React.useEffect(() => {
@@ -3120,8 +3220,12 @@ window.__ModuleLoader__.load({
 							ignored: hidden === true,
 							title: customTitles[reference.key] || titleOf(reference, {}),
 							fresh: freshKeys.has(reference.key),
-							// Icons are local-only: a deterministic hash mark per host, no network.
-							iconSources: [hashIconFor(reference.host), hashIconFor(reference.host)],
+							iconSources: (() => {
+								const host = reference.host.replace(/^www\./, '')
+								const domain = rootDomain(reference.host)
+								const known = faviconLibrary[host] || faviconLibrary[domain] || ''
+								return [known !== '' ? known : hashIconFor(reference.host)]
+							})(),
 							iconEpoch: metaEpoch,
 							onOpen: openReference,
 							onToggleMenu: (next) => setMenu((current) => (current && current.key === next.key ? null : next)),
@@ -3600,7 +3704,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.70.2'
+		const BUILD = 'v0.71.0'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {

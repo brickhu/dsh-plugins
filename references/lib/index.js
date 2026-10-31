@@ -21,7 +21,7 @@ import { lookup } from 'node:dns/promises'
 export const inject = ['web', 'webServer']
 
 /** Host build stamp, echoed to the panel so a stale bundle is detectable. */
-export const BUILD = 'v0.70.2'
+export const BUILD = 'v0.71.0'
 /**
  * The desktop browser reaches the network through the system proxy; the Host's own
  * Node requests bypass it. Detect that proxy so probes can use the same route.
