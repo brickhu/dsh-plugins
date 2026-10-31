@@ -21,7 +21,7 @@ import { lookup } from 'node:dns/promises'
 export const inject = ['web', 'webServer']
 
 /** Host build stamp, echoed to the panel so a stale bundle is detectable. */
-export const BUILD = 'v0.63.1'
+export const BUILD = 'v0.64.0'
 /**
  * The desktop browser reaches the network through the system proxy; the Host's own
  * Node requests bypass it. Detect that proxy so probes can use the same route.
@@ -224,6 +224,92 @@ function withOutboundLock(task) {
 		() => undefined,
 	)
 	return run
+}
+
+/**
+ * AI titles route: asks the mounted model service to describe what each site is,
+ * for links the conversation never titled.
+ */
+export const AI_TITLES_ROUTE_PATH = '/dsh-links/titles'
+/** URLs per AI title request. */
+const AI_TITLES_BATCH = 8
+
+/**
+ * Ask the model service for short descriptive titles.
+ * @param {object} ctx - host context.
+ * @param {string[]} urls - absolute URLs.
+ * @returns {Promise<Record<string, string>>} title by URL.
+ */
+async function generateTitles(ctx, urls) {
+	const llm = ctx && ctx.llm
+	if (!llm || typeof llm.stream !== 'function' || typeof llm.listProviders !== 'function') {
+		throw new Error('model service unavailable')
+	}
+	const providers = llm.listProviders()
+	const first = Array.isArray(providers) ? providers[0] : undefined
+	const provider = first && (first.provider || first.id || first.name)
+	const model = first && (first.model || (Array.isArray(first.models) && first.models[0] && (first.models[0].id || first.models[0].model)))
+	if (!provider || !model) throw new Error('no model route configured')
+	const prompt = `你是链接整理助手。下面每行一个 URL，请为每个 URL 写一个中文标题（不超过 24 个字），说明这个网站/页面是做什么的。只输出 JSON 数组，格式：[{"url":"...","title":"..."}]，不要输出其它内容。\n${urls.map((url) => `- ${url}`).join('\n')}`
+	const chunks = llm.stream({
+		provider,
+		model,
+		maxTokens: 600,
+		system: '你只输出 JSON 数组，不要解释。',
+		messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }],
+	})
+	let text = ''
+	for await (const chunk of chunks) {
+		if (!chunk || typeof chunk !== 'object') continue
+		if (chunk.type === 'text-delta') text += chunk.text || chunk.delta || ''
+		else if (typeof chunk.text === 'string' && chunk.type !== 'block-start') text += chunk.text
+	}
+	const match = /\[[\s\S]*\]/.exec(text)
+	const parsed = match ? JSON.parse(match[0]) : []
+	const titles = {}
+	if (Array.isArray(parsed)) {
+		for (const entry of parsed) {
+			if (entry && typeof entry.url === 'string' && typeof entry.title === 'string' && entry.title.trim() !== '') {
+				titles[entry.url] = entry.title.trim()
+			}
+		}
+	}
+	if (Object.keys(titles).length === 0) throw new Error('model returned no titles')
+	return titles
+}
+
+/**
+ * Answer `GET /dsh-links/titles?urls=…`.
+ * @param {object} ctx - host context.
+ * @param {object} req - request.
+ * @param {object} res - response.
+ * @returns {Promise<void>} completion.
+ */
+async function handleTitlesRequest(ctx, req, res) {
+	try {
+		if (req.method !== 'GET') {
+			res.writeHead(405, { allow: 'GET' })
+			res.end()
+			return
+		}
+		const urls = parseRequestedUrls(req.url).slice(0, AI_TITLES_BATCH)
+		if (urls.length === 0) {
+			res.writeHead(400)
+			res.end()
+			return
+		}
+		const titles = await withOutboundLock(() => generateTitles(ctx, urls))
+		const payload = JSON.stringify({ titles, build: BUILD })
+		res.writeHead(200, {
+			'content-type': 'application/json; charset=utf-8',
+			'content-length': Buffer.byteLength(payload),
+			'cache-control': 'no-store',
+		})
+		res.end(payload)
+	} catch (error) {
+		if (!res.headersSent) res.writeHead(503)
+		res.end(String((error && error.message) || error))
+	}
 }
 
 /** The route the Client calls; keep in sync with `TITLE_ROUTE` in client.js. */
@@ -594,5 +680,14 @@ export function apply(ctx) {
 				handler: (req, res) => handleIconRequest(iconCache, req, res),
 			}),
 		'dsh-links: icon route',
+	)
+	ctx.effect(
+		() =>
+			ctx.webServer.register({
+				kind: 'exact',
+				path: AI_TITLES_ROUTE_PATH,
+				handler: (req, res) => handleTitlesRequest(ctx, req, res),
+			}),
+		'dsh-links: ai titles route',
 	)
 }

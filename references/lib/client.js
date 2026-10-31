@@ -1335,6 +1335,44 @@ window.__ModuleLoader__.load({
 			}
 		}
 
+		/** AI-generated descriptive titles: url → title. */
+		const AI_TITLES_KEY = 'dsh-links.aititles.v1'
+		const AI_TITLES_LIMIT = 500
+
+		/** @returns {Record<string, string>} AI titles by URL. */
+		function loadAiTitles() {
+			const store = ignoreStore()
+			if (!store) return {}
+			try {
+				const raw = store.getItem(AI_TITLES_KEY)
+				const parsed = raw ? JSON.parse(raw) : null
+				if (!parsed || typeof parsed !== 'object') return {}
+				const result = {}
+				for (const [url, title] of Object.entries(parsed)) {
+					if (typeof url === 'string' && typeof title === 'string' && title.trim() !== '') result[url] = title
+				}
+				return result
+			} catch (error) {
+				return {}
+			}
+		}
+
+		/**
+		 * Persist AI titles.
+		 * @param {Record<string, string>} titles - titles by URL.
+		 * @returns {void}
+		 */
+		function saveAiTitles(titles) {
+			const store = ignoreStore()
+			if (!store) return
+			try {
+				const entries = Object.entries(titles).slice(-AI_TITLES_LIMIT)
+				store.setItem(AI_TITLES_KEY, JSON.stringify(Object.fromEntries(entries)))
+			} catch (error) {
+				/* quota */
+			}
+		}
+
 		/** Global pin list: pinned URLs stay on top in every session. */
 		const PIN_STORE_KEY = 'dsh-links.pinned.v1'
 		/** Maximum remembered pins. */
@@ -2631,6 +2669,8 @@ window.__ModuleLoader__.load({
 				const [hostsTable, setHostsTable] = React.useState(() => loadHostsTable())
 
 				const [customTitles, setCustomTitles] = React.useState(() => loadCustomTitles())
+				const [aiTitles, setAiTitles] = React.useState(() => loadAiTitles())
+				const [aiBusy, setAiBusy] = React.useState(false)
 				const [titleEditor, setTitleEditor] = React.useState(null)
 				const titleEditorInputRef = React.useRef(null)
 				const [ignoredSession, setIgnoredSession] = React.useState(sessionId)
@@ -2709,6 +2749,9 @@ window.__ModuleLoader__.load({
 
 				// Persist the favicon cache (debounced) and flush it when the panel unmounts, so
 				// switching conversations never loses icons that were just fetched.
+				React.useEffect(() => {
+					saveAiTitles(aiTitles)
+				}, [aiTitles])
 				const hostsTableRef = React.useRef(hostsTable)
 				hostsTableRef.current = hostsTable
 				React.useEffect(
@@ -2850,6 +2893,19 @@ window.__ModuleLoader__.load({
 						.sort((left, right) => turnCountOf(right) - turnCountOf(left) || right.lastSeq - left.lastSeq)
 				}, [active, query])
 				const rows = React.useMemo(() => orderByDomain(visible), [visible])
+				// AI titles win over probed page titles; conversation labels still win over both.
+				const probeView = React.useMemo(() => {
+					if (Object.keys(aiTitles).length === 0) return probes
+					const merged = { ...probes }
+					for (const [url, title] of Object.entries(aiTitles)) {
+						merged[url] = { ...(merged[url] || {}), title, ok: true, at: (merged[url] && merged[url].at) || 0 }
+					}
+					return merged
+				}, [probes, aiTitles])
+				const untitledRows = React.useMemo(
+					() => visible.filter((reference) => !customTitles[reference.key] && titleOf(reference, probeView) === reference.url),
+					[visible, probeView, customTitles],
+				)
 				const pinnedRows = React.useMemo(() => splitPinned(rows, pinned)[0], [rows, pinned])
 				const restRows = React.useMemo(() => splitPinned(rows, pinned)[1], [rows, pinned])
 
@@ -3183,7 +3239,7 @@ window.__ModuleLoader__.load({
 						showNotice('当前没有可复制的链接')
 						return
 					}
-					const text = markdownOf(visible, probes)
+					const text = markdownOf(visible, probeView)
 					copyText(text).then((ok) => {
 						showNotice(ok ? `已复制 ${visible.length} 条为 Markdown 引用清单` : '复制失败：浏览器没有授予剪贴板权限')
 					})
@@ -3216,6 +3272,26 @@ window.__ModuleLoader__.load({
 				 * metadata (title, icon) while keeping pins.
 				 * @returns {Promise<void>} completion.
 				 */
+				const requestAiTitles = React.useCallback(async () => {
+					const pending = untitledRows.slice(0, 8)
+					if (pending.length === 0 || aiBusy) return
+					setAiBusy(true)
+					try {
+						const target = new URL('/dsh-links/titles', typeof document !== 'undefined' && document.baseURI ? document.baseURI : 'http://127.0.0.1/')
+						target.searchParams.set('urls', JSON.stringify(pending.map((reference) => reference.url)))
+						const response = await fetch(target)
+						if (!response || !response.ok) return
+						const payload = await response.json()
+						const titles = payload && payload.titles
+						if (!titles || typeof titles !== 'object') return
+						setAiTitles((current) => ({ ...current, ...titles }))
+					} catch (error) {
+						/* leave the rows untitled */
+					} finally {
+						setAiBusy(false)
+					}
+				}, [untitledRows, aiBusy])
+
 				const rescanAll = React.useCallback(async () => {
 					if (rescanning) return
 					setRescanning(true)
@@ -3353,7 +3429,7 @@ window.__ModuleLoader__.load({
 							key: reference.key,
 							reference,
 							ignored: hidden === true,
-							title: customTitles[reference.key] || titleOf(reference, probes),
+							title: customTitles[reference.key] || titleOf(reference, probeView),
 							iconSources: (() => {
 								const hash = hashIconFor(reference.host)
 								const host = reference.host.replace(/^www\./, '')
@@ -3809,6 +3885,19 @@ window.__ModuleLoader__.load({
 									? '正在加载历史…'
 									: `已统计 ${snapshot.entries.length} 条事件`,
 						),
+						untitledRows.length > 0
+							? h(
+									'button',
+									{
+										type: 'button',
+										style: S.footerButton,
+										title: '用模型为没有标题的链接生成一句描述（每次最多 8 条）',
+										onClick: requestAiTitles,
+										disabled: aiBusy,
+									},
+									aiBusy ? '生成中…' : 'AI 标题',
+								)
+							: null,
 						h(
 							'button',
 							{
@@ -3841,7 +3930,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.63.1'
+		const BUILD = 'v0.64.0'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
