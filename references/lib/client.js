@@ -3204,6 +3204,17 @@ window.__ModuleLoader__.load({
 					}
 				}, [binding, historyDone])
 
+				// Reveal the list once the conversation is loaded; never let the splash (or a
+				// stuck load) blank the panel indefinitely.
+				React.useEffect(() => {
+					if (historyDone) setSplashDone(true)
+				}, [historyDone])
+				React.useEffect(() => {
+					if (!showSplash) return undefined
+					const timer = setTimeout(() => setSplashDone(true), 4000)
+					return () => clearTimeout(timer)
+				}, [showSplash])
+
 				if (!binding) {
 					return h('div', { style: S.root }, h('div', { style: S.empty }, '正在等待会话就绪…'))
 				}
@@ -3735,7 +3746,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.69.1'
+		const BUILD = 'v0.69.2'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
