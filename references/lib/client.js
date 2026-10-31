@@ -2939,15 +2939,15 @@ window.__ModuleLoader__.load({
 						.sort((left, right) => turnCountOf(right) - turnCountOf(left) || right.lastSeq - left.lastSeq)
 				}, [active, query])
 				const rows = React.useMemo(() => orderByDomain(visible), [visible])
-				// AI titles win over probed page titles; conversation labels still win over both.
+				// Only AI-generated titles feed the title fallback: page titles are never fetched.
 				const probeView = React.useMemo(() => {
-					if (Object.keys(aiTitles).length === 0) return probes
-					const merged = { ...probes }
+					if (Object.keys(aiTitles).length === 0) return {}
+					const merged = {}
 					for (const [url, title] of Object.entries(aiTitles)) {
-						merged[url] = { ...(merged[url] || {}), title, ok: true, at: (merged[url] && merged[url].at) || 0 }
+						merged[url] = { title, ok: true, at: 0 }
 					}
 					return merged
-				}, [probes, aiTitles])
+				}, [aiTitles])
 				const untitledRows = React.useMemo(
 					() => visible.filter((reference) => !customTitles[reference.key] && titleOf(reference, probeView) === reference.url),
 					[visible, probeView, customTitles],
@@ -3250,60 +3250,6 @@ window.__ModuleLoader__.load({
 					},
 					[],
 				)
-
-				// Page-title fallback pass: only rows without a conversation title are probed,
-				// one at a time, while the panel is visible. Results are cached and reused.
-				const titleProbeRef = React.useRef({ epoch: -1, urls: new Set(), timer: null, at: 0 })
-				const titleMissing = React.useMemo(
-					() => visible.filter((reference) => titleOf(reference, {}) === reference.url),
-					[visible],
-				)
-				React.useEffect(() => {
-					if (!historyDone || !panelVisible || typeof fetch !== 'function') return undefined
-					const state = titleProbeRef.current
-					if (state.epoch !== sessionEpoch) {
-						state.epoch = sessionEpoch
-						state.urls = new Set()
-					}
-					const target = titleMissing.find((reference) => !state.urls.has(reference.url))
-					if (target === undefined) return undefined
-					if (state.timer !== null) clearTimeout(state.timer)
-					state.timer = setTimeout(() => {
-						state.timer = null
-						if (Date.now() - state.at < 1200) return
-						state.at = Date.now()
-						state.urls.add(target.url)
-						setAutoProbing((current) => new Set(current).add(target.url))
-						Promise.resolve(runProbePass({ urls: [target.url], limit: 1, silent: true })).finally(() => {
-							setAutoProbing((current) => {
-								const next = new Set(current)
-								next.delete(target.url)
-								return next
-							})
-						})
-					}, 800)
-					return () => {
-						if (state.timer !== null) {
-							clearTimeout(state.timer)
-							state.timer = null
-						}
-					}
-				}, [titleMissing, historyDone, panelVisible, sessionEpoch, runProbePass])
-
-				const probeSaveRef = React.useRef(null)
-				React.useEffect(() => {
-					if (probeSaveRef.current !== null) clearTimeout(probeSaveRef.current)
-					probeSaveRef.current = setTimeout(() => {
-						probeSaveRef.current = null
-						if (Object.keys(probes).length > 0) saveProbes(probes)
-					}, 300)
-					return () => {
-						if (probeSaveRef.current !== null) {
-							clearTimeout(probeSaveRef.current)
-							probeSaveRef.current = null
-						}
-					}
-				}, [probes])
 
 				const copyList = React.useCallback(() => {
 					if (visible.length === 0) {
@@ -4002,7 +3948,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.66.1'
+		const BUILD = 'v0.67.0'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
