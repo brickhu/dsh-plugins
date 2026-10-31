@@ -1006,11 +1006,6 @@ window.__ModuleLoader__.load({
 			if (reference && usable(reference.title) && reference.titleFromPath === false && isUsableTitle(reference.title)) {
 				return visible(reference.title)
 			}
-			// Fallback: the page's own <title> (what the site says it is), probed once and
-			// cached; the newest explicit conversation title always wins over it.
-			const probe = probes ? probes[reference.url] : undefined
-			if (typeof probe === 'string' && usable(probe)) return visible(probe)
-			if (probe && typeof probe === 'object' && usable(probe.title)) return visible(probe.title)
 			// Never render an empty row: fall back to the URL.
 			return reference.url
 		}
@@ -2756,7 +2751,6 @@ window.__ModuleLoader__.load({
 				const [pinnedOpen, setPinnedOpen] = React.useState(true)
 				const [allOpen, setAllOpen] = React.useState(true)
 				const [hiddenOpen, setHiddenOpen] = React.useState(false)
-				const [probes, setProbes] = React.useState(() => loadProbes())
 				const searchInputRef = React.useRef(null)
 				const [metaEpoch, setMetaEpoch] = React.useState(0)
 				const [probeError, setProbeError] = React.useState('')
@@ -2797,7 +2791,6 @@ window.__ModuleLoader__.load({
 					setCompleteState(nextCache.complete === true)
 					// Metadata is global (keyed by URL), so switching sessions must neither
 					// drop it from memory nor overwrite the shared cache with an empty object.
-					setProbes((current) => ({ ...loadProbes(), ...current }))
 					setMenu(null)
 					setProbeError('')
 					setSessionEpoch((epoch) => epoch + 1)
@@ -2946,10 +2939,6 @@ window.__ModuleLoader__.load({
 				}, [all, sessionId, snapshot.hasMore])
 				// Reachability never removes a row: only static validity rejects a URL.
 				const live = all
-				const unreachableRows = React.useMemo(
-					() => all.filter((reference) => isUnavailableProbe(probes, reference.url)),
-					[all, probes],
-				)
 				const active = React.useMemo(
 					() => live.filter((reference) => !isRowHidden(reference)),
 					[live, isRowHidden],
@@ -2999,29 +2988,11 @@ window.__ModuleLoader__.load({
 
 				// The splash owns the panel until the first metadata pass settles: the search
 				// box and the list render only afterwards.
+				// Tests can force the list immediately with initialLoading={false}.
 				const allowSplash = !(props && props.initialLoading === false)
-				const missingMetadata = React.useMemo(
-					() =>
-						visible.some((reference) => {
-							const probe = probes[reference.url]
-							return !probe || !probe.title
-						}),
-					[visible, probes],
-				)
-				const hasCachedRows = linksCache.rows.length > 0
-				const showSplash =
-					allowSplash && !splashDone && (missingMetadata || (!historyDone && snapshot.hasMore) || hasCachedRows)
+				const showSplash = allowSplash && !splashDone && !historyDone
 
 
-
-				const savedProbesRef = React.useRef(null)
-				React.useEffect(() => {
-					const previous = savedProbesRef.current
-					savedProbesRef.current = probes
-					if (previous === null) return
-					if (Object.keys(probes).length === 0) return
-					saveProbes(probes)
-				}, [probes])
 
 				// Close the row menu on any outside press, Escape, or list scroll.
 				const rowMenuRef = React.useRef(null)
@@ -3060,193 +3031,24 @@ window.__ModuleLoader__.load({
 				 *   whether to bypass the Host cache.
 				 * @returns {Promise<void>} completion of this pass.
 				 */
-				const runProbePass = React.useCallback(async (options) => {
-					const limit = options && typeof options.limit === 'number' ? options.limit : 16
-					const refreshCache = !!(options && options.refreshCache)
-					if (refreshing || typeof fetch !== 'function' || visible.length === 0) return
-					const targets = Array.isArray(options && options.urls) ? options.urls.slice(0, limit) : []
-					if (targets.length === 0) for (const reference of visible) {
-						const probe = probes[reference.url]
-						if (!refreshCache && probe) {
-							if (probe.title) continue
-							const age = Date.now() - (probe.at || 0)
-							if (age < META_RETRY_MS) continue
-						}
-						targets.push(reference.url)
-						if (targets.length >= limit) break
-					}
-					if (targets.length === 0) return
-					setRefreshing(true)
-					let updated = 0
-					try {
-						// Linear: one URL per request, one request at a time.
-						for (const url of targets) {
-							let answer = await fetchProbes([url], refreshCache)
-							if (!answer) {
-								// The Host route may still be registering during a cold start.
-								await new Promise((resolve) => setTimeout(resolve, 1200))
-								answer = await fetchProbes([url], refreshCache)
+				const openReference = React.useCallback(
+					(reference, event) => {
+						const external = !!(event && (event.metaKey || event.ctrlKey || event.altKey))
+						if (!external && tab && tab.actions && typeof tab.actions.openTab === 'function') {
+							try {
+								tab.actions.openTab(BROWSER_KIND, { params: { url: reference.url } })
+								return
+							} catch (error) {
+								/* fall through to the system browser */
 							}
-							if (!answer || !answer.probes) {
-								setProbeError(
-									answer && answer.error ? `探测请求失败：${answer.error}` : META_UNAVAILABLE_NOTICE,
-								)
-								break
-							}
-							setProbeError('')
-							if (answer.build) setHostBuild(answer.build)
-							const result = answer.probes
-							const now = Date.now()
-							setProbes((current) => {
-								const next = { ...current }
-								for (const [probedUrl, probe] of Object.entries(result)) {
-									const previous = next[probedUrl]
-									next[probedUrl] = {
-										title: probe.title || (previous && previous.title) || '',
-										icon: probe.icon || (previous && previous.icon) || '',
-										dead: probe.dead === true,
-										ok: probe.ok !== false,
-										reason: typeof probe.reason === 'string' ? probe.reason : previous ? previous.reason || '' : '',
-										at: now,
-									}
-								}
-								return next
-							})
-							updated += Object.keys(result).length
-							await new Promise((resolve) => setTimeout(resolve, META_GAP_MS))
 						}
-						if (options && options.silent !== true) {
-							if (updated > 0) showNotice(`已刷新 ${updated} 条链接的标题`)
-						}
-						return updated
-					} finally {
-						setRefreshing(false)
-						setMetaEpoch((epoch) => epoch + 1)
-					}
-				}, [refreshing, visible, probes, showNotice])
-
-				// Hard stop for the splash even if the pass never settles.
-				React.useEffect(() => {
-					if (!showSplash) return undefined
-					const timer = setTimeout(() => setSplashDone(true), 8000)
-					return () => clearTimeout(timer)
-				}, [showSplash])
-
-				// Reveal the list as soon as the conversation history is loaded.
-				React.useEffect(() => {
-					if (historyDone) setSplashDone(true)
-				}, [historyDone])
-
-				// Only refresh metadata while the panel is actually on screen.
-				React.useEffect(() => {
-					const node = rootRef.current
-					if (!node || typeof IntersectionObserver !== 'function') return undefined
-					const observer = new IntersectionObserver(
-						(entries) => {
-							const entry = entries[0]
-							setPanelVisible(!!entry && entry.isIntersecting)
-						},
-						{ threshold: 0.05 },
-					)
-					observer.observe(node)
-					return () => observer.disconnect()
-				}, [])
-
-				const openReference = React.useCallback((reference, event) => {
-					const external = !!(event && (event.metaKey || event.ctrlKey || event.altKey))
-					if (!external && tab && tab.actions && typeof tab.actions.openTab === 'function') {
 						try {
-							tab.actions.openTab(BROWSER_KIND, { params: { url: reference.url } })
-							return
+							window.open(reference.url, '_blank', 'noopener,noreferrer')
 						} catch (error) {
-							/* fall through to the system browser */
+							window.location.href = reference.url
 						}
-					}
-					try {
-						const opened = window.open(reference.url, '_blank', 'noopener,noreferrer')
-						if (opened === null || opened === undefined) showNotice('打开被拦截，试试 Cmd+点击')
-					} catch (error) {
-						showNotice('无法打开这个链接')
-					}
-				}, [tab, showNotice])
-
-				const locateReference = React.useCallback((reference) => {
-					if (locateUrl(reference.url)) return
-					if (locateUrl(reference.url.replace(/^https?:\/\//i, ''))) return
-					showNotice('没在当前视图里找到原文，它可能在上方未加载的历史中')
-				}, [showNotice])
-
-				// Batch hide is locked to the row's own host: hiding a.baidu.com never touches
-				// b.baidu.com or baidu.com itself.
-				const ignoreDomain = React.useCallback(
-					(reference) => {
-						const domain = reference.host.replace(/^www\./, '')
-						setBlockedHosts((current) => {
-							const next = new Set(current)
-							for (const candidate of next) if (hostIgnored(reference.host, [candidate])) next.delete(candidate)
-							next.add(domain)
-							return next
-						})
-						showNotice(`已隐藏 ${domain} 及其所有子域名`, [
-							{
-								label: '撤销',
-								run: () =>
-									setBlockedHosts((current) => {
-										const next = new Set(current)
-										next.delete(domain)
-										return next
-									}),
-							},
-						])
 					},
-					[showNotice],
-				)
-
-				// Hide a single URL: only this exact link disappears, siblings stay visible.
-				const hideLinkOnly = React.useCallback(
-					(reference) => {
-						setIgnored((current) => withIgnore(current, reference, 'link'))
-						showNotice(`已隐藏 ${titleOf(reference)}`, [
-							{ label: '撤销', run: () => setIgnored((current) => withoutIgnore(current, reference)) },
-						])
-					},
-					[showNotice],
-				)
-
-				const restoreReference = React.useCallback(
-					(reference) => {
-						const domain = rootDomain(reference.host)
-						const wasBlocked = hostIgnored(reference.host, Array.from(blockedHosts))
-						setIgnored((current) => restoreOne(all, current, reference))
-						if (wasBlocked) {
-							setBlockedHosts((current) => {
-								const next = new Set(current)
-								for (const host of next) if (hostIgnored(reference.host, [host])) next.delete(host)
-								return next
-							})
-							showNotice(`已恢复 ${domain}（解除了该域名的全局隐藏）`)
-							return
-						}
-						showNotice(`已恢复 ${titleOf(reference)}`)
-					},
-					[all, blockedHosts, showNotice],
-				)
-
-				const togglePin = React.useCallback(
-					(reference) => {
-						setPinned((current) => {
-							const next = new Set(current)
-							if (next.has(reference.url)) {
-								next.delete(reference.url)
-								showNotice('已取消固定')
-							} else {
-								next.add(reference.url)
-								showNotice('已固定到顶部')
-							}
-							return next
-						})
-					},
-					[showNotice],
+					[tab],
 				)
 
 				// Refresh the row's favicon: evict its host/domain entry, then let the icon queue
@@ -3268,72 +3070,16 @@ window.__ModuleLoader__.load({
 					[],
 				)
 
-				// One-time title enrichment: a URL that never had a page title probed (and
-				// has no conversation title) is probed exactly once; attempts are remembered,
-				// so nothing is refreshed or retried later.
-				const titleAttemptsRef = React.useRef(null)
-				if (titleAttemptsRef.current === null) titleAttemptsRef.current = loadTitleAttempts()
-				const enrichRef = React.useRef({ epoch: -1, timer: null, at: 0 })
-				React.useEffect(() => {
-					if (!historyDone || !panelVisible || typeof fetch !== 'function') return undefined
-					const state = enrichRef.current
-					if (state.epoch !== sessionEpoch) state.epoch = sessionEpoch
-					const attempts = titleAttemptsRef.current
-					const target = visible.find((reference) => {
-						if (titleOf(reference, {}) !== reference.url) return false
-						if (probes[reference.url] !== undefined) return false
-						return !attempts.has(reference.url)
-					})
-					if (target === undefined) return undefined
-					if (state.timer !== null) clearTimeout(state.timer)
-					state.timer = setTimeout(() => {
-						state.timer = null
-						if (Date.now() - state.at < 1200) return
-						state.at = Date.now()
-						attempts.add(target.url)
-						saveTitleAttempts(attempts)
-						setAutoProbing((current) => new Set(current).add(target.url))
-						Promise.resolve(runProbePass({ urls: [target.url], limit: 1, silent: true })).finally(() => {
-							setAutoProbing((current) => {
-								const next = new Set(current)
-								next.delete(target.url)
-								return next
-							})
-						})
-					}, 700)
-					return () => {
-						if (state.timer !== null) {
-							clearTimeout(state.timer)
-							state.timer = null
-						}
-					}
-				}, [visible, probes, historyDone, panelVisible, sessionEpoch, runProbePass])
-
-				const probeSaveRef = React.useRef(null)
-				React.useEffect(() => {
-					if (probeSaveRef.current !== null) clearTimeout(probeSaveRef.current)
-					probeSaveRef.current = setTimeout(() => {
-						probeSaveRef.current = null
-						if (Object.keys(probes).length > 0) saveProbes(probes)
-					}, 300)
-					return () => {
-						if (probeSaveRef.current !== null) {
-							clearTimeout(probeSaveRef.current)
-							probeSaveRef.current = null
-						}
-					}
-				}, [probes])
-
 				const copyList = React.useCallback(() => {
 					if (visible.length === 0) {
 						showNotice('当前没有可复制的链接')
 						return
 					}
-					const text = markdownOf(visible, probes)
+					const text = markdownOf(visible, {})
 					copyText(text).then((ok) => {
 						showNotice(ok ? `已复制 ${visible.length} 条为 Markdown 引用清单` : '复制失败：浏览器没有授予剪贴板权限')
 					})
-				}, [visible, probes, showNotice])
+				}, [visible, showNotice])
 
 				const copyReference = React.useCallback((reference) => {
 					copyText(reference.url).then((ok) => {
@@ -3387,17 +3133,7 @@ window.__ModuleLoader__.load({
 						setHostsTable({})
 						iconFailedRef.current.clear()
 						iconQueueRef.current.clear()
-						setProbes({})
-						titleAttemptsRef.current = new Set()
-						saveTitleAttempts(titleAttemptsRef.current)
-						const store = ignoreStore()
-						if (store) {
-							try {
-								store.removeItem(META_STORE_KEY)
-							} catch (error) {
-								/* nothing stored */
-							}
-						}
+
 					} finally {
 						setRescanning(false)
 					}
@@ -3511,7 +3247,7 @@ window.__ModuleLoader__.load({
 							key: reference.key,
 							reference,
 							ignored: hidden === true,
-							title: customTitles[reference.key] || titleOf(reference, probes),
+							title: customTitles[reference.key] || titleOf(reference, {}),
 							fresh: freshKeys.has(reference.key),
 							iconSources: (() => {
 								const hash = hashIconFor(reference.host)
@@ -3527,7 +3263,6 @@ window.__ModuleLoader__.load({
 							onCountHover: (next) =>
 								setCountTip((current) => (current !== null && next !== null && current.key === next.key ? null : next)),
 							refreshing: refreshingUrls.has(reference.url) || autoProbing.has(reference.url),
-							unreachable: isUnavailableProbe(probes, reference.url),
 						})
 					const sectionHeader = (key, label, count, open, toggle) =>
 						h(
@@ -4000,7 +3735,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.68.1'
+		const BUILD = 'v0.69.0'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
