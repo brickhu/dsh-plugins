@@ -1172,7 +1172,7 @@ window.__ModuleLoader__.load({
 		 * only from successful web_fetch results; nothing is fetched by the plugin itself.
 		 */
 		const FAVICON_LIBRARY_KEY = 'dsh-links.favicons.v1'
-		const FAVICON_LIBRARY_LIMIT = 800
+		const FAVICON_LIBRARY_LIMIT = 150
 
 		/** @returns {Record<string, string>} favicon URL by host or domain. */
 		function loadFaviconLibrary() {
@@ -2464,6 +2464,21 @@ window.__ModuleLoader__.load({
 		 */
 		/** Cached luminance analysis of one icon data URL. */
 		const ICON_TONE_CACHE = new Map()
+		const ICON_TONE_CACHE_LIMIT = 300
+
+		/**
+		 * Remember one analysis without letting the cache grow unbounded.
+		 * @param {string} src - data URL key.
+		 * @param {object | null} tone - analysis result.
+		 * @returns {void}
+		 */
+		function rememberIconTone(src, tone) {
+			if (ICON_TONE_CACHE.size >= ICON_TONE_CACHE_LIMIT) {
+				const oldest = ICON_TONE_CACHE.keys().next()
+				if (!oldest.done) ICON_TONE_CACHE.delete(oldest.value)
+			}
+			ICON_TONE_CACHE.set(src, tone)
+		}
 
 		/**
 		 * Average luminance and saturation of an icon, so a monochrome mark that would
@@ -2506,7 +2521,7 @@ window.__ModuleLoader__.load({
 							count += 1
 						}
 						const result = count === 0 ? null : { luma: luma / count, saturation: saturation / count }
-						ICON_TONE_CACHE.set(src, result)
+						rememberIconTone(src, result)
 						resolve(result)
 					} catch (error) {
 						resolve(null)
@@ -2606,6 +2621,38 @@ window.__ModuleLoader__.load({
 			if (delta < 60 * 60 * 1000) return trf('time.minutesAgo', { count: Math.floor(delta / 60000) })
 			if (delta < 24 * 60 * 60 * 1000) return trf('time.hoursAgo', { count: Math.floor(delta / 3600000) })
 			return trf('time.daysAgo', { count: Math.floor(delta / 86400000) })
+		}
+
+		/**
+		 * Throttle an event-stream snapshot so a streaming answer does not re-aggregate the
+		 * whole conversation on every token. Leading call is immediate; later ones land at
+		 * most once per `wait` milliseconds, and the last value always arrives.
+		 * @param {{entries: Array, hasMore: boolean}} snapshot - live session snapshot.
+		 * @param {number} wait - minimum interval in milliseconds.
+		 * @returns {{entries: Array, hasMore: boolean}} throttled snapshot.
+		 */
+		function useThrottledSnapshot(snapshot, wait) {
+			const [value, setValue] = React.useState(snapshot)
+			const stateRef = React.useRef({ last: 0, timer: null, pending: snapshot })
+			React.useEffect(() => {
+				const state = stateRef.current
+				state.pending = snapshot
+				const flush = () => {
+					state.timer = null
+					state.last = Date.now()
+					setValue(state.pending)
+				}
+				const elapsed = Date.now() - state.last
+				if (elapsed >= wait) flush()
+				else if (state.timer === null) state.timer = setTimeout(flush, wait - elapsed)
+			}, [snapshot, wait])
+			React.useEffect(
+				() => () => {
+					if (stateRef.current.timer !== null) clearTimeout(stateRef.current.timer)
+				},
+				[],
+			)
+			return value
 		}
 
 		/**
@@ -3045,12 +3092,15 @@ window.__ModuleLoader__.load({
 					scanStoreRef.current = { cache: new Map(), callNames: new Map() }
 				}
 				// Rows = conversation items table (cached rows ∪ current window scan).
+				// The stream is throttled: a long answer emits many events, and re-aggregating
+				// on each of them is what made the panel feel heavy while the agent typed.
+				const liveSnapshot = useThrottledSnapshot(snapshot, 300)
 				const all = React.useMemo(() => {
 					const store = scanStoreRef.current
-					const scanned = aggregate(snapshot.entries, store.cache, store.callNames, faviconHintsRef.current)
+					const scanned = aggregate(liveSnapshot.entries, store.cache, store.callNames, faviconHintsRef.current)
 					let newest = scannedSeqRef.current
 					let lowest = scannedMinSeqRef.current
-					for (const entry of snapshot.entries || []) {
+					for (const entry of liveSnapshot.entries || []) {
 						const seq = entry && entry.event ? entry.event.seq : null
 						if (typeof seq !== 'number') continue
 						if (seq > newest) newest = seq
@@ -3061,7 +3111,7 @@ window.__ModuleLoader__.load({
 					if (!snapshot.hasMore) return scanned
 					if (linksCache.rows.length === 0) return scanned
 					return mergeRows(linksCache.rows, scanned)
-				}, [snapshot, linksCache])
+				}, [liveSnapshot, linksCache])
 
 				// Persist the favicon cache (debounced) and flush it when the panel unmounts, so
 				// switching conversations never loses icons that were just fetched.
@@ -3145,15 +3195,11 @@ window.__ModuleLoader__.load({
 						const candidates = [
 							`https://${target.host}/favicon.ico`,
 							`https://${target.host}/apple-touch-icon.png`,
-							`https://${target.host}/favicon.png`,
-							`https://${target.host}/favicon.svg`,
 						]
 						if (target.domain !== target.host) {
 							candidates.push(
 								`https://${target.domain}/favicon.ico`,
 								`https://${target.domain}/apple-touch-icon.png`,
-								`https://${target.domain}/favicon.png`,
-								`https://${target.domain}/favicon.svg`,
 							)
 						}
 						let found = ''
@@ -3290,34 +3336,14 @@ window.__ModuleLoader__.load({
 						}
 						const run = async () => {
 							try {
-								const base = new URL('/dsh-links/meta', document.baseURI)
-								base.searchParams.set('urls', JSON.stringify([reference.url]))
-								const response = await fetch(base)
-								let iconUrl = ''
-								if (response && response.ok) {
-									const payload = await response.json()
-									const page = payload && payload.pages && payload.pages[reference.url]
-									iconUrl = page && typeof page.icon === 'string' ? page.icon : ''
-								}
-								if (iconUrl !== '') {
-									const dataUrl = await requestFavicon(iconUrl)
-									if (dataUrl !== '') {
-										setFaviconLibrary((current) => (current[host] ? current : { ...current, [host]: dataUrl }))
-										return
-									}
-								}
 								const candidates = [
 									`https://${host}/favicon.ico`,
 									`https://${host}/apple-touch-icon.png`,
-									`https://${host}/favicon.png`,
-									`https://${host}/favicon.svg`,
 								]
 								if (domain !== host) {
 									candidates.push(
 										`https://${domain}/favicon.ico`,
 										`https://${domain}/apple-touch-icon.png`,
-										`https://${domain}/favicon.png`,
-										`https://${domain}/favicon.svg`,
 									)
 								}
 								for (const candidate of candidates) {
@@ -4115,7 +4141,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.78.1'
+		const BUILD = 'v0.79.0'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.
