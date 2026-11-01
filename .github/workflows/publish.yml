@@ -31,8 +31,9 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
+          # No registry-url here: setup-node would write an .npmrc with a placeholder
+          # NODE_AUTH_TOKEN, which overrides the OIDC credential npm 11 obtains itself.
           node-version: '22'
-          registry-url: 'https://registry.npmjs.org'
 
       - name: Upgrade npm for OIDC trusted publishing
         # Trusted publishing needs npm >= 11.5; the Node 22 image ships npm 10,
@@ -46,4 +47,4 @@ jobs:
         run: npm pack --dry-run
 
       - name: Publish via OIDC trusted publishing
-        run: npm publish --access public --provenance
+        run: npm publish --access public --provenance --registry https://registry.npmjs.org/
