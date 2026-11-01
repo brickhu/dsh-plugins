@@ -3460,56 +3460,6 @@ window.__ModuleLoader__.load({
 					[],
 				)
 
-				// Manual icon refresh: same fetch path the automatic queue uses, but with a
-				// visible spinner state, so "is the chain working?" is answerable in one click.
-				const refreshIcon = React.useCallback(
-					async (reference) => {
-						const host = reference.host.replace(/^www\./, '')
-						const domain = rootDomain(reference.host)
-						setRefreshingUrls((current) => new Set(current).add(reference.url))
-						try {
-							const requestIcon = async (iconUrl) => {
-								try {
-									const url = new URL('/dsh-links/favicon', document.baseURI)
-									url.searchParams.set('url', iconUrl)
-									const response = await fetch(url)
-									if (!response || !response.ok) return ''
-									const payload = await response.json()
-									return payload && typeof payload.dataUrl === 'string' && payload.dataUrl.indexOf('data:') === 0 ? payload.dataUrl : ''
-								} catch (error) {
-									return ''
-								}
-							}
-							const candidates = [
-								`https://${host}/favicon.ico`,
-								`https://${host}/apple-touch-icon.png`,
-							]
-							if (domain !== host) {
-								candidates.push(`https://${domain}/favicon.ico`, `https://${domain}/apple-touch-icon.png`)
-							}
-							let dataUrl = ''
-							for (const candidate of candidates) {
-								dataUrl = await requestIcon(candidate)
-								if (dataUrl !== '') break
-							}
-							if (dataUrl !== '') {
-								setFaviconLibrary((current) => ({ ...current, [host]: dataUrl }))
-								showNotice(tr('notice.iconUpdated'))
-							} else {
-								showNotice(tr('notice.iconMissing'))
-							}
-						} finally {
-							setRefreshingUrls((current) => {
-								if (!current.has(reference.url)) return current
-								const next = new Set(current)
-								next.delete(reference.url)
-								return next
-							})
-						}
-					},
-					[showNotice],
-				)
-
 				const copyReference = React.useCallback((reference) => {
 					copyText(reference.url).then((ok) => {
 						showNotice(ok ? '已复制链接' : '复制失败：浏览器没有授予剪贴板权限')
@@ -3980,7 +3930,6 @@ window.__ModuleLoader__.load({
 								}),
 								menuSeparator('sep-1'),
 								h(MenuItem, { key: 'rename', label: tr('menu.rename'), onSelect: closeThen(openTitleEditor) }),
-								h(MenuItem, { key: 'refresh-icon', label: tr('menu.refreshIcon'), onSelect: closeThen(refreshIcon) }),
 								menuSeparator('sep-2'),
 								h(MenuItem, { key: 'ignore-link', label: tr('menu.hideLink'), onSelect: closeThen(hideLinkOnly) }),
 								h(MenuItem, {
@@ -4204,7 +4153,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sidebarRight', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.80.0'
+		const BUILD = 'v0.80.1'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.
@@ -4271,9 +4220,6 @@ window.__ModuleLoader__.load({
 			'notice.unpinned': '已取消置顶',
 			'notice.loadOlderFailed': '加载更早的消息失败',
 			'notice.jumpMissing': '第 {turn} 轮还没加载出来，先向上滚动加载更早的历史',
-			'notice.iconUpdated': '图标已更新',
-			'notice.iconMissing': '没有取到这个网站的图标',
-			'menu.refreshIcon': '刷新图标',
 			'button.close': '关闭',
 			'row.clickToView': '点击查看',
 			'row.turnLabel': '第 {turn} 轮对话',
@@ -4333,9 +4279,6 @@ window.__ModuleLoader__.load({
 			'notice.unpinned': 'Unpinned',
 			'notice.loadOlderFailed': 'Failed to load older messages',
 			'notice.jumpMissing': 'Turn {turn} is not loaded yet — scroll up to load older history',
-			'notice.iconUpdated': 'Icon updated',
-			'notice.iconMissing': 'No icon found for this site',
-			'menu.refreshIcon': 'Refresh icon',
 			'button.close': 'Close',
 			'row.clickToView': 'Click to view',
 			'row.turnLabel': 'Turn {turn}',
