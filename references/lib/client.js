@@ -4141,7 +4141,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.79.0'
+		const BUILD = 'v0.79.1'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.
@@ -4453,7 +4453,7 @@ window.__ModuleLoader__.load({
 						}
 					}
 					visit(snapshot, 0)
-					return [...ids].slice(0, 5)
+					return [...ids].slice(0, 3)
 				}
 
 				const attach = (sessionId) => {
@@ -4493,7 +4493,10 @@ window.__ModuleLoader__.load({
 					}
 					const schedule = () => {
 						if (tracker.timer !== null) return
-						tracker.timer = setTimeout(flush, 400)
+						// Long debounce: the tracker only needs to be current when the panel
+						// opens, not on every streamed token, and synchronous merges+storage
+						// writes on the UI thread are what make streaming feel janky.
+						tracker.timer = setTimeout(flush, 1500)
 					}
 					schedule()
 					tracker.dispose = source.subscribe(schedule)

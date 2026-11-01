@@ -37,7 +37,7 @@ function withOutboundLock(task) {
 }
 
 /** Host build stamp, echoed to the panel so a stale bundle is detectable. */
-export const BUILD = 'v0.79.0'
+export const BUILD = 'v0.79.1'
 /**
  * The desktop browser reaches the network through the system proxy; the Host's own
  * Node requests bypass it. Detect that proxy so probes can use the same route.
