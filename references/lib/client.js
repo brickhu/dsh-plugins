@@ -2448,6 +2448,99 @@ window.__ModuleLoader__.load({
 		 * @param {{reference: object}} props - the row.
 		 * @returns {object} React element.
 		 */
+		/** Cached luminance analysis of one icon data URL. */
+		const ICON_TONE_CACHE = new Map()
+
+		/**
+		 * Average luminance and saturation of an icon, so a monochrome mark that would
+		 * disappear on the current background can be inverted.
+		 * @param {string} src - data URL image.
+		 * @returns {Promise<{luma: number, saturation: number} | null>} tone, or null.
+		 */
+		function analyzeIconTone(src) {
+			if (ICON_TONE_CACHE.has(src)) return Promise.resolve(ICON_TONE_CACHE.get(src))
+			return new Promise((resolve) => {
+				if (typeof Image !== 'function' || typeof document === 'undefined') {
+					resolve(null)
+					return
+				}
+				const image = new Image()
+				image.onload = () => {
+					try {
+						const canvas = document.createElement('canvas')
+						canvas.width = 16
+						canvas.height = 16
+						const context = canvas.getContext('2d')
+						if (!context) {
+							resolve(null)
+							return
+						}
+						context.drawImage(image, 0, 0, 16, 16)
+						const data = context.getImageData(0, 0, 16, 16).data
+						let luma = 0
+						let saturation = 0
+						let count = 0
+						for (let index = 0; index < data.length; index += 4) {
+							if (data[index + 3] < 32) continue
+							const r = data[index] / 255
+							const g = data[index + 1] / 255
+							const b = data[index + 2] / 255
+							luma += 0.2126 * r + 0.7152 * g + 0.0722 * b
+							const max = Math.max(r, g, b)
+							const min = Math.min(r, g, b)
+							saturation += max === 0 ? 0 : (max - min) / max
+							count += 1
+						}
+						const result = count === 0 ? null : { luma: luma / count, saturation: saturation / count }
+						ICON_TONE_CACHE.set(src, result)
+						resolve(result)
+					} catch (error) {
+						resolve(null)
+					}
+				}
+				image.onerror = () => resolve(null)
+				image.src = src
+			})
+		}
+
+		/**
+		 * Track whether the app currently renders a dark background.
+		 * @returns {boolean} true for dark themes.
+		 */
+		function useDarkTheme() {
+			const [dark, setDark] = React.useState(() => {
+				if (typeof document === 'undefined' || !document.body) return true
+				try {
+					const color = getComputedStyle(document.body).backgroundColor
+					const parts = String(color).match(/[\d.]+/g) || []
+					if (parts.length < 3) return true
+					const luma = (0.2126 * Number(parts[0]) + 0.7152 * Number(parts[1]) + 0.0722 * Number(parts[2])) / 255
+					return luma < 0.5
+				} catch (error) {
+					return true
+				}
+			})
+			React.useEffect(() => {
+				if (typeof document === 'undefined') return undefined
+				const read = () => {
+					try {
+						const color = getComputedStyle(document.body).backgroundColor
+						const parts = String(color).match(/[\d.]+/g) || []
+						if (parts.length < 3) return
+						const luma = (0.2126 * Number(parts[0]) + 0.7152 * Number(parts[1]) + 0.0722 * Number(parts[2])) / 255
+						setDark(luma < 0.5)
+					} catch (error) {
+						/* keep the previous value */
+					}
+				}
+				const observer = new MutationObserver(read)
+				observer.observe(document.documentElement, { attributes: true })
+				if (document.body) observer.observe(document.body, { attributes: true })
+				return () => observer.disconnect()
+			}, [])
+			return dark
+		}
+
 		/**
 		 * The row icon: the deterministic hash mark for the host, rendered as a data URL.
 		 * No remote favicon request is made for any row.
@@ -2456,12 +2549,32 @@ window.__ModuleLoader__.load({
 		 */
 		function Favicon({ reference, icon }) {
 			const [failed, setFailed] = React.useState(false)
+			const [invert, setInvert] = React.useState(false)
+			const dark = useDarkTheme()
 			const hash = hashIconFor(reference.host)
-			const src = failed || typeof icon !== 'string' || icon === '' ? hash : icon
+			const choosable = !failed && typeof icon === 'string' && icon !== ''
+			const src = choosable ? icon : hash
+			React.useEffect(() => {
+				let alive = true
+				if (!choosable || src.indexOf('data:') !== 0) {
+					setInvert(false)
+					return () => {}
+				}
+				analyzeIconTone(src).then((tone) => {
+					if (!alive || !tone) return
+					const mono = tone.saturation < 0.18
+					const luma = tone.luma
+					const invisible = dark ? luma < 0.3 : luma > 0.85
+					setInvert(mono && invisible)
+				})
+				return () => {
+					alive = false
+				}
+			}, [src, choosable, dark])
 			return h('img', {
 				src,
 				alt: '',
-				style: S.favicon,
+				style: invert ? { ...S.favicon, filter: 'invert(1) brightness(1.15)' } : S.favicon,
 				referrerPolicy: 'no-referrer',
 				onError: () => setFailed(true),
 			})
@@ -3775,7 +3888,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.72.2'
+		const BUILD = 'v0.73.0'
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
 		const LOCALE_ZH = {
