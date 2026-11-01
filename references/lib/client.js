@@ -3172,7 +3172,8 @@ window.__ModuleLoader__.load({
 							domain: rootDomain(reference.host),
 						}))
 						.find((item) => {
-							if (faviconLibrary[item.host] !== undefined || faviconLibrary[item.domain] !== undefined) return false
+							const cached = [faviconLibrary[item.host], faviconLibrary[item.domain]]
+						if (cached.some((value) => typeof value === 'string' && value.indexOf('data:') === 0)) return false
 							if (faviconQueueRef.current.has(item.host)) return false
 							const failedAt = faviconFailedRef.current.get(item.host)
 							return failedAt === undefined || Date.now() - failedAt >= 10 * 60 * 1000
@@ -3321,7 +3322,8 @@ window.__ModuleLoader__.load({
 					(reference) => {
 						const host = reference.host.replace(/^www\./, '')
 						const domain = rootDomain(reference.host)
-						if (faviconLibrary[host] !== undefined || faviconLibrary[domain] !== undefined) return
+						const cached = [faviconLibrary[host], faviconLibrary[domain]]
+						if (cached.some((value) => typeof value === 'string' && value.indexOf('data:') === 0)) return
 						const requestFavicon = async (iconUrl) => {
 							try {
 								const url = new URL('/dsh-links/favicon', document.baseURI)
@@ -3365,17 +3367,27 @@ window.__ModuleLoader__.load({
 				const openReference = React.useCallback(
 					(reference, event) => {
 						const external = !!(event && (event.metaKey || event.ctrlKey || event.altKey))
-						if (!external && tab && tab.actions && typeof tab.actions.openTab === 'function') {
+						if (!external) {
 							try {
 								warmFavicon(reference)
 							} catch (error) {
 								/* caching is best-effort */
 							}
-							try {
-								tab.actions.openTab(BROWSER_KIND, { params: { url: reference.url } })
-								return
-							} catch (error) {
-								/* fall through to the system browser */
+							if (tab && tab.actions && typeof tab.actions.openTab === 'function') {
+								try {
+									tab.actions.openTab(BROWSER_KIND, { params: { url: reference.url } })
+									return
+								} catch (error) {
+									/* fall through to the sidebar service */
+								}
+							}
+							if (ctx && ctx.sidebarRight && typeof ctx.sidebarRight.openTab === 'function') {
+								try {
+									ctx.sidebarRight.openTab(BROWSER_KIND, { params: { url: reference.url } })
+									return
+								} catch (error) {
+									/* fall through to the system browser */
+								}
 							}
 						}
 						try {
@@ -3384,7 +3396,7 @@ window.__ModuleLoader__.load({
 							window.location.href = reference.url
 						}
 					},
-					[tab, warmFavicon],
+					[tab, warmFavicon, ctx],
 				)
 
 				const copyList = React.useCallback(() => {
@@ -3446,6 +3458,56 @@ window.__ModuleLoader__.load({
 						})
 					},
 					[],
+				)
+
+				// Manual icon refresh: same fetch path the automatic queue uses, but with a
+				// visible spinner state, so "is the chain working?" is answerable in one click.
+				const refreshIcon = React.useCallback(
+					async (reference) => {
+						const host = reference.host.replace(/^www\./, '')
+						const domain = rootDomain(reference.host)
+						setRefreshingUrls((current) => new Set(current).add(reference.url))
+						try {
+							const requestIcon = async (iconUrl) => {
+								try {
+									const url = new URL('/dsh-links/favicon', document.baseURI)
+									url.searchParams.set('url', iconUrl)
+									const response = await fetch(url)
+									if (!response || !response.ok) return ''
+									const payload = await response.json()
+									return payload && typeof payload.dataUrl === 'string' && payload.dataUrl.indexOf('data:') === 0 ? payload.dataUrl : ''
+								} catch (error) {
+									return ''
+								}
+							}
+							const candidates = [
+								`https://${host}/favicon.ico`,
+								`https://${host}/apple-touch-icon.png`,
+							]
+							if (domain !== host) {
+								candidates.push(`https://${domain}/favicon.ico`, `https://${domain}/apple-touch-icon.png`)
+							}
+							let dataUrl = ''
+							for (const candidate of candidates) {
+								dataUrl = await requestIcon(candidate)
+								if (dataUrl !== '') break
+							}
+							if (dataUrl !== '') {
+								setFaviconLibrary((current) => ({ ...current, [host]: dataUrl }))
+								showNotice(tr('notice.iconUpdated'))
+							} else {
+								showNotice(tr('notice.iconMissing'))
+							}
+						} finally {
+							setRefreshingUrls((current) => {
+								if (!current.has(reference.url)) return current
+								const next = new Set(current)
+								next.delete(reference.url)
+								return next
+							})
+						}
+					},
+					[showNotice],
 				)
 
 				const copyReference = React.useCallback((reference) => {
@@ -3918,6 +3980,7 @@ window.__ModuleLoader__.load({
 								}),
 								menuSeparator('sep-1'),
 								h(MenuItem, { key: 'rename', label: tr('menu.rename'), onSelect: closeThen(openTitleEditor) }),
+								h(MenuItem, { key: 'refresh-icon', label: tr('menu.refreshIcon'), onSelect: closeThen(refreshIcon) }),
 								menuSeparator('sep-2'),
 								h(MenuItem, { key: 'ignore-link', label: tr('menu.hideLink'), onSelect: closeThen(hideLinkOnly) }),
 								h(MenuItem, {
@@ -4138,10 +4201,10 @@ window.__ModuleLoader__.load({
 		// ------------------------------------------------------------------
 
 		/** Required browser services: the tab registry and the keyed seat. */
-		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
+		const inject = ['slots', 'sidebarRightTabs', 'sidebarRight', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.79.1'
+		const BUILD = 'v0.80.0'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.
@@ -4208,6 +4271,9 @@ window.__ModuleLoader__.load({
 			'notice.unpinned': '已取消置顶',
 			'notice.loadOlderFailed': '加载更早的消息失败',
 			'notice.jumpMissing': '第 {turn} 轮还没加载出来，先向上滚动加载更早的历史',
+			'notice.iconUpdated': '图标已更新',
+			'notice.iconMissing': '没有取到这个网站的图标',
+			'menu.refreshIcon': '刷新图标',
 			'button.close': '关闭',
 			'row.clickToView': '点击查看',
 			'row.turnLabel': '第 {turn} 轮对话',
@@ -4267,6 +4333,9 @@ window.__ModuleLoader__.load({
 			'notice.unpinned': 'Unpinned',
 			'notice.loadOlderFailed': 'Failed to load older messages',
 			'notice.jumpMissing': 'Turn {turn} is not loaded yet — scroll up to load older history',
+			'notice.iconUpdated': 'Icon updated',
+			'notice.iconMissing': 'No icon found for this site',
+			'menu.refreshIcon': 'Refresh icon',
 			'button.close': 'Close',
 			'row.clickToView': 'Click to view',
 			'row.turnLabel': 'Turn {turn}',
