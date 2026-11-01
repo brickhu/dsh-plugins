@@ -3254,10 +3254,84 @@ window.__ModuleLoader__.load({
 				 *   whether to bypass the Host cache.
 				 * @returns {Promise<void>} completion of this pass.
 				 */
+				// Opening a link in the built-in browser is the moment we know the user cares
+				// about that site: fetch its declared icon once, cache it, and update the row.
+				// Requests are chained so they never run in parallel.
+				const warmChainRef = React.useRef(Promise.resolve())
+				const warmFavicon = React.useCallback(
+					(reference) => {
+						const host = reference.host.replace(/^www\./, '')
+						const domain = rootDomain(reference.host)
+						if (faviconLibrary[host] !== undefined || faviconLibrary[domain] !== undefined) return
+						const requestFavicon = async (iconUrl) => {
+							try {
+								const url = new URL('/dsh-links/favicon', document.baseURI)
+								url.searchParams.set('url', iconUrl)
+								const response = await fetch(url)
+								if (!response || !response.ok) return ''
+								const payload = await response.json()
+								return payload && typeof payload.dataUrl === 'string' && payload.dataUrl.indexOf('data:') === 0 ? payload.dataUrl : ''
+							} catch (error) {
+								return ''
+							}
+						}
+						const run = async () => {
+							try {
+								const base = new URL('/dsh-links/meta', document.baseURI)
+								base.searchParams.set('urls', JSON.stringify([reference.url]))
+								const response = await fetch(base)
+								let iconUrl = ''
+								if (response && response.ok) {
+									const payload = await response.json()
+									const page = payload && payload.pages && payload.pages[reference.url]
+									iconUrl = page && typeof page.icon === 'string' ? page.icon : ''
+								}
+								if (iconUrl !== '') {
+									const dataUrl = await requestFavicon(iconUrl)
+									if (dataUrl !== '') {
+										setFaviconLibrary((current) => (current[host] ? current : { ...current, [host]: dataUrl }))
+										return
+									}
+								}
+								const candidates = [
+									`https://${host}/favicon.ico`,
+									`https://${host}/apple-touch-icon.png`,
+									`https://${host}/favicon.png`,
+									`https://${host}/favicon.svg`,
+								]
+								if (domain !== host) {
+									candidates.push(
+										`https://${domain}/favicon.ico`,
+										`https://${domain}/apple-touch-icon.png`,
+										`https://${domain}/favicon.png`,
+										`https://${domain}/favicon.svg`,
+									)
+								}
+								for (const candidate of candidates) {
+									const dataUrl = await requestFavicon(candidate)
+									if (dataUrl !== '') {
+										setFaviconLibrary((current) => (current[host] ? current : { ...current, [host]: dataUrl }))
+										return
+									}
+								}
+							} catch (error) {
+								/* the background queue will retry later */
+							}
+						}
+						warmChainRef.current = warmChainRef.current.then(run, run)
+					},
+					[faviconLibrary],
+				)
+
 				const openReference = React.useCallback(
 					(reference, event) => {
 						const external = !!(event && (event.metaKey || event.ctrlKey || event.altKey))
 						if (!external && tab && tab.actions && typeof tab.actions.openTab === 'function') {
+							try {
+								warmFavicon(reference)
+							} catch (error) {
+								/* caching is best-effort */
+							}
 							try {
 								tab.actions.openTab(BROWSER_KIND, { params: { url: reference.url } })
 								return
@@ -3271,7 +3345,7 @@ window.__ModuleLoader__.load({
 							window.location.href = reference.url
 						}
 					},
-					[tab],
+					[tab, warmFavicon],
 				)
 
 				const copyList = React.useCallback(() => {
@@ -4028,7 +4102,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.77.0'
+		const BUILD = 'v0.78.0'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.
