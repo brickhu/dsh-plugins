@@ -3999,7 +3999,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.75.1'
+		const BUILD = 'v0.76.0'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.
@@ -4194,6 +4194,7 @@ window.__ModuleLoader__.load({
 						guide: [
 							{
 								id: 'conversation-links',
+								commandId: 'dsh-links.open',
 								title: () => t('tab.title'),
 								description: () => t('guide.description'),
 								icon: LinkGlyph,
@@ -4219,33 +4220,27 @@ window.__ModuleLoader__.load({
 					),
 				'dsh-links: tab title',
 			)
-			// Direct accelerator as well as the shortcut registry: the registry entry
-			// shows up in Settings, while this listener guarantees the chord works even
-			// when the registry service is absent or its target resolution declines.
-			ctx.effect(() => {
-				if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return () => {}
-				const onKeyDown = (event) => {
-					if (!(event.metaKey || event.ctrlKey) || !event.shiftKey || event.altKey) return
-					if (event.key !== 'l' && event.key !== 'L') return
-					let sidebar
-					try {
-						sidebar = ctx.sidebarRight || (typeof ctx.get === 'function' ? ctx.get('sidebarRight') : undefined)
-					} catch (error) {
-						sidebar = undefined
-					}
-					if (!sidebar || typeof sidebar.openTab !== 'function') return
-					event.preventDefault()
-					event.stopPropagation()
-					try {
-						sidebar.openTab(KIND, {})
-					} catch (error) {
-						/* no session yet: nothing to open */
-					}
-				}
-				window.addEventListener('keydown', onKeyDown, true)
-				return () => window.removeEventListener('keydown', onKeyDown, true)
-			}, 'dsh-links: shortcut listener')
 			ctx.inject(['shortcuts', 'sidebarRight'], (scoped) => {
+				// Direct accelerator as well as the registry: this listener guarantees the chord
+				// works from the conversation even when the registry's target resolution declines.
+				scoped.effect(() => {
+					if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return () => {}
+					const onKeyDown = (event) => {
+						if (!(event.metaKey || event.ctrlKey) || !event.shiftKey || event.altKey) return
+						if (event.key !== 'l' && event.key !== 'L' && event.code !== 'KeyL') return
+						const sidebar = scoped.sidebarRight
+						if (!sidebar || typeof sidebar.openTab !== 'function') return
+						event.preventDefault()
+						event.stopPropagation()
+						try {
+							sidebar.openTab(KIND, {})
+						} catch (error) {
+							/* no session yet: nothing to open */
+						}
+					}
+					window.addEventListener('keydown', onKeyDown, true)
+					return () => window.removeEventListener('keydown', onKeyDown, true)
+				}, 'dsh-links: shortcut listener')
 				// Cmd+Shift+L on macOS, Ctrl+Shift+L elsewhere: `primary` is the platform
 				// accelerator, and the explicit shift keeps typing a capital L harmless.
 				const shortcutL = { code: 'KeyL', modifiers: ['primary', 'shift'] }
