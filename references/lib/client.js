@@ -2961,6 +2961,18 @@ window.__ModuleLoader__.load({
 				)
 
 				const [customTitles, setCustomTitles] = React.useState(() => loadCustomTitles())
+				const customTitlesRef = React.useRef(customTitles)
+				customTitlesRef.current = customTitles
+				React.useEffect(() => {
+					const timer = setTimeout(() => saveCustomTitles(customTitles), 200)
+					return () => clearTimeout(timer)
+				}, [customTitles])
+				React.useEffect(
+					() => () => {
+						saveCustomTitles(customTitlesRef.current)
+					},
+					[],
+				)
 				const [faviconLibrary, setFaviconLibrary] = React.useState(() => loadFaviconLibrary())
 				const faviconHintsRef = React.useRef(new Map())
 				const [titleEditor, setTitleEditor] = React.useState(null)
@@ -3987,7 +3999,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.75.0'
+		const BUILD = 'v0.75.1'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.
