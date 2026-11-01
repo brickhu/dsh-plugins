@@ -833,6 +833,7 @@ window.__ModuleLoader__.load({
 			if (reference.occurrences.length < 40) {
 				reference.occurrences.push({
 					seq: event.seq,
+					time: typeof event.time === 'number' ? event.time : 0,
 					turn,
 					source: match.source,
 					tool: match.tool,
@@ -2581,6 +2582,99 @@ window.__ModuleLoader__.load({
 		}
 
 		/**
+		 * Human relative age for one mention timestamp.
+		 * @param {number} time - epoch milliseconds.
+		 * @returns {string} localized relative age.
+		 */
+		function formatAge(time) {
+			if (typeof time !== 'number' || time <= 0) return ''
+			const delta = Math.max(0, Date.now() - time)
+			if (delta < 60 * 1000) return tr('time.justNow')
+			if (delta < 60 * 60 * 1000) return trf('time.minutesAgo', { count: Math.floor(delta / 60000) })
+			if (delta < 24 * 60 * 60 * 1000) return trf('time.hoursAgo', { count: Math.floor(delta / 3600000) })
+			return trf('time.daysAgo', { count: Math.floor(delta / 86400000) })
+		}
+
+		/**
+		 * One mention row inside the “mentioned in N turns” dialog.
+		 * @param {{item: object, active: boolean, onHover: Function, onSelect: Function}} props - row props.
+		 * @returns {object} React element.
+		 */
+		function MentionRow({ item, active, onHover, onSelect }) {
+			return h(
+				'div',
+				{
+					className: 'dsh-links-mention-row',
+					title: trf('jump.turn', { turn: item.turn }),
+					onMouseEnter: onHover,
+					onFocus: onHover,
+					onClick: onSelect,
+					style: {
+						display: 'flex',
+						alignItems: 'center',
+						justifyContent: 'space-between',
+						gap: 96.5,
+						padding: 8,
+						borderRadius: 4,
+						cursor: 'pointer',
+						background: active ? 'color-mix(in srgb, currentColor 6%, transparent)' : 'transparent',
+						transition: 'background 120ms ease',
+					},
+				},
+				h(
+					'div',
+					{ style: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 } },
+					active
+						? h(
+								'svg',
+								{
+									width: 10,
+									height: 10,
+									viewBox: '0 0 16 16',
+									fill: 'none',
+									stroke: 'currentColor',
+									strokeWidth: 1.6,
+									strokeLinecap: 'round',
+									strokeLinejoin: 'round',
+									'aria-hidden': 'true',
+								},
+								h('path', { d: 'M5.5 10.5 10.5 5.5M6.5 5.5h4v4' }),
+							)
+						: h('span', {
+								'aria-hidden': 'true',
+								style: {
+									width: 10,
+									height: 10,
+									borderRadius: '50%',
+									flex: 'none',
+									background: 'currentColor',
+									opacity: 0.25,
+								},
+							}),
+					h(
+						'span',
+						{ style: { fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } },
+						trf('row.turnLabel', { turn: item.turn || '?' }),
+					),
+				),
+				h(
+					'span',
+					{
+						style: {
+							fontSize: 12,
+							flex: 'none',
+							minWidth: 64,
+							textAlign: 'right',
+							color: active ? 'inherit' : COLOR_LABEL_SECONDARY,
+							opacity: active ? 1 : 0.8,
+						},
+					},
+					active ? tr('row.clickToView') : formatAge(item.time),
+				),
+			)
+		}
+
+		/**
 		 * One action inside the row overflow menu.
 		 * @param {{label: string, onSelect: Function}} props - label and action.
 		 * @returns {object} React element.
@@ -2882,6 +2976,7 @@ window.__ModuleLoader__.load({
 				const [refreshing, setRefreshing] = React.useState(false)
 				const [menu, setMenu] = React.useState(null)
 				const [countTip, setCountTip] = React.useState(null)
+				const [countTipHover, setCountTipHover] = React.useState(null)
 				const [tooltip, setTooltip] = React.useState(null)
 				const [panelVisible, setPanelVisible] = React.useState(true)
 				const [autoProbing, setAutoProbing] = React.useState(() => new Set())
@@ -3517,15 +3612,51 @@ window.__ModuleLoader__.load({
 					const turnNumbers =
 						Array.isArray(countTip.reference.turns) && countTip.reference.turns.length > 0
 							? countTip.reference.turns
-							: []
-					const items =
-						turnNumbers.length > 0
-							? turnNumbers.map((turnNumber) => {
-									const matches = occurrences.filter((item) => item.turn === turnNumber)
-									const first = matches[0] || { turn: turnNumber, source: '', snippet: '' }
-									return { ...first, turn: turnNumber, extra: Math.max(matches.length - 1, 0) }
-								})
-							: occurrences.slice(0, 8)
+							: occurrences.map((item) => item.turn)
+					const items = turnNumbers.map((turnNumber) => {
+						const matches = occurrences.filter((item) => item.turn === turnNumber)
+						let time = 0
+						for (const match of matches) if (typeof match.time === 'number' && match.time > time) time = match.time
+						return { turn: turnNumber, time }
+					})
+					const activeIndex = countTipHover === null ? -1 : Math.min(countTipHover, items.length - 1)
+					const closeButton = h(
+						'button',
+						{
+							type: 'button',
+							title: tr('button.close'),
+							'aria-label': tr('button.close'),
+							onClick: () => setCountTip(null),
+							style: {
+								flex: 'none',
+								width: 16,
+								height: 16,
+								display: 'flex',
+								alignItems: 'center',
+								justifyContent: 'center',
+								padding: 0,
+								border: 'none',
+								background: 'transparent',
+								color: 'inherit',
+								cursor: 'pointer',
+								opacity: 0.75,
+							},
+						},
+						h(
+							'svg',
+							{
+								width: 16,
+								height: 16,
+								viewBox: '0 0 16 16',
+								fill: 'none',
+								stroke: 'currentColor',
+								strokeWidth: 1.5,
+								strokeLinecap: 'round',
+								'aria-hidden': 'true',
+							},
+							h('path', { d: 'M4 4l8 8M12 4l-8 8' }),
+						),
+					)
 					countTipNode = h(
 						'div',
 						{
@@ -3538,7 +3669,14 @@ window.__ModuleLoader__.load({
 						h(
 							'div',
 							{
-								style: { ...S.editorCard, width: 420 },
+								style: {
+									...S.editorCard,
+									width: 332,
+									maxWidth: 'calc(100vw - 32px)',
+									padding: '0 0 16px 0',
+									borderRadius: 8,
+									overflow: 'hidden',
+								},
 								onClick: (event) => event.stopPropagation(),
 							},
 							h(
@@ -3547,51 +3685,17 @@ window.__ModuleLoader__.load({
 									style: {
 										display: 'flex',
 										alignItems: 'center',
+										justifyContent: 'space-between',
 										gap: 8,
-										fontSize: 12,
-										color: COLOR_LABEL_SECONDARY,
-										fontWeight: 500,
+										padding: 12,
 									},
 								},
-								h('span', { style: { flex: 1, minWidth: 0 } }, trf('row.mentions', { count: turnCountOf(countTip.reference) })),
 								h(
-									'button',
-									{
-										type: 'button',
-										title: '关闭',
-										'aria-label': '关闭',
-										onClick: () => setCountTip(null),
-										style: {
-											flex: 'none',
-											width: 22,
-											height: 22,
-											display: 'flex',
-											alignItems: 'center',
-											justifyContent: 'center',
-											padding: 0,
-											border: 'none',
-											borderRadius: 6,
-											background: 'transparent',
-											color: COLOR_LABEL_SECONDARY,
-											cursor: 'pointer',
-										},
-									},
-									h(
-										'svg',
-										{
-											width: 12,
-											height: 12,
-											viewBox: '0 0 16 16',
-											fill: 'none',
-											stroke: 'currentColor',
-											strokeWidth: 1.5,
-											strokeLinecap: 'round',
-											'aria-hidden': 'true',
-										},
-										h('line', { x1: 4, y1: 4, x2: 12, y2: 12 }),
-										h('line', { x1: 12, y1: 4, x2: 4, y2: 12 }),
-									),
+									'span',
+									{ style: { fontSize: 14, fontWeight: 600, lineHeight: '18px' } },
+									trf('row.mentions', { count: turnCountOf(countTip.reference) }),
 								),
+								closeButton,
 							),
 							h(
 								'div',
@@ -3599,32 +3703,27 @@ window.__ModuleLoader__.load({
 									style: {
 										display: 'flex',
 										flexDirection: 'column',
-										gap: 2,
+										gap: 10,
+										padding: '0 8px',
 										maxHeight: 320,
 										overflowY: 'auto',
-										fontSize: 12,
-										lineHeight: '18px',
-										color: COLOR_LABEL_SECONDARY,
 									},
 								},
 								items.map((item, index) =>
-									h(
-										'div',
-										{
-											key: `${item.seq}-${index}`,
-											className: 'dsh-links-turn-item',
-											title: `跳转到第 ${item.turn || '?'} 轮`,
-											onClick: () => {
-												const found = locateTurn(item.turn)
-												if (found) {
-													setCountTip(null)
-													return
-												}
-												showNotice(`第 ${item.turn || '?'} 轮还没加载出来，先向上滚动加载更早的历史`)
-											},
+									h(MentionRow, {
+										key: `${item.turn}-${index}`,
+										item,
+										active: index === activeIndex,
+										onHover: () => setCountTipHover(index),
+										onSelect: () => {
+											const found = locateTurn(item.turn)
+											if (found) {
+												setCountTip(null)
+												return
+											}
+											showNotice(trf('notice.jumpMissing', { turn: item.turn || '?' }))
 										},
-										`第 ${item.turn || '?'} 轮 · ${SOURCE_LABEL[item.source] || item.source}${item.extra > 0 ? ` 等 ${item.extra + 1} 处` : ''}${item.snippet ? `：${item.snippet}` : ''}`,
-									),
+									}),
 								),
 							),
 						),
@@ -3888,7 +3987,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.74.0'
+		const BUILD = 'v0.75.0'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.
@@ -3956,6 +4055,13 @@ window.__ModuleLoader__.load({
 			'notice.loadOlderFailed': '加载更早的消息失败',
 			'notice.jumpMissing': '第 {turn} 轮还没加载出来，先向上滚动加载更早的历史',
 			'button.close': '关闭',
+			'row.clickToView': '点击查看',
+			'row.turnLabel': '第 {turn} 轮对话',
+			'time.justNow': '刚刚',
+			'time.minutesAgo': '{count} 分钟前',
+			'time.hoursAgo': '{count} 小时前',
+			'time.daysAgo': '{count} 天前',
+			'jump.turn': '跳转到第 {turn} 轮',
 		}
 		const LOCALE_EN = {
 			'tab.title': 'Reference Links',
@@ -4008,6 +4114,13 @@ window.__ModuleLoader__.load({
 			'notice.loadOlderFailed': 'Failed to load older messages',
 			'notice.jumpMissing': 'Turn {turn} is not loaded yet — scroll up to load older history',
 			'button.close': 'Close',
+			'row.clickToView': 'Click to view',
+			'row.turnLabel': 'Turn {turn}',
+			'time.justNow': 'just now',
+			'time.minutesAgo': '{count}m ago',
+			'time.hoursAgo': '{count}h ago',
+			'time.daysAgo': '{count}d ago',
+			'jump.turn': 'Jump to turn {turn}',
 		}
 
 		/**
