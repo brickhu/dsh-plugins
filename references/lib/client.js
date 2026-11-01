@@ -3490,10 +3490,37 @@ window.__ModuleLoader__.load({
 				if (all.length === 0) {
 					list = h(
 						'div',
-						{ style: S.empty },
-						tr('empty.noLinks'),
-						h('br'),
-						tr('empty.noLinksHint'),
+						{
+							style: {
+								...S.empty,
+								minHeight: '100%',
+								boxSizing: 'border-box',
+								display: 'flex',
+								flexDirection: 'column',
+								alignItems: 'center',
+								justifyContent: 'center',
+								gap: 10,
+								padding: '0 24px',
+								textAlign: 'center',
+							},
+						},
+						h('div', { style: { fontSize: 13, color: COLOR_LABEL_PRIMARY, lineHeight: '20px' } }, tr('empty.noLinks')),
+						h(
+							'div',
+							{ style: { fontSize: 12, color: COLOR_LABEL_SECONDARY, lineHeight: '18px', maxWidth: 360 } },
+							tr('empty.noLinksHint'),
+						),
+						h(
+							'button',
+							{
+								type: 'button',
+								style: { ...S.footerButton, marginTop: 4 },
+								title: tr('footer.rescanHint'),
+								onClick: rescanAll,
+								disabled: rescanning,
+							},
+							rescanning ? tr('footer.rescanning') : tr('footer.rescan'),
+						),
 					)
 				} else if (visible.length === 0) {
 					list = h(
@@ -3955,7 +3982,9 @@ window.__ModuleLoader__.load({
 						},
 						list,
 					),
-					h(
+					all.length === 0
+						? null
+						: h(
 						'div',
 						{ style: S.footer },
 						h(
@@ -3999,7 +4028,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.76.1'
+		const BUILD = 'v0.77.0'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.
@@ -4166,13 +4195,16 @@ window.__ModuleLoader__.load({
 		 * @param {{useTabInfo?: Function}} props - slot-owned tab information hook.
 		 * @returns {object} React element.
 		 */
-		function LinksTitle({ useTabInfo }) {
-			const tab = typeof useTabInfo === 'function' ? useTabInfo().tab : null
+		function LinksTitle() {
 			return h(
 				'span',
 				{ style: { display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 } },
 				h(LinkGlyph, { size: 14 }),
-				h('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, tab ? tab.title : ''),
+				h(
+					'span',
+					{ style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } },
+					tr('tab.title'),
+				),
 			)
 		}
 
