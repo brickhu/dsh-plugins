@@ -34,6 +34,11 @@ jobs:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
+      - name: Upgrade npm for OIDC trusted publishing
+        # Trusted publishing needs npm >= 11.5; the Node 22 image ships npm 10,
+        # which would silently publish unauthenticated and fail with a 404.
+        run: npm install -g npm@^11
+
       - name: Run the offline test suite
         run: node test/run.mjs
 
