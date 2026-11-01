@@ -47,5 +47,14 @@
   ],
   "publishConfig": {
     "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/brickhu/dsh-plugins.git",
+    "directory": "references"
+  },
+  "homepage": "https://github.com/brickhu/dsh-plugins/tree/main/references#readme",
+  "bugs": {
+    "url": "https://github.com/brickhu/dsh-plugins/issues"
   }
 }
