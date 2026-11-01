@@ -513,7 +513,7 @@ assert.equal(titleOf(row({ title: '官方文档', titleFromPath: false })), '官
 assert.equal(titleOf(row({ title: '视频', titleFromPath: false })), '视频')
 // A trailing status glyph from a search result is decoration, not part of the title.
 {
-	const glyph = row({ title: 'npm-trusted-publisher - ⚠️' })
+	const glyph = row({ title: 'npm-trusted-publisher - ⚠️', titleFromPath: false })
 	assert.equal(titleOf(glyph), 'npm-trusted-publisher')
 }
 // Path-derived placeholders are not titles: the URL is shown instead (policy: conversation-only titles).
