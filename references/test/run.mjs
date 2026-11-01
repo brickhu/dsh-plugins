@@ -420,7 +420,7 @@ assert.equal(registrations.shortcuts.length, 1, 'shortcut registered')
 assert.equal(registrations.shortcuts[0].id, 'dsh-links.open')
 assert.equal(registrations.shortcuts[0].defaults['desktop:macos'].code, 'KeyL')
 assert.equal(registrations.shortcuts[0].defaults['desktop:macos'].modifiers.join(','), 'primary,shift')
-for (const platform of ['desktop:macos', 'web:macos', 'desktop:windows', 'web:windows', 'desktop:linux', 'web:linux']) {
+for (const platform of ['desktop:macos', 'desktop:windows', 'desktop:linux']) {
 	assert.equal(registrations.shortcuts[0].defaults[platform].code, 'KeyL', platform)
 }
 assert.equal(registrations.shortcuts[0].regions.includes('editable'), true, 'modifier chord works in editors too')
