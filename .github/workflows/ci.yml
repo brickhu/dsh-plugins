@@ -21,3 +21,28 @@ jobs:
         with:
           node-version: '22'
       - run: node test/run.mjs
+
+  market-index:
+    name: Validate market index
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: references
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install the official format-1 validator
+        run: npm install --no-save --no-audit --no-fund @deepseek-ai/dsh-plugin-market-index
+      - name: Validate market/index.json
+        run: |
+          node --input-type=module -e "
+          import fs from 'node:fs';
+          import { parseMarketIndex } from '@deepseek-ai/dsh-plugin-market-index';
+          const value = JSON.parse(fs.readFileSync('../market/index.json','utf8'));
+          const url = new URL('https://raw.githubusercontent.com/brickhu/dsh-plugins/main/market/index.json');
+          const index = parseMarketIndex(value, url);
+          console.log('valid format', index.format, '-', index.plugins.length, 'plugin(s)');
+          "
+
