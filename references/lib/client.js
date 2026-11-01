@@ -3999,7 +3999,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.76.0'
+		const BUILD = 'v0.76.1'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.
@@ -4250,13 +4250,13 @@ window.__ModuleLoader__.load({
 							id: 'dsh-links.open',
 							label: () => t('shortcut.open'),
 							aliases: ['reference links', 'links', '参考链接', '应用链接'],
+							// Desktop only: the Web runtime reserves primary+shift letter chords,
+							// and a rejected default would drop the whole command. The direct
+							// keydown listener still covers the web build.
 							defaults: {
 								'desktop:macos': shortcutL,
-								'web:macos': shortcutL,
 								'desktop:windows': shortcutL,
-								'web:windows': shortcutL,
 								'desktop:linux': shortcutL,
-								'web:linux': shortcutL,
 							},
 							regions: ['page', 'editable', 'terminal'],
 							modals: [],
