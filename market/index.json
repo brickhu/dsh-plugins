@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "title": {
+    "en": "brickhu DSH plugins",
+    "zh": "brickhu 的 DSH 插件"
+  },
+  "description": {
+    "en": "Plugins published by brickhu for DeepSeek Harness.",
+    "zh": "brickhu 发布的 DeepSeek Harness 插件。"
+  },
+  "metadata": {
+    "categories": {
+      "tools": {
+        "title": {
+          "en": "Tools",
+          "zh": "工具"
+        }
+      }
+    }
+  },
+  "plugins": [
+    {
+      "name": "dsh-links-panel",
+      "title": {
+        "en": "Reference Links",
+        "zh": "应用链接"
+      },
+      "description": {
+        "en": "Collects every URL of a conversation into a right-sidebar tab with pins, turn counts, search, rename, hide and a keyboard shortcut.",
+        "zh": "把对话里出现的所有 URL 汇总到右栏标签页：置顶、轮次统计、搜索、改名、隐藏与快捷键。"
+      },
+      "icon": "https://raw.githubusercontent.com/brickhu/dsh-plugins/main/references/icon.svg",
+      "author": "brickhu",
+      "homepage": "https://github.com/brickhu/dsh-plugins/tree/main/references#readme",
+      "repository": {
+        "url": "https://github.com/brickhu/dsh-plugins",
+        "directory": "references"
+      },
+      "metadata": {
+        "category": "tools"
+      },
+      "versions": [
+        {
+          "version": "0.77.0",
+          "publishTimestamp": 1793542322,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": ">=0.2.1-rc.3 <0.3.0"
+          }
+        }
+      ]
+    }
+  ]
+}
