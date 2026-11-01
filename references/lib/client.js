@@ -3360,7 +3360,7 @@ window.__ModuleLoader__.load({
 				}, [showSplash])
 
 				if (!binding) {
-					return h('div', { style: S.root }, h('div', { style: S.empty }, '正在等待会话就绪…'))
+					return h('div', { style: S.root }, h('div', { style: S.empty }, tr('empty.waiting')))
 				}
 
 				if (showSplash) {
@@ -3372,7 +3372,7 @@ window.__ModuleLoader__.load({
 							'div',
 							{ style: S.splash },
 							h('span', { className: 'dsh-links-spinner dsh-links-spinner-lg', 'aria-hidden': 'true' }),
-							h('div', { style: S.loadingText }, '正在读取链接…'),
+							h('div', { style: S.loadingText }, tr('empty.loading')),
 						),
 					)
 				}
@@ -3384,17 +3384,17 @@ window.__ModuleLoader__.load({
 					list = h(
 						'div',
 						{ style: S.empty },
-						'这个对话里还没有出现 URL。',
+						tr('empty.noLinks'),
 						h('br'),
-						'贴一条链接、让 AI 联网搜索或抓取网页后，这里会自动汇总。',
+						tr('empty.noLinksHint'),
 					)
 				} else if (visible.length === 0) {
 					list = h(
 						'div',
 						{ style: S.empty },
 						active.length === 0
-							? `所有链接都被隐藏了（底部「已隐藏 ${ignoredRows.length}」可展开恢复）。`
-							: '没有匹配的链接。',
+							? trf('empty.allHidden', { count: ignoredRows.length })
+							: tr('empty.noMatch'),
 					)
 				} else {
 					const renderRow = (reference, hidden) =>
@@ -3447,7 +3447,7 @@ window.__ModuleLoader__.load({
 							h(
 								'div',
 								{ key: 'pinned-group' },
-								sectionHeader('pinned-head', '置顶链接', pinnedRows.length, pinnedOpen, () => setPinnedOpen((current) => !current)),
+								sectionHeader('pinned-head', tr('section.pinned'), pinnedRows.length, pinnedOpen, () => setPinnedOpen((current) => !current)),
 								pinnedOpen ? pinnedRows.map((reference) => renderRow(reference)) : null,
 							),
 						)
@@ -3464,7 +3464,7 @@ window.__ModuleLoader__.load({
 						list = h(
 							'div',
 							{ key: 'search-group' },
-							h('div', { style: S.groupHeader }, `搜索结果(${matches.length})`),
+							h('div', { style: S.groupHeader }, `${tr('section.searchResults')}(${matches.length})`),
 							orderByDomain(matches).map((reference) => renderRow(reference)),
 						)
 					} else {
@@ -3474,7 +3474,7 @@ window.__ModuleLoader__.load({
 							h(
 								'div',
 								{ key: 'all-group' },
-								sectionHeader('all-head', '全部链接', restRows.length, allOpen, () => setAllOpen((current) => !current)),
+								sectionHeader('all-head', tr('section.all'), restRows.length, allOpen, () => setAllOpen((current) => !current)),
 								allOpen ? restRows.map((reference) => renderRow(reference)) : null,
 							),
 						)
@@ -3485,7 +3485,7 @@ window.__ModuleLoader__.load({
 							h(
 								'div',
 								{ key: 'hidden-group' },
-								sectionHeader('hidden-head', '已隐藏', hiddenCount, hiddenOpen, () => setHiddenOpen((current) => !current)),
+								sectionHeader('hidden-head', tr('section.hidden'), hiddenCount, hiddenOpen, () => setHiddenOpen((current) => !current)),
 								hiddenOpen ? ignoredRows.map((reference) => renderRow(reference, true)) : null,
 							),
 						)
@@ -3553,7 +3553,7 @@ window.__ModuleLoader__.load({
 										fontWeight: 500,
 									},
 								},
-								h('span', { style: { flex: 1, minWidth: 0 } }, `在 ${turnCountOf(countTip.reference)} 轮对话中提及`),
+								h('span', { style: { flex: 1, minWidth: 0 } }, trf('row.mentions', { count: turnCountOf(countTip.reference) })),
 								h(
 									'button',
 									{
@@ -3656,27 +3656,27 @@ window.__ModuleLoader__.load({
 							},
 						})
 					const items = isRowHidden(menuRow)
-						? [h(MenuItem, { key: 'restore', label: '恢复这个链接', onSelect: closeThen(restoreReference) })]
+						? [h(MenuItem, { key: 'restore', label: tr('menu.restore'), onSelect: closeThen(restoreReference) })]
 						: [
-								h(MenuItem, { key: 'copy-link', label: '复制链接', onSelect: closeThen(copyReference) }),
-								h(MenuItem, { key: 'open', label: '内置浏览器打开', onSelect: closeThen((row) => openReference(row, {})) }),
+								h(MenuItem, { key: 'copy-link', label: tr('menu.copyLink'), onSelect: closeThen(copyReference) }),
+								h(MenuItem, { key: 'open', label: tr('menu.openInApp'), onSelect: closeThen((row) => openReference(row, {})) }),
 								h(MenuItem, {
 									key: 'browser',
-									label: '系统浏览器打开',
+									label: tr('menu.openInBrowser'),
 									onSelect: closeThen((row) => openReference(row, { metaKey: true })),
 								}),
 								menuSeparator('sep-1'),
-								h(MenuItem, { key: 'rename', label: '修改标题…', onSelect: closeThen(openTitleEditor) }),
+								h(MenuItem, { key: 'rename', label: tr('menu.rename'), onSelect: closeThen(openTitleEditor) }),
 								menuSeparator('sep-2'),
-								h(MenuItem, { key: 'ignore-link', label: '隐藏这个链接', onSelect: closeThen(hideLinkOnly) }),
+								h(MenuItem, { key: 'ignore-link', label: tr('menu.hideLink'), onSelect: closeThen(hideLinkOnly) }),
 								h(MenuItem, {
 									key: 'ignore-domain',
-									label: `批量隐藏 ${hostLabel}`,
+									label: trf('menu.batchHide', { host: hostLabel }),
 									onSelect: closeThen(ignoreDomain),
 								}),
 								h(MenuItem, {
 									key: 'pin',
-									label: pinned.has(menuRow.url) ? '取消置顶' : '置顶这个链接',
+									label: pinned.has(menuRow.url) ? tr('menu.unpin') : tr('menu.pin'),
 									onSelect: closeThen(togglePin),
 								}),
 							]
@@ -3706,7 +3706,7 @@ window.__ModuleLoader__.load({
 							ref: searchInputRef,
 							style: S.search,
 							value: query,
-							placeholder: '搜索标题，域名',
+							placeholder: tr('search.placeholder'),
 							onChange: (event) => setQuery(event.target.value),
 							spellCheck: false,
 						}),
@@ -3716,8 +3716,8 @@ window.__ModuleLoader__.load({
 									{
 										type: 'button',
 										style: S.searchButton,
-										title: '搜索',
-										'aria-label': '搜索',
+										title: tr('search.label'),
+										'aria-label': tr('search.label'),
 										onClick: () => {
 											const node = searchInputRef.current
 											if (node) node.focus()
@@ -3744,8 +3744,8 @@ window.__ModuleLoader__.load({
 									{
 										type: 'button',
 										style: S.searchButton,
-										title: '清除搜索',
-										'aria-label': '清除搜索',
+										title: tr('search.clear'),
+										'aria-label': tr('search.clear'),
 										onClick: () => {
 											setQuery('')
 											const node = searchInputRef.current
@@ -3784,13 +3784,13 @@ window.__ModuleLoader__.load({
 								h(
 									'div',
 									{ style: S.editorCard, onClick: (event) => event.stopPropagation() },
-									h('div', { style: { fontSize: 12, color: COLOR_LABEL_SECONDARY } }, '修改标题'),
+									h('div', { style: { fontSize: 12, color: COLOR_LABEL_SECONDARY } }, tr('editor.title')),
 									h('input', {
 										ref: titleEditorInputRef,
 										style: S.editorInput,
 										value: titleEditor.value,
 										autoFocus: true,
-										placeholder: '留空则恢复自动标题',
+										placeholder: tr('editor.placeholder'),
 										spellCheck: false,
 										onChange: (event) =>
 											setTitleEditor((current) =>
@@ -3824,11 +3824,11 @@ window.__ModuleLoader__.load({
 															setTitleEditor(null)
 														},
 													},
-													'恢复自动',
+													tr('editor.restore'),
 												)
 											: null,
-										h('button', { type: 'button', style: S.editorButton, onClick: () => setTitleEditor(null) }, '取消'),
-										h('button', { type: 'button', style: S.editorButton, onClick: commitTitleEditor }, '保存'),
+										h('button', { type: 'button', style: S.editorButton, onClick: () => setTitleEditor(null) }, tr('editor.cancel')),
+										h('button', { type: 'button', style: S.editorButton, onClick: commitTitleEditor }, tr('editor.save')),
 									),
 								),
 							)
@@ -3851,21 +3851,21 @@ window.__ModuleLoader__.load({
 							'span',
 							{ style: S.footerGrow },
 							historyDone
-								? `已收录 ${all.length} 条链接`
+								? trf('footer.collected', { count: all.length })
 								: snapshot.hasMore
-									? '正在加载历史…'
-									: `已统计 ${snapshot.entries.length} 条事件`,
+									? tr('footer.loadingHistory')
+									: trf('footer.events', { count: snapshot.entries.length }),
 						),
 						h(
 							'button',
 							{
 								type: 'button',
 								style: S.footerButton,
-								title: '重新扫描整个对话，并刷新所有链接的标题与图标（保留置顶）',
+								title: tr('footer.rescanHint'),
 								onClick: rescanAll,
 								disabled: rescanning,
 							},
-							rescanning ? '正在重新扫描…' : '重新扫描',
+							rescanning ? tr('footer.rescanning') : tr('footer.rescan'),
 						),
 						h('span', { style: { fontSize: 10, color: COLOR_LABEL_TERTIARY, flex: 'none' }, title: '插件版本' }, BUILD),
 					),
@@ -3888,20 +3888,126 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.73.0'
+		const BUILD = 'v0.74.0'
+		/**
+		 * Translate one key and fill `{name}` placeholders.
+		 * @param {string} key - dictionary key.
+		 * @param {Record<string, string | number>} [params] - placeholders.
+		 * @returns {string} localized text.
+		 */
+		function trf(key, params) {
+			let text = tr(key)
+			for (const [name, value] of Object.entries(params || {})) text = text.replace(`{${name}}`, String(value))
+			return text
+		}
+
 		/** Client locale namespace owned by this plugin. */
 		const NS = 'dshLinks'
+		/** Active translate function; replaced by apply() with the locale-bound one. */
+		let tr = (key) => key
 		const LOCALE_ZH = {
 			'tab.title': '应用链接',
 			'guide.description': '本对话里出现过的全部网址',
 			'shortcut.open': '打开参考链接',
 			'shortcut.noSession': '请先选择一个会话',
+			'section.pinned': '置顶链接',
+			'section.all': '全部链接',
+			'section.hidden': '已隐藏',
+			'section.searchResults': '搜索结果',
+			'row.mentions': '在 {count} 轮对话中提及',
+			'row.turns': '轮',
+			'row.hiddenTag': '已隐藏',
+			'menu.restore': '恢复这个链接',
+			'menu.copyLink': '复制链接',
+			'menu.openInApp': '内置浏览器打开',
+			'menu.openInBrowser': '系统浏览器打开',
+			'menu.rename': '修改标题…',
+			'menu.hideLink': '隐藏这个链接',
+			'menu.batchHide': '批量隐藏 {host}',
+			'menu.pin': '置顶这个链接',
+			'menu.unpin': '取消置顶',
+			'editor.title': '修改标题',
+			'editor.placeholder': '留空则恢复自动标题',
+			'editor.restore': '恢复自动',
+			'editor.cancel': '取消',
+			'editor.save': '保存',
+			'search.placeholder': '搜索标题，域名',
+			'search.label': '搜索',
+			'search.clear': '清除搜索',
+			'footer.loadingHistory': '正在加载历史…',
+			'footer.collected': '已收录 {count} 条链接',
+			'footer.events': '已统计 {count} 条事件',
+			'footer.rescan': '重新扫描',
+			'footer.rescanning': '正在重新扫描…',
+			'footer.rescanHint': '重新扫描整个对话，并刷新所有链接的标题与图标（保留置顶）',
+			'empty.waiting': '正在等待会话就绪…',
+			'empty.loading': '正在读取链接…',
+			'empty.noLinks': '这个对话里还没有出现 URL。',
+			'empty.noLinksHint': '贴一条链接、让 AI 联网搜索或抓取网页后，这里会自动汇总。',
+			'empty.allHidden': '所有链接都被隐藏了（底部「已隐藏 {count}」可展开恢复）。',
+			'empty.noMatch': '没有匹配的链接。',
+			'notice.copyEmpty': '当前没有可复制的链接',
+			'notice.copyOk': '已复制 {count} 条为 Markdown 引用清单',
+			'notice.copyFailed': '复制失败：浏览器没有授予剪贴板权限',
+			'notice.copiedLink': '已复制链接',
+			'notice.copiedLinkFailed': '复制失败：浏览器没有授予剪贴板权限',
+			'notice.pinned': '已置顶',
+			'notice.unpinned': '已取消置顶',
+			'notice.loadOlderFailed': '加载更早的消息失败',
+			'notice.jumpMissing': '第 {turn} 轮还没加载出来，先向上滚动加载更早的历史',
+			'button.close': '关闭',
 		}
 		const LOCALE_EN = {
 			'tab.title': 'Reference Links',
 			'guide.description': 'Every URL that appeared in this conversation',
 			'shortcut.open': 'Open reference links',
 			'shortcut.noSession': 'Select a session first',
+			'section.pinned': 'Pinned',
+			'section.all': 'All links',
+			'section.hidden': 'Hidden',
+			'section.searchResults': 'Search results',
+			'row.mentions': 'Mentioned in {count} turns',
+			'row.turns': 'turns',
+			'row.hiddenTag': 'Hidden',
+			'menu.restore': 'Restore this link',
+			'menu.copyLink': 'Copy link',
+			'menu.openInApp': 'Open in built-in browser',
+			'menu.openInBrowser': 'Open in system browser',
+			'menu.rename': 'Edit title…',
+			'menu.hideLink': 'Hide this link',
+			'menu.batchHide': 'Hide all from {host}',
+			'menu.pin': 'Pin this link',
+			'menu.unpin': 'Unpin',
+			'editor.title': 'Edit title',
+			'editor.placeholder': 'Leave empty to restore the automatic title',
+			'editor.restore': 'Restore auto',
+			'editor.cancel': 'Cancel',
+			'editor.save': 'Save',
+			'search.placeholder': 'Search title, domain',
+			'search.label': 'Search',
+			'search.clear': 'Clear search',
+			'footer.loadingHistory': 'Loading history…',
+			'footer.collected': '{count} links collected',
+			'footer.events': '{count} events counted',
+			'footer.rescan': 'Rescan',
+			'footer.rescanning': 'Rescanning…',
+			'footer.rescanHint': 'Rescan the whole conversation and refresh titles/icons (pins are kept)',
+			'empty.waiting': 'Waiting for the session…',
+			'empty.loading': 'Reading links…',
+			'empty.noLinks': 'No URL has appeared in this conversation yet.',
+			'empty.noLinksHint': 'Paste a link, let the AI search the web or fetch a page, and they will show up here.',
+			'empty.allHidden': 'Every link is hidden (expand “Hidden {count}” at the bottom to restore).',
+			'empty.noMatch': 'No matching links.',
+			'notice.copyEmpty': 'There is nothing to copy',
+			'notice.copyOk': 'Copied {count} links as Markdown',
+			'notice.copyFailed': 'Copy failed: clipboard permission denied',
+			'notice.copiedLink': 'Link copied',
+			'notice.copiedLinkFailed': 'Copy failed: clipboard permission denied',
+			'notice.pinned': 'Pinned',
+			'notice.unpinned': 'Unpinned',
+			'notice.loadOlderFailed': 'Failed to load older messages',
+			'notice.jumpMissing': 'Turn {turn} is not loaded yet — scroll up to load older history',
+			'button.close': 'Close',
 		}
 
 		/**
@@ -3951,6 +4057,7 @@ window.__ModuleLoader__.load({
 		 */
 		function apply(ctx) {
 			const t = ctx.locale.bind(NS)
+			tr = t
 			ctx.effect(
 				() =>
 					ctx.sidebarRightTabs.register({
@@ -4154,6 +4261,8 @@ window.__ModuleLoader__.load({
 		exports.inject = inject
 		exports.__test = {
 			trimTrailing,
+			LOCALE_ZH,
+			LOCALE_EN,
 			middleEllipsis,
 			normalizeUrl,
 			inspectUrl,

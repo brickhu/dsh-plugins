@@ -79,7 +79,8 @@ vm.runInContext(bundle, sandbox, { filename: 'lib/client.js' })
 const T = moduleExports.__test
 assert.ok(T, 'bundle must expose __test')
 const {
-	trimTrailing, normalizeUrl, classify, primaryTag, TAG_LABEL, splitFences, scanText, scanSearchResult, scanFetchResult,
+	trimTrailing,
+	LOCALE_ZH, normalizeUrl, classify, primaryTag, TAG_LABEL, splitFences, scanText, scanSearchResult, scanFetchResult,
 	extractEvent, aggregate, makeBody, LinkRow, titleOf, isUsableTitle, markdownOf, hostIgnored, isIgnored,
 	withIgnore, withoutIgnore, restoreOne, loadIgnores, toolResultCallId, cacheableEvent, escapeLabel, rootDomain,
 	orderByDomain, looksLikeApiEndpoint, isUnavailableProbe, splitPinned, hostIconMap, inspectUrl, hashIconFor,
@@ -392,7 +393,7 @@ const fakeCtx = {
 			sidebarRight: { commandTarget: () => undefined, openTabFromTarget: () => {} },
 		}),
 	locale: {
-		bind: () => (key) => ({ 'tab.title': '应用链接', 'guide.description': '本对话里出现过的全部网址' }[key] ?? key),
+		bind: () => (key) => LOCALE_ZH[key] ?? key,
 		register: () => () => {},
 	},
 	sidebarRightTabs: {
