@@ -1032,6 +1032,18 @@ window.__ModuleLoader__.load({
 			}
 		}
 
+		/**
+		 * Some search result titles carry a trailing status glyph (`npm-trusted-publisher - ⚠️`);
+		 * it is not part of the page name, so drop that decoration from displayed titles.
+		 * @param {string} text - title text.
+		 * @returns {string} title without a trailing status glyph.
+		 */
+		function stripStatusGlyph(text) {
+			return String(text)
+				.replace(/\s*[-–—:：·|]?\s*[\u26A0\u2757\u2755\u26D4\u274C\u274E\u2049\u203C\u{1F6A8}\u{1F6AB}\u{1F534}\u{1F7E0}]\uFE0F?$/gu, '')
+				.trim()
+		}
+
 		function titleOf(reference, probes) {
 			// Strip bidi/zero-width marks before judging: some pages and labels contain only
 			// invisible characters, which rendered as a blank row.
@@ -1039,7 +1051,8 @@ window.__ModuleLoader__.load({
 			const usable = (value) => typeof value === 'string' && visible(value) !== ''
 			// The conversation's own title (Markdown link text / tool result titles) wins.
 			if (reference && usable(reference.title) && reference.titleFromPath === false && isUsableTitle(reference.title)) {
-				return visible(reference.title)
+				const cleaned = stripStatusGlyph(visible(reference.title))
+				return cleaned !== '' ? cleaned : reference.url
 			}
 			// Never render an empty row: fall back to the URL.
 			return reference.url
@@ -4102,7 +4115,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.78.0'
+		const BUILD = 'v0.78.1'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.

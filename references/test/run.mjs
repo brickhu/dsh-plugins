@@ -511,6 +511,11 @@ const titles = {
 // Titles come from the conversation (Markdown link text / tool result titles).
 assert.equal(titleOf(row({ title: '官方文档', titleFromPath: false })), '官方文档')
 assert.equal(titleOf(row({ title: '视频', titleFromPath: false })), '视频')
+// A trailing status glyph from a search result is decoration, not part of the title.
+{
+	const glyph = row({ title: 'npm-trusted-publisher - ⚠️' })
+	assert.equal(titleOf(glyph), 'npm-trusted-publisher')
+}
 // Path-derived placeholders are not titles: the URL is shown instead (policy: conversation-only titles).
 assert.equal(titleOf(row({ title: '官方文档', titleFromPath: true }), titles), 'https://fixtures.dev/a')
 assert.equal(titleOf(row({}), titles), 'https://fixtures.dev/a')
