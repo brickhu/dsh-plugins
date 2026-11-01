@@ -1,0 +1,44 @@
+name: Publish to npm
+
+# Trusted Publishing (OIDC): no NPM_TOKEN secret is needed. npm verifies this
+# workflow's OIDC identity against the trusted publisher configured on the
+# package settings page, then accepts the publish.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # required: mint the OIDC token npm exchanges for publish rights
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build and publish dsh-links-panel
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: references
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Run the offline test suite
+        run: node test/run.mjs
+
+      - name: Show the package that will be published
+        run: npm pack --dry-run
+
+      - name: Publish via OIDC trusted publishing
+        run: npm publish --access public --provenance
