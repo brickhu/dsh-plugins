@@ -37,7 +37,7 @@ function withOutboundLock(task) {
 }
 
 /** Host build stamp, echoed to the panel so a stale bundle is detectable. */
-export const BUILD = 'v0.80.1'
+export const BUILD = 'v0.81.0'
 /**
  * The desktop browser reaches the network through the system proxy; the Host's own
  * Node requests bypass it. Detect that proxy so probes can use the same route.
@@ -247,6 +247,24 @@ async function fetchFaviconDataUrl(url) {
 }
 
 /**
+ * Some sites answer 403/404 to non-browser clients (npmjs.com behind Cloudflare
+ * answers 403 for every icon path). Fall back to a public favicon service keyed by
+ * hostname, which keeps the built-in browser and the panel visually consistent.
+ * @param {string} target - the icon URL that failed.
+ * @returns {Promise<{dataUrl: string} | null>} data URL or null.
+ */
+async function fetchServiceFavicon(target) {
+	let host = ''
+	try {
+		host = new URL(target).hostname.toLowerCase().replace(/^www\./, '')
+	} catch (error) {
+		return null
+	}
+	if (host === '' || host === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(host)) return null
+	return fetchFaviconDataUrl(`https://icons.duckduckgo.com/ip3/${host}.ico`)
+}
+
+/**
  * Answer `GET /dsh-links/favicon?url=…` with a data URL.
  * @param {object} req - request.
  * @param {object} res - response.
@@ -266,7 +284,11 @@ async function handleFaviconRequest(req, res) {
 			res.end()
 			return
 		}
-		const icon = await withOutboundLock(() => fetchFaviconDataUrl(target))
+		const icon = await withOutboundLock(async () => {
+			const direct = await fetchFaviconDataUrl(target)
+			if (direct !== null) return direct
+			return fetchServiceFavicon(target)
+		})
 		if (!icon) {
 			res.writeHead(404)
 			res.end()
