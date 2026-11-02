@@ -37,7 +37,7 @@ function withOutboundLock(task) {
 }
 
 /** Host build stamp, echoed to the panel so a stale bundle is detectable. */
-export const BUILD = 'v0.81.1'
+export const BUILD = 'v0.82.0'
 /**
  * The desktop browser reaches the network through the system proxy; the Host's own
  * Node requests bypass it. Detect that proxy so probes can use the same route.
@@ -207,6 +207,8 @@ async function handleTitlesRequest(ctx, req, res) {
 export const ROUTE_PATH = '/dsh-links/meta'
 /** Host-level favicon fetch: returns the icon bytes as a data URL. */
 export const FAVICON_ROUTE_PATH = '/dsh-links/favicon'
+/** Page icon discovery: returns the light/dark icon URLs declared by the page. */
+export const PAGE_ICONS_ROUTE_PATH = '/dsh-links/pageicons'
 /** Largest favicon accepted, in bytes. */
 const FAVICON_MAX_BYTES = 64 * 1024
 
@@ -262,6 +264,46 @@ async function fetchServiceFavicon(target) {
 	}
 	if (host === '' || host === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(host)) return null
 	return fetchFaviconDataUrl(`https://icons.duckduckgo.com/ip3/${host}.ico`)
+}
+
+/**
+ * Answer `GET /dsh-links/pageicons?url=…`: fetch the page with curl (through the
+ * system proxy) and return the light/dark icon URLs it declares.
+ * @param {object} req - request.
+ * @param {object} res - response.
+ * @returns {Promise<void>} completion.
+ */
+async function handlePageIconsRequest(req, res) {
+	try {
+		if (req.method !== 'GET') {
+			res.writeHead(405, { allow: 'GET' })
+			res.end()
+			return
+		}
+		const requestUrl = new URL(req.url || '/', 'http://127.0.0.1')
+		const target = requestUrl.searchParams.get('url') || ''
+		const accepted = acceptableUrl(target)
+		if (accepted === null) {
+			res.writeHead(400)
+			res.end()
+			return
+		}
+		const icons = await withOutboundLock(async () => {
+			const proxy = await systemProxy()
+			const html = await curlText(accepted, proxy)
+			return html ? extractThemeIcons(html, accepted) : { light: '', dark: '' }
+		})
+		const payload = JSON.stringify({ light: icons.light, dark: icons.dark, build: BUILD })
+		res.writeHead(200, {
+			'content-type': 'application/json; charset=utf-8',
+			'content-length': Buffer.byteLength(payload),
+			'cache-control': 'no-store',
+		})
+		res.end(payload)
+	} catch (error) {
+		if (!res.headersSent) res.writeHead(500)
+		res.end()
+	}
 }
 
 /**
@@ -404,6 +446,51 @@ export function extractIcon(html, pageUrl) {
 		return resolved.toString()
 	}
 	return ''
+}
+
+/**
+ * Extract the icons a page declares, keeping light and dark theme variants apart.
+ * A page signals a theme variant with `media="(prefers-color-scheme: dark)"` (or
+ * `light`) on its `<link rel="icon">`; a variant without `media` is used for both.
+ * @param {string} html - page HTML.
+ * @param {string} pageUrl - page URL used to resolve relative hrefs.
+ * @returns {{light: string, dark: string}} absolute icon URLs ('' when absent).
+ */
+export function extractThemeIcons(html, pageUrl) {
+	const source = String(html || '')
+	const link = /<link\b[^>]*>/gi
+	let neutral = ''
+	let light = ''
+	let dark = ''
+	let match
+	while ((match = link.exec(source)) !== null) {
+		const tag = match[0]
+		const rel = /\brel\s*=\s*["']?([^"'>]+)/i.exec(tag)
+		if (rel === null || !/\bicon\b/i.test(rel[1])) continue
+		const href = /\bhref\s*=\s*["']?([^"'\s>]+)/i.exec(tag)
+		if (href === null) continue
+		let resolved
+		try {
+			resolved = new URL(href[1], pageUrl)
+		} catch (error) {
+			continue
+		}
+		if (resolved.protocol !== 'http:' && resolved.protocol !== 'https:') continue
+		const url = resolved.toString()
+		const media = /\bmedia\s*=\s*["']?([^"'>]+)/i.exec(tag)
+		const scheme = media === null ? '' : media[1].toLowerCase()
+		if (scheme.indexOf('prefers-color-scheme') >= 0 && scheme.indexOf('dark') >= 0) {
+			if (dark === '') dark = url
+		} else if (scheme.indexOf('prefers-color-scheme') >= 0 && scheme.indexOf('light') >= 0) {
+			if (light === '') light = url
+		} else if (neutral === '') {
+			neutral = url
+		}
+	}
+	return {
+		light: light !== '' ? light : neutral,
+		dark: dark !== '' ? dark : neutral,
+	}
 }
 
 /**
@@ -675,5 +762,6 @@ export function apply(ctx) {
 	const cache = new Map()
 	registerRoute(ctx, ROUTE_PATH, (req, res) => handleMetaRequest(ctx, cache, req, res), 'dsh-links: metadata route')
 	registerRoute(ctx, FAVICON_ROUTE_PATH, (req, res) => handleFaviconRequest(req, res), 'dsh-links: favicon route')
+	registerRoute(ctx, PAGE_ICONS_ROUTE_PATH, (req, res) => handlePageIconsRequest(req, res), 'dsh-links: page icons route')
 	registerRoute(ctx, AI_TITLES_ROUTE_PATH, (req, res) => handleTitlesRequest(ctx, req, res), 'dsh-links: ai titles route')
 }

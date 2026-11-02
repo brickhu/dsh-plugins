@@ -1171,20 +1171,31 @@ window.__ModuleLoader__.load({
 		 * Global favicon library: host (or registrable domain) → favicon URL. It is filled
 		 * only from successful web_fetch results; nothing is fetched by the plugin itself.
 		 */
-		const FAVICON_LIBRARY_KEY = 'dsh-links.favicons.v1'
-		const FAVICON_LIBRARY_LIMIT = 150
+		const FAVICON_LIBRARY_KEY = 'dsh-links.favicons.v2'
+		const FAVICON_LIBRARY_LIMIT = 120
 
 		/** @returns {Record<string, string>} favicon URL by host or domain. */
 		function loadFaviconLibrary() {
 			const store = ignoreStore()
 			if (!store) return {}
 			try {
-				const raw = store.getItem(FAVICON_LIBRARY_KEY)
+				// v2 keeps light/dark variants; migrate the legacy single-string table once.
+				const raw = store.getItem(FAVICON_LIBRARY_KEY) || store.getItem('dsh-links.favicons.v1')
 				const parsed = raw ? JSON.parse(raw) : null
 				if (!parsed || typeof parsed !== 'object') return {}
 				const result = {}
-				for (const [host, url] of Object.entries(parsed)) {
-					if (typeof host === 'string' && typeof url === 'string' && /^(https?:\/\/|data:image\/)/i.test(url)) result[host] = url
+				const usable = (value) => typeof value === 'string' && /^(https?:\/\/|data:image\/)/i.test(value)
+				for (const [host, value] of Object.entries(parsed)) {
+					if (typeof host !== 'string') continue
+					// v1 stored one string per host: use it for both themes until refreshed.
+					if (typeof value === 'string') {
+						if (usable(value)) result[host] = { light: value, dark: value }
+						continue
+					}
+					if (!value || typeof value !== 'object') continue
+					const light = usable(value.light) ? value.light : ''
+					const dark = usable(value.dark) ? value.dark : ''
+					if (light !== '' || dark !== '') result[host] = { light, dark }
 				}
 				return result
 			} catch (error) {
@@ -1194,7 +1205,7 @@ window.__ModuleLoader__.load({
 
 		/**
 		 * Persist the favicon library.
-		 * @param {Record<string, string>} library - favicon URL by host.
+		 * @param {Record<string, {light: string, dark: string}>} library - data URLs by host.
 		 * @returns {void}
 		 */
 		function saveFaviconLibrary(library) {
@@ -2571,21 +2582,44 @@ window.__ModuleLoader__.load({
 		}
 
 		/**
+		 * Choose the icon to draw for one row in the current theme.
+		 * @param {object} reference - reference row.
+		 * @param {Record<string, any>} library - favicon library (per-theme objects, or legacy strings).
+		 * @param {boolean} dark - whether the app currently renders a dark theme.
+		 * @returns {{src: string, themed: boolean}} icon source and whether it is theme-specific.
+		 */
+		function iconForReference(reference, library, dark) {
+			const hash = hashIconFor(reference.host)
+			const host = reference.host.replace(/^www\./, '')
+			const domain = rootDomain(reference.host)
+			const entry = library[host] !== undefined ? library[host] : library[domain]
+			if (entry === undefined) return { src: hash, themed: false }
+			if (typeof entry === 'string') return { src: entry !== '' ? entry : hash, themed: false }
+			if (!entry || typeof entry !== 'object') return { src: hash, themed: false }
+			const preferred = dark ? entry.dark : entry.light
+			const other = dark ? entry.light : entry.dark
+			if (typeof preferred === 'string' && preferred !== '') return { src: preferred, themed: true }
+			if (typeof other === 'string' && other !== '') return { src: other, themed: false }
+			return { src: hash, themed: false }
+		}
+
+		/**
 		 * The row icon: the deterministic hash mark for the host, rendered as a data URL.
 		 * No remote favicon request is made for any row.
 		 * @param {{reference: object}} props - row reference.
 		 * @returns {object} React element.
 		 */
-		function Favicon({ reference, icon }) {
+		function Favicon({ reference, icon, invertible }) {
 			const [failed, setFailed] = React.useState(false)
 			const [invert, setInvert] = React.useState(false)
 			const dark = useDarkTheme()
 			const hash = hashIconFor(reference.host)
 			const choosable = !failed && typeof icon === 'string' && icon !== ''
 			const src = choosable ? icon : hash
+			const allowInvert = invertible !== false
 			React.useEffect(() => {
 				let alive = true
-				if (!choosable || src.indexOf('data:') !== 0) {
+				if (!allowInvert || !choosable || src.indexOf('data:') !== 0) {
 					setInvert(false)
 					return () => {}
 				}
@@ -2599,7 +2633,7 @@ window.__ModuleLoader__.load({
 				return () => {
 					alive = false
 				}
-			}, [src, choosable, dark])
+			}, [src, choosable, dark, allowInvert])
 			return h('img', {
 				src,
 				alt: '',
@@ -2762,7 +2796,7 @@ window.__ModuleLoader__.load({
 		 *   onToggleMenu: Function}} props - row data and callbacks.
 		 * @returns {object} React element.
 		 */
-		function LinkRow({ reference, ignored, unreachable, title, icon, iconSources, iconEpoch, refreshing, fresh, onOpen, onToggleMenu, onCountHover, onTooltip }) {
+		function LinkRow({ reference, ignored, unreachable, title, icon, iconSources, iconEpoch, invertible, refreshing, fresh, onOpen, onToggleMenu, onCountHover, onTooltip }) {
 			const [hoveringOpen, setHoveringOpen] = React.useState(false)
 			const [marqueeShift, setMarqueeShift] = React.useState(0)
 			const titleRef = React.useRef(null)
@@ -2875,8 +2909,7 @@ window.__ModuleLoader__.load({
 								key: reference.key,
 								reference,
 								icon: Array.isArray(iconSources) ? iconSources[0] || icon : icon,
-								fallback: Array.isArray(iconSources) ? iconSources[1] : '',
-								epoch: iconEpoch,
+								invertible,
 							}),
 					h(
 						'div',
@@ -3034,6 +3067,7 @@ window.__ModuleLoader__.load({
 					[],
 				)
 				const [faviconLibrary, setFaviconLibrary] = React.useState(() => loadFaviconLibrary())
+				const darkTheme = useDarkTheme()
 				const faviconHintsRef = React.useRef(new Map())
 				const [titleEditor, setTitleEditor] = React.useState(null)
 				const titleEditorInputRef = React.useRef(null)
@@ -3157,6 +3191,57 @@ window.__ModuleLoader__.load({
 				React.useEffect(() => {
 					saveFaviconLibrary(faviconLibrary)
 				}, [faviconLibrary])
+				// Fetch one host's icon set: discover the page-declared light/dark icons, then
+				// download each variant as a data URL. Falls back to the usual icon paths when
+				// the page declares nothing (or cannot be read).
+				const loadFaviconSet = React.useCallback(async (host, domain, pageUrl) => {
+					const base = typeof document !== 'undefined' && document.baseURI ? document.baseURI : 'http://127.0.0.1/'
+					const fetchData = async (iconUrl) => {
+						try {
+							const url = new URL('/dsh-links/favicon', base)
+							url.searchParams.set('url', iconUrl)
+							const response = await fetch(url)
+							if (!response || !response.ok) return ''
+							const payload = await response.json()
+							return payload && typeof payload.dataUrl === 'string' && payload.dataUrl.indexOf('data:') === 0 ? payload.dataUrl : ''
+						} catch (error) {
+							return ''
+						}
+					}
+					let declared = { light: '', dark: '' }
+					try {
+						const url = new URL('/dsh-links/pageicons', base)
+						url.searchParams.set('url', pageUrl || `https://${host}/`)
+						const response = await fetch(url)
+						if (response && response.ok) {
+							const payload = await response.json()
+							if (payload && typeof payload === 'object') {
+								declared = {
+									light: typeof payload.light === 'string' ? payload.light : '',
+									dark: typeof payload.dark === 'string' ? payload.dark : '',
+								}
+							}
+						}
+					} catch (error) {
+						/* fall through to the usual paths */
+					}
+					const result = { light: '', dark: '' }
+					if (declared.light !== '') result.light = await fetchData(declared.light)
+					if (declared.dark !== '') {
+						result.dark = declared.dark === declared.light ? result.light : await fetchData(declared.dark)
+					}
+					if (result.light !== '' || result.dark !== '') return result
+					const candidates = [`https://${host}/favicon.ico`, `https://${host}/apple-touch-icon.png`]
+					if (domain !== host) {
+						candidates.push(`https://${domain}/favicon.ico`, `https://${domain}/apple-touch-icon.png`)
+					}
+					for (const candidate of candidates) {
+						const dataUrl = await fetchData(candidate)
+						if (dataUrl !== '') return { light: dataUrl, dark: dataUrl }
+					}
+					return null
+				}, [])
+
 				// Host-level favicon probing: one host per pass, strictly sequential. A host is
 				// marked in-flight only while its own pass runs, so a state update can never
 				// strand the remaining hosts.
@@ -3172,46 +3257,19 @@ window.__ModuleLoader__.load({
 							domain: rootDomain(reference.host),
 						}))
 						.find((item) => {
-							const cached = [faviconLibrary[item.host], faviconLibrary[item.domain]]
-						if (cached.some((value) => typeof value === 'string' && value.indexOf('data:') === 0)) return false
+							if (faviconLibrary[item.host] !== undefined || faviconLibrary[item.domain] !== undefined) return false
 							if (faviconQueueRef.current.has(item.host)) return false
 							const failedAt = faviconFailedRef.current.get(item.host)
 							return failedAt === undefined || Date.now() - failedAt >= 10 * 60 * 1000
 						})
 					if (target === undefined) return undefined
 					faviconQueueRef.current.add(target.host)
-					const loadIcon = async (iconUrl) => {
-						try {
-							const url = new URL('/dsh-links/favicon', typeof document !== 'undefined' && document.baseURI ? document.baseURI : 'http://127.0.0.1/')
-							url.searchParams.set('url', iconUrl)
-							const response = await fetch(url)
-							if (!response || !response.ok) return ''
-							const payload = await response.json()
-							return payload && typeof payload.dataUrl === 'string' && payload.dataUrl.indexOf('data:') === 0 ? payload.dataUrl : ''
-						} catch (error) {
-							return ''
-						}
-					}
 					const run = async () => {
-						const candidates = [
-							`https://${target.host}/favicon.ico`,
-							`https://${target.host}/apple-touch-icon.png`,
-						]
-						if (target.domain !== target.host) {
-							candidates.push(
-								`https://${target.domain}/favicon.ico`,
-								`https://${target.domain}/apple-touch-icon.png`,
-							)
-						}
-						let found = ''
-						for (const candidate of candidates) {
-							if (cancelled) break
-							found = await loadIcon(candidate)
-							if (found !== '') break
-						}
+						const found = await loadFaviconSet(target.host, target.domain)
 						if (cancelled) return
-						if (found !== '') {
-							setFaviconLibrary((current) => (current[target.host] ? current : { ...current, [target.host]: found }))
+						if (found !== null) {
+							// Marks the host as resolved so the queue does not probe it again.
+							setFaviconLibrary((current) => (current[target.host] !== undefined ? current : { ...current, [target.host]: found }))
 						} else {
 							faviconFailedRef.current.set(target.host, Date.now())
 						}
@@ -3233,7 +3291,7 @@ window.__ModuleLoader__.load({
 						const next = { ...current }
 						for (const [host, iconUrl] of hints) {
 							if (next[host] === undefined) {
-								next[host] = iconUrl
+								next[host] = { light: iconUrl, dark: iconUrl }
 								changed = true
 							}
 						}
@@ -3315,45 +3373,19 @@ window.__ModuleLoader__.load({
 				 * @returns {Promise<void>} completion of this pass.
 				 */
 				// Opening a link in the built-in browser is the moment we know the user cares
-				// about that site: fetch its declared icon once, cache it, and update the row.
-				// Requests are chained so they never run in parallel.
+				// about that site: fetch its theme-specific icon set once, cache it, and update
+				// the row. Requests are chained so they never run in parallel.
 				const warmChainRef = React.useRef(Promise.resolve())
 				const warmFavicon = React.useCallback(
 					(reference) => {
 						const host = reference.host.replace(/^www\./, '')
 						const domain = rootDomain(reference.host)
-						const cached = [faviconLibrary[host], faviconLibrary[domain]]
-						if (cached.some((value) => typeof value === 'string' && value.indexOf('data:') === 0)) return
-						const requestFavicon = async (iconUrl) => {
-							try {
-								const url = new URL('/dsh-links/favicon', document.baseURI)
-								url.searchParams.set('url', iconUrl)
-								const response = await fetch(url)
-								if (!response || !response.ok) return ''
-								const payload = await response.json()
-								return payload && typeof payload.dataUrl === 'string' && payload.dataUrl.indexOf('data:') === 0 ? payload.dataUrl : ''
-							} catch (error) {
-								return ''
-							}
-						}
+						if (faviconLibrary[host] !== undefined || faviconLibrary[domain] !== undefined) return
 						const run = async () => {
 							try {
-								const candidates = [
-									`https://${host}/favicon.ico`,
-									`https://${host}/apple-touch-icon.png`,
-								]
-								if (domain !== host) {
-									candidates.push(
-										`https://${domain}/favicon.ico`,
-										`https://${domain}/apple-touch-icon.png`,
-									)
-								}
-								for (const candidate of candidates) {
-									const dataUrl = await requestFavicon(candidate)
-									if (dataUrl !== '') {
-										setFaviconLibrary((current) => (current[host] ? current : { ...current, [host]: dataUrl }))
-										return
-									}
+								const found = await loadFaviconSet(host, domain, reference.url)
+								if (found !== null) {
+									setFaviconLibrary((current) => (current[host] !== undefined ? current : { ...current, [host]: found }))
 								}
 							} catch (error) {
 								/* the background queue will retry later */
@@ -3361,7 +3393,7 @@ window.__ModuleLoader__.load({
 						}
 						warmChainRef.current = warmChainRef.current.then(run, run)
 					},
-					[faviconLibrary],
+					[faviconLibrary, loadFaviconSet],
 				)
 
 				const openReference = React.useCallback(
@@ -3664,19 +3696,16 @@ window.__ModuleLoader__.load({
 							: tr('empty.noMatch'),
 					)
 				} else {
-					const renderRow = (reference, hidden) =>
-						h(LinkRow, {
+					const renderRow = (reference, hidden) => {
+						const iconChoice = iconForReference(reference, faviconLibrary, darkTheme)
+						return h(LinkRow, {
 							key: reference.key,
 							reference,
 							ignored: hidden === true,
 							title: customTitles[reference.key] || titleOf(reference, {}),
 							fresh: freshKeys.has(reference.key),
-							iconSources: (() => {
-								const host = reference.host.replace(/^www\./, '')
-								const domain = rootDomain(reference.host)
-								const known = faviconLibrary[host] || faviconLibrary[domain] || ''
-								return [known !== '' ? known : hashIconFor(reference.host)]
-							})(),
+							iconSources: [iconChoice.src],
+							invertible: !iconChoice.themed,
 							iconEpoch: metaEpoch,
 							onOpen: openReference,
 							onToggleMenu: (next) => setMenu((current) => (current && current.key === next.key ? null : next)),
@@ -3685,6 +3714,7 @@ window.__ModuleLoader__.load({
 								setCountTip((current) => (current !== null && next !== null && current.key === next.key ? null : next)),
 							refreshing: refreshingUrls.has(reference.url) || autoProbing.has(reference.url),
 						})
+					}
 					const sectionHeader = (key, label, count, open, toggle) =>
 						h(
 							'div',
@@ -4161,7 +4191,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.81.1'
+		const BUILD = 'v0.82.0'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.
