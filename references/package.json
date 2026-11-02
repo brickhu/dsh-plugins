@@ -56,5 +56,9 @@
   "homepage": "https://github.com/brickhu/dsh-plugins/tree/main/references#readme",
   "bugs": {
     "url": "https://github.com/brickhu/dsh-plugins/issues"
+  },
+  "scripts": {
+    "test": "node test/run.mjs",
+    "update:desktop": "node scripts/update-from-npm.mjs"
   }
 }
