@@ -4755,7 +4755,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.84.5'
+		const BUILD = 'v0.84.6'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.
@@ -4773,7 +4773,7 @@ window.__ModuleLoader__.load({
 		/** Active translate function; replaced by apply() with the locale-bound one. */
 		let tr = (key) => key
 		const LOCALE_ZH = {
-			'tab.title': '应用链接',
+			'tab.title': '参考链接',
 			'guide.description': '本对话里出现过的全部网址',
 			'shortcut.open': '打开参考链接',
 			'shortcut.noSession': '请先选择一个会话',

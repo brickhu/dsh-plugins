@@ -23,7 +23,7 @@
       "name": "dsh-links-panel",
       "title": {
         "en": "Reference Links",
-        "zh": "应用链接"
+        "zh": "参考链接"
       },
       "description": {
         "en": "Collects every URL of a conversation into a right-sidebar tab with pins, turn counts, search, rename, hide and a keyboard shortcut.",

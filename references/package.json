@@ -1,7 +1,7 @@
 {
   "name": "dsh-links-panel",
-  "version": "0.84.5",
-  "description": "Reference links panel for DeepSeek Harness: collects every URL of a conversation into the right sidebar with pins, turn counts, metadata and favicon caching. DSH 右栏「应用链接」面板。",
+  "version": "0.84.6",
+  "description": "Reference links panel for DeepSeek Harness: collects every URL of a conversation into the right sidebar with pins, turn counts, metadata and favicon caching. DSH 右栏「参考链接」面板。",
   "license": "MIT",
   "type": "module",
   "main": "lib/index.js",
