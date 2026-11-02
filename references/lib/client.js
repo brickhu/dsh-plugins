@@ -3141,6 +3141,11 @@ window.__ModuleLoader__.load({
 				)
 				const [latestVersion, setLatestVersion] = React.useState(() => readLatestCheck())
 				const [updateOpen, setUpdateOpen] = React.useState(false)
+				// Bumped by a rescan so the aggregation memo re-runs even when the window is
+				// unchanged (otherwise the list silently keeps the old rows).
+				const [scanEpoch, setScanEpoch] = React.useState(0)
+				// Shows the rescan splash without touching the history-loaded state.
+				const [forcedSplash, setForcedSplash] = React.useState(false)
 				const [faviconLibrary, setFaviconLibrary] = React.useState(() => loadFaviconLibrary())
 				const darkTheme = useDarkTheme()
 				const faviconHintsRef = React.useRef(new Map())
@@ -3227,7 +3232,7 @@ window.__ModuleLoader__.load({
 					if (!snapshot.hasMore) return scanned
 					if (linksCache.rows.length === 0) return scanned
 					return mergeRows(linksCache.rows, scanned)
-				}, [liveSnapshot, linksCache])
+				}, [liveSnapshot, linksCache, scanEpoch])
 
 				// Persist the favicon cache (debounced) and flush it when the panel unmounts, so
 				// switching conversations never loses icons that were just fetched.
@@ -3455,7 +3460,7 @@ window.__ModuleLoader__.load({
 				// box and the list render only afterwards.
 				// Tests can force the list immediately with initialLoading={false}.
 				const allowSplash = !(props && props.initialLoading === false)
-				const showSplash = allowSplash && !splashDone && !historyDone
+				const showSplash = allowSplash && (forcedSplash || (!splashDone && !historyDone))
 
 
 
@@ -3681,6 +3686,8 @@ window.__ModuleLoader__.load({
 					if (rescanning) return
 					setRescanning(true)
 					setProbeError('')
+					// Visible feedback: show the panel splash again while the history is rebuilt.
+					setForcedSplash(true)
 					try {
 						const session = binding && binding.session
 						if (session && typeof session.loadOlder === 'function') {
@@ -3697,10 +3704,18 @@ window.__ModuleLoader__.load({
 						}
 						// Rebuild only this conversation's list. The global favicon cache stays:
 						// rescanning one conversation must not wipe icons collected elsewhere.
+						scanStoreRef.current = { cache: new Map(), callNames: new Map() }
+						scannedSeqRef.current = 0
+						scannedMinSeqRef.current = Number.MAX_SAFE_INTEGER
+						completeRef.current = false
+						setCompleteState(false)
 						setLinksCache({ rows: [], seq: 0, minSeq: 0, complete: false })
 						clearLinksCache(sessionId)
-
+						setScanEpoch((epoch) => epoch + 1)
+						// Give the splash a beat so a fast rescan still shows feedback.
+						await new Promise((resolve) => setTimeout(resolve, 450))
 					} finally {
+						setForcedSplash(false)
 						setRescanning(false)
 					}
 				}, [binding, rescanning, sessionId])
@@ -3880,6 +3895,12 @@ window.__ModuleLoader__.load({
 								title: tr('footer.rescanHint'),
 								onClick: rescanAll,
 								disabled: rescanning,
+								onMouseEnter: (event) => {
+									if (rescanning || overlayOpen) return
+									const rect = event.currentTarget.getBoundingClientRect()
+									setTooltip({ text: tr('footer.rescanHint'), rect })
+								},
+								onMouseLeave: () => setTooltip(null),
 							},
 							rescanning ? tr('footer.rescanning') : tr('footer.rescan'),
 						),
@@ -4614,6 +4635,12 @@ window.__ModuleLoader__.load({
 								type: 'button',
 								title: rescanning ? tr('footer.rescanning') : tr('footer.rescanHint'),
 								'aria-label': tr('footer.rescan'),
+								onMouseEnter: (event) => {
+									if (rescanning || overlayOpen) return
+									const rect = event.currentTarget.getBoundingClientRect()
+									setTooltip({ text: tr('footer.rescanHint'), rect })
+								},
+								onMouseLeave: () => setTooltip(null),
 								onClick: rescanAll,
 								disabled: rescanning,
 								style: {
@@ -4728,7 +4755,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.84.4'
+		const BUILD = 'v0.84.5'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.
