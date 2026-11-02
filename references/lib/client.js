@@ -3863,6 +3863,11 @@ window.__ModuleLoader__.load({
 								textAlign: 'center',
 							},
 						},
+						h(
+							'div',
+							{ style: { color: COLOR_LABEL_PRIMARY, opacity: 0.9, marginBottom: 8, lineHeight: 0 } },
+							h(LinkGlyph, { size: 44, mono: true }),
+						),
 						h('div', { style: { fontSize: 13, color: COLOR_LABEL_PRIMARY, lineHeight: '20px' } }, tr('empty.noLinks')),
 						h(
 							'div',
@@ -3873,7 +3878,19 @@ window.__ModuleLoader__.load({
 							'button',
 							{
 								type: 'button',
-								style: { ...S.footerButton, marginTop: 4 },
+								style: {
+									marginTop: 10,
+									padding: '5px 16px',
+									borderRadius: 6,
+									border: 'none',
+									background: COLOR_LABEL_PRIMARY,
+									color: 'var(--dsw-alias-bg-layer-1)',
+									fontSize: 12,
+									fontWeight: 500,
+									lineHeight: '18px',
+									cursor: rescanning ? 'default' : 'pointer',
+									opacity: rescanning ? 0.6 : 1,
+								},
 								title: tr('footer.rescanHint'),
 								onClick: rescanAll,
 								disabled: rescanning,
@@ -4873,7 +4890,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.85.3'
+		const BUILD = 'v0.85.4'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.
@@ -5071,9 +5088,12 @@ window.__ModuleLoader__.load({
 		 * @param {{size?: number}} props - rendered size in pixels.
 		 * @returns {object} React element.
 		 */
-		function LinkGlyph({ size }) {
+		function LinkGlyph({ size, mono }) {
 			// The guide asks for 26px; cap it at 24px so the card icon stays compact.
-			const edge = typeof size === 'number' ? Math.min(size, 24) : 24
+			// The empty state asks for a larger monochrome mark, which is allowed as-is.
+			const edge = typeof size === 'number' ? (mono ? size : Math.min(size, 24)) : mono ? 40 : 24
+			const ink = mono ? 'currentColor' : '#1976D2'
+			const inkSoft = mono ? 'currentColor' : '#42A5F5'
 			return h(
 				'svg',
 				{
@@ -5085,10 +5105,10 @@ window.__ModuleLoader__.load({
 				},
 				h('path', { d: 'M0 0h48v48H0z', fill: 'none' }),
 				h('path', {
-					fill: '#1976D2',
+					fill: ink,
 					d: 'M38 13h-3c-5.5 0-10 4.5-10 10s4.5 10 10 10h3c5.5 0 10-4.5 10-10s-4.5-10-10-10m0 16h-3c-3.3 0-6-2.7-6-6s2.7-6 6-6h3c3.3 0 6 2.7 6 6s-2.7 6-6 6M13 13h-3C4.5 13 0 17.5 0 23s4.5 10 10 10h3c5.5 0 10-4.5 10-10s-4.5-10-10-10m0 16h-3c-3.3 0-6-2.7-6-6s2.7-6 6-6h3c3.3 0 6 2.7 6 6s-2.7 6-6 6',
 				}),
-				h('path', { fill: '#42A5F5', d: 'M33 21H15c-1.1 0-2 .9-2 2s.9 2 2 2h18c1.1 0 2-.9 2-2s-.9-2-2-2' }),
+				h('path', { fill: inkSoft, d: 'M33 21H15c-1.1 0-2 .9-2 2s.9 2 2 2h18c1.1 0 2-.9 2-2s-.9-2-2-2' }),
 			)
 		}
 
