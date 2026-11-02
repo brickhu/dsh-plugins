@@ -4774,7 +4774,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.85.0'
+		const BUILD = 'v0.85.1'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.
@@ -5165,41 +5165,54 @@ window.__ModuleLoader__.load({
 					}
 					return state.rows
 				}
+				// The menu pipeline treats every candidates() result as a promise and a single
+				// throwing source can spoil the whole `@` menu, so this is async and never
+				// throws; registration failures are contained too.
 				const source = {
 					trigger: '@',
 					name: 'links',
-					candidates: (session, request) => {
-						titleOverrideSnapshot = null
-						const raw = request && typeof request.query === 'string' ? request.query.trim().toLowerCase() : ''
-						const rows = rowsForSession(session && session.sessionId)
-						const matches = []
-						for (const row of rows) {
-							const title = customTitleOrTitle(row, customTitlesSnapshot())
-							const haystack = `${title} ${row.host} ${row.url}`.toLowerCase()
-							if (raw !== '' && haystack.indexOf(raw) < 0) continue
-							matches.push(row)
-							if (matches.length >= 8) break
+					candidates: async (session, request) => {
+						try {
+							titleOverrideSnapshot = null
+							const raw = request && typeof request.query === 'string' ? request.query.trim().toLowerCase() : ''
+							const rows = rowsForSession(session && session.sessionId)
+							const overrides = customTitlesSnapshot()
+							const matches = []
+							for (const row of rows) {
+								const title = customTitleOrTitle(row, overrides)
+								const haystack = `${title} ${row.host} ${row.url}`.toLowerCase()
+								if (raw !== '' && haystack.indexOf(raw) < 0) continue
+								matches.push({ row, title })
+								if (matches.length >= 8) break
+							}
+							return matches.map(({ row, title }) => ({
+								name: title,
+								description: row.host,
+								section: tr('at.section'),
+								value: JSON.stringify({ url: row.url, title }),
+							}))
+						} catch (error) {
+							return []
 						}
-						return matches.map((row) => ({
-							name: customTitleOrTitle(row),
-							description: row.host,
-							section: tr('at.section'),
-							value: JSON.stringify({ url: row.url, title: customTitleOrTitle(row, customTitlesSnapshot()) }),
-						}))
 					},
 					header: () => tr('at.header'),
 					onPick: ({ candidate }) => {
-						let parsed
 						try {
-							parsed = JSON.parse(candidate.value)
+							const parsed = candidate && typeof candidate.value === 'string' ? JSON.parse(candidate.value) : undefined
+							if (!parsed || typeof parsed.url !== 'string') return undefined
+							return { text: parsed.url }
 						} catch (error) {
-							parsed = undefined
+							return undefined
 						}
-						if (!parsed || typeof parsed.url !== 'string') return undefined
-						return { text: parsed.url }
 					},
 				}
-				scoped.effect(() => inputTriggers.registerSource(source), 'dsh-links: @ links source')
+				scoped.effect(() => {
+					try {
+						return inputTriggers.registerSource(source)
+					} catch (error) {
+						return () => {}
+					}
+				}, 'dsh-links: @ links source')
 			})
 
 			// Background tracker: keep each conversation's link rows up to date even while the
