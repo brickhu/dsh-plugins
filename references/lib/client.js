@@ -3163,12 +3163,14 @@ window.__ModuleLoader__.load({
 				const [menu, setMenu] = React.useState(null)
 				// All-links filter: null (everything), {kind:'turn',value:N} or {kind:'host',value}.
 				const [linkFilter, setLinkFilter] = React.useState(null)
-				const [filterMenu, setFilterMenu] = React.useState(null)
+				const [filterOpen, setFilterOpen] = React.useState(false)
+				const [filterTurnsOpen, setFilterTurnsOpen] = React.useState(true)
+				const [filterHostsOpen, setFilterHostsOpen] = React.useState(true)
 				const [countTip, setCountTip] = React.useState(null)
 				const [countTipHover, setCountTipHover] = React.useState(null)
 				const [tooltip, setTooltip] = React.useState(null)
 				// Any open overlay owns the space above the list: the hover tooltip stays off.
-				const overlayOpen = menu !== null || filterMenu !== null || countTip !== null || updateOpen
+				const overlayOpen = menu !== null || filterOpen || countTip !== null || updateOpen
 				const [panelVisible, setPanelVisible] = React.useState(true)
 				const [autoProbing, setAutoProbing] = React.useState(() => new Set())
 				const [autoTotal, setAutoTotal] = React.useState(0)
@@ -3469,26 +3471,6 @@ window.__ModuleLoader__.load({
 				React.useEffect(() => {
 					if (menu !== null && tooltip !== null) setTooltip(null)
 				}, [menu, tooltip])
-
-				// Close the filter popover on any outside press or Escape.
-				const filterMenuRef = React.useRef(null)
-				React.useEffect(() => {
-					if (filterMenu === null) return undefined
-					const onPointerDown = (event) => {
-						const root = filterMenuRef.current
-						if (root && event.target instanceof Node && root.contains(event.target)) return
-						setFilterMenu(null)
-					}
-					const onKeyDown = (event) => {
-						if (event.key === 'Escape') setFilterMenu(null)
-					}
-					document.addEventListener('pointerdown', onPointerDown, true)
-					document.addEventListener('keydown', onKeyDown)
-					return () => {
-						document.removeEventListener('pointerdown', onPointerDown, true)
-						document.removeEventListener('keydown', onKeyDown)
-					}
-				}, [filterMenu])
 
 				// Close the row menu on any outside press, Escape, or list scroll.
 				const rowMenuRef = React.useRef(null)
@@ -4025,8 +4007,7 @@ window.__ModuleLoader__.load({
 											'aria-label': tr('filter.title'),
 											onClick: (event) => {
 												event.stopPropagation()
-												const rect = event.currentTarget.getBoundingClientRect()
-												setFilterMenu((current) => (current === null ? { rect } : null))
+												setFilterOpen((current) => !current)
 											},
 											style: {
 												display: 'inline-flex',
@@ -4285,67 +4266,204 @@ window.__ModuleLoader__.load({
 					)
 				}
 
-				let filterMenuNode = null
-				if (filterMenu !== null) {
-					const rect = filterMenu.rect
-					const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1024
-					const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 768
-					const left = Math.max(8, Math.min(rect.left, viewportWidth - 232))
-					const top = Math.min(rect.bottom + 4, Math.max(8, viewportHeight - 360))
+				let filterDialogNode = null
+				if (filterOpen) {
 					const pick = (filter) => () => {
 						setLinkFilter(filter)
-						setFilterMenu(null)
+						setFilterOpen(false)
 					}
-					const groupLabel = (key, text) =>
+					const closeButton = h(
+						'button',
+						{
+							type: 'button',
+							title: tr('button.close'),
+							'aria-label': tr('button.close'),
+							onClick: () => setFilterOpen(false),
+							style: {
+								display: 'inline-flex',
+								alignItems: 'center',
+								justifyContent: 'center',
+								width: 20,
+								height: 20,
+								padding: 0,
+								border: 'none',
+								background: 'transparent',
+								color: COLOR_LABEL_SECONDARY,
+								cursor: 'pointer',
+								flex: 'none',
+							},
+						},
+						h('span', { 'aria-hidden': 'true', style: { fontSize: 14 } }, '×'),
+					)
+					const groupHeader = (key, label, count, open, toggle) =>
 						h(
 							'div',
 							{
 								key,
 								style: {
-									padding: '6px 10px 2px',
-									fontSize: 10,
-									letterSpacing: '0.04em',
-									textTransform: 'uppercase',
-									color: COLOR_LABEL_TERTIARY,
+									display: 'flex',
+									alignItems: 'center',
+									gap: 6,
+									padding: '10px 10px 4px',
+									cursor: 'pointer',
+									userSelect: 'none',
+								},
+								onClick: toggle,
+							},
+							h(
+								'span',
+								{
+									style: {
+										fontSize: 10,
+										letterSpacing: '0.04em',
+										textTransform: 'uppercase',
+										color: COLOR_LABEL_TERTIARY,
+									},
+								},
+								`${label} (${count})`,
+							),
+							h(
+								'svg',
+								{
+									width: 12,
+									height: 12,
+									viewBox: '0 0 16 16',
+									fill: 'none',
+									stroke: 'currentColor',
+									strokeWidth: 1.5,
+									strokeLinecap: 'round',
+									strokeLinejoin: 'round',
+									style: { marginLeft: 'auto', color: COLOR_LABEL_SECONDARY },
+									'aria-hidden': 'true',
+								},
+								open ? h('path', { d: 'M4 10L8 6L12 10' }) : h('path', { d: 'M4 6L8 10L12 6' }),
+							),
+						)
+					const optionRow = (key, label, count, active, onClick) =>
+						h(
+							'div',
+							{
+								key,
+								onClick,
+								style: {
+									display: 'flex',
+									alignItems: 'center',
+									gap: 8,
+									padding: '7px 10px',
+									borderRadius: 4,
+									cursor: 'pointer',
+									background: active ? 'color-mix(in srgb, currentColor 7%, transparent)' : 'transparent',
 								},
 							},
-							text,
+							h('span', {
+								'aria-hidden': 'true',
+								style: { width: 12, flex: 'none', fontSize: 11, color: '#3fb950' },
+							}, active ? '✓' : ''),
+							h(
+								'span',
+								{ style: { fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } },
+								label,
+							),
+							count === '' || count === undefined
+								? null
+								: h('span', { style: { marginLeft: 'auto', fontSize: 11, color: COLOR_LABEL_TERTIARY } }, count),
 						)
-					const filterItems = [h(MenuItem, { key: 'all', label: tr('filter.all'), onSelect: pick(null) })]
+					const rows = [
+						optionRow('filter-all', tr('filter.all'), '', linkFilter === null, pick(null)),
+					]
 					if (filterChoices.turns.length > 0) {
-						filterItems.push(groupLabel('turns', tr('filter.byTurn')))
-						for (const choice of filterChoices.turns) {
-							filterItems.push(
-								h(MenuItem, {
-									key: `turn-${choice.turn}`,
-									label: `${trf('row.turnLabel', { turn: choice.turn })} · ${choice.count}`,
-									onSelect: pick({ kind: 'turn', value: choice.turn }),
-								}),
-							)
+						rows.push(
+							groupHeader(
+								'filter-turns',
+								tr('filter.byTurn'),
+								filterChoices.turns.length,
+								filterTurnsOpen,
+								() => setFilterTurnsOpen((current) => !current),
+							),
+						)
+						if (filterTurnsOpen) {
+							for (const choice of filterChoices.turns) {
+								rows.push(
+									optionRow(
+										`filter-turn-${choice.turn}`,
+										trf('row.turnLabel', { turn: choice.turn }),
+										choice.count,
+										linkFilter !== null && linkFilter.kind === 'turn' && linkFilter.value === choice.turn,
+										pick({ kind: 'turn', value: choice.turn }),
+									),
+								)
+							}
 						}
 					}
 					if (filterChoices.hosts.length > 0) {
-						filterItems.push(groupLabel('hosts', tr('filter.byHost')))
-						for (const choice of filterChoices.hosts) {
-							filterItems.push(
-								h(MenuItem, {
-									key: `host-${choice.host}`,
-									label: `${choice.host} · ${choice.count}`,
-									onSelect: pick({ kind: 'host', value: choice.host }),
-								}),
-							)
+						rows.push(
+							groupHeader(
+								'filter-hosts',
+								tr('filter.byHost'),
+								filterChoices.hosts.length,
+								filterHostsOpen,
+								() => setFilterHostsOpen((current) => !current),
+							),
+						)
+						if (filterHostsOpen) {
+							for (const choice of filterChoices.hosts) {
+								rows.push(
+									optionRow(
+										`filter-host-${choice.host}`,
+										choice.host,
+										choice.count,
+										linkFilter !== null && linkFilter.kind === 'host' && linkFilter.value === choice.host,
+										pick({ kind: 'host', value: choice.host }),
+									),
+								)
+							}
 						}
 					}
-					filterMenuNode = h(
+					filterDialogNode = h(
 						'div',
 						{
-							ref: filterMenuRef,
-							className: 'dsh-links-menu',
-							style: { ...S.menu, left, top, width: 220, maxHeight: 340, overflowY: 'auto', padding: 4 },
-							onPointerDown: (event) => event.stopPropagation(),
-							onClick: (event) => event.stopPropagation(),
+							style: S.editorBackdrop,
+							onClick: () => setFilterOpen(false),
+							onKeyDown: (event) => {
+								if (event.key === 'Escape') setFilterOpen(false)
+							},
 						},
-						filterItems,
+						h(
+							'div',
+							{
+								style: {
+									...S.editorCard,
+									width: 380,
+									maxWidth: 'calc(100vw - 32px)',
+									maxHeight: 'calc(100vh - 96px)',
+									display: 'flex',
+									flexDirection: 'column',
+									gap: 0,
+								},
+								onClick: (event) => event.stopPropagation(),
+							},
+							h(
+								'div',
+								{
+									style: {
+										display: 'flex',
+										alignItems: 'center',
+										justifyContent: 'space-between',
+										gap: 8,
+										fontSize: 13,
+										fontWeight: 600,
+										flex: 'none',
+									},
+								},
+								h('span', null, tr('filter.title')),
+								closeButton,
+							),
+							h(
+								'div',
+								{ style: { marginTop: 8, overflowY: 'auto', minHeight: 0, flex: '1 1 auto' } },
+								rows,
+							),
+						),
 					)
 				}
 
@@ -4619,7 +4737,7 @@ window.__ModuleLoader__.load({
 							onScroll: () => {
 								if (menu !== null) setMenu(null)
 								if (countTip !== null) setCountTip(null)
-								if (filterMenu !== null) setFilterMenu(null)
+
 							},
 						},
 						list,
@@ -4735,7 +4853,7 @@ window.__ModuleLoader__.load({
 						),
 					),
 					countTipNode,
-					filterMenuNode,
+					filterDialogNode,
 					updateNode,
 					rowMenu,
 				)
@@ -4755,7 +4873,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.85.2'
+		const BUILD = 'v0.85.3'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.
