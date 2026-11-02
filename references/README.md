@@ -23,7 +23,7 @@ so you never have to scroll back through a long chat to find that link again.
 | **Turns** | Each row shows how many **turns** mentioned the URL. Click the badge to open a dialog listing every turn, with relative timestamps (`5d ago`, `just now`) and “click to view” on hover, jumping straight to that turn. |
 | **Pins** | Pin links to a separate “Pinned” section at the top. Pins are global and survive restarts. |
 | **Hidden** | Hide a single link or the whole host (`a.baidu.com`, never `baidu.com`). Hidden links stay expandable and restorable. |
-| **Icons** | A global favicon library keyed by host / registrable domain. Hosts without an entry are probed **one host at a time** through the Host process, then cached forever. Deterministic hash icons are the final fallback, and monochrome icons are inverted when they would disappear on the current light/dark theme. |
+| **Icons** | A global favicon library keyed by host / registrable domain that stores **separate light and dark variants** when a page declares them (`<link rel="icon" media="(prefers-color-scheme: dark)">`), so each row shows the icon matching the active theme. Hosts without an entry are probed **one host at a time** through the Host process, then cached forever. Deterministic hash icons are the final fallback, and a neutral monochrome icon is inverted only when it has no theme-specific variant and would disappear against the background. |
 | **Search** | Search title or domain. While searching, grouping and collapsible sections are replaced by a flat list headed `Search results (N)`. |
 | **Keyboard** | `⌘⇧L` on macOS, `Ctrl+Shift+L` elsewhere. The shortcut works from the conversation and is displayed on the guide card. |
 
@@ -90,7 +90,8 @@ references/
 
 ### Host half (`lib/index.js`)
 
-- Registers `GET /dsh-links/favicon?url=…`, which fetches a favicon through
+- Registers `GET /dsh-links/pageicons?url=…` (page-declared light/dark icon URLs) and
+  `GET /dsh-links/favicon?url=…`, which fetches a favicon through
   `curl` (respecting the desktop system proxy) and returns it as a data URL
   (64 KB cap; PNG / GIF / JPEG / WebP / ICO / SVG sniffing).
 - Every outbound request is serialized through one promise chain — the plugin never
@@ -113,7 +114,7 @@ references/
 | `dsh-links.links.v3:<sessionId>` | Per-conversation rows + scan cursor |
 | `dsh-links.pinned.v1` | Pinned URLs |
 | `dsh-links.customtitles.v1` | User-renamed titles (URL → title) |
-| `dsh-links.favicons.v1` | Global favicon library (host/domain → data URL) |
+| `dsh-links.favicons.v2` | Global favicon library (host/domain → `{light, dark}` data URLs) |
 | `dsh-links.blocked-hosts.v1` | Globally hidden hosts |
 | `dsh-links.ignored.v1:<sessionId>` | Per-conversation hidden links |
 
