@@ -3154,6 +3154,9 @@ window.__ModuleLoader__.load({
 				const [hostBuild, setHostBuild] = React.useState('')
 				const [refreshing, setRefreshing] = React.useState(false)
 				const [menu, setMenu] = React.useState(null)
+				// All-links filter: null (everything), {kind:'turn',value:N} or {kind:'host',value}.
+				const [linkFilter, setLinkFilter] = React.useState(null)
+				const [filterMenu, setFilterMenu] = React.useState(null)
 				const [countTip, setCountTip] = React.useState(null)
 				const [countTipHover, setCountTipHover] = React.useState(null)
 				const [tooltip, setTooltip] = React.useState(null)
@@ -3190,6 +3193,8 @@ window.__ModuleLoader__.load({
 					// Metadata is global (keyed by URL), so switching sessions must neither
 					// drop it from memory nor overwrite the shared cache with an empty object.
 					setMenu(null)
+					setLinkFilter(null)
+					setFilterMenu(null)
 					setProbeError('')
 					setSessionEpoch((epoch) => epoch + 1)
 					autoRefreshRef.current = { timer: null, at: 0 }
@@ -3261,6 +3266,48 @@ window.__ModuleLoader__.load({
 						.sort((left, right) => turnCountOf(right) - turnCountOf(left) || right.lastSeq - left.lastSeq)
 				}, [active, query])
 				const rows = React.useMemo(() => orderByDomain(visible), [visible])
+
+				/** Normalized host used by the host filter (www is irrelevant). */
+				const hostOfRow = (reference) => reference.host.replace(/^www\./, '')
+				/** Whether a row belongs to one conversation turn. */
+				const rowHitsTurn = (reference, turn) => {
+					if (Array.isArray(reference.turns) && reference.turns.indexOf(turn) >= 0) return true
+					return Array.isArray(reference.occurrences) && reference.occurrences.some((item) => item.turn === turn)
+				}
+				const matchesFilter = React.useCallback(
+					(reference) => {
+						if (linkFilter === null) return true
+						if (linkFilter.kind === 'turn') return rowHitsTurn(reference, linkFilter.value)
+						return hostOfRow(reference) === linkFilter.value
+					},
+					[linkFilter],
+				)
+				// Filter choices are derived from the rows currently in scope, so they never
+				// offer an empty result.
+				const filterChoices = React.useMemo(() => {
+					const turnCounts = new Map()
+					const hostCounts = new Map()
+					for (const reference of active) {
+						const turns = Array.isArray(reference.turns) ? reference.turns : []
+						for (const turn of turns) turnCounts.set(turn, (turnCounts.get(turn) || 0) + 1)
+						const host = hostOfRow(reference)
+						hostCounts.set(host, (hostCounts.get(host) || 0) + 1)
+					}
+					const turns = Array.from(turnCounts.entries())
+						.map(([turn, count]) => ({ turn, count }))
+						.sort((left, right) => right.turn - left.turn)
+						.slice(0, 12)
+					const hosts = Array.from(hostCounts.entries())
+						.map(([host, count]) => ({ host, count }))
+						.sort((left, right) => right.count - left.count || left.host.localeCompare(right.host))
+						.slice(0, 16)
+					return { turns, hosts }
+				}, [active])
+				const filterLabelOf = (filter) => {
+					if (filter === null) return ''
+					if (filter.kind === 'turn') return trf('row.turnLabel', { turn: filter.value })
+					return filter.value
+				}
 				React.useEffect(() => {
 					saveFaviconLibrary(faviconLibrary)
 				}, [faviconLibrary])
@@ -3398,7 +3445,7 @@ window.__ModuleLoader__.load({
 					return () => clearTimeout(timer)
 				}, [all])
 				const pinnedRows = React.useMemo(() => splitPinned(rows, pinned)[0], [rows, pinned])
-				const restRows = React.useMemo(() => splitPinned(rows, pinned)[1], [rows, pinned])
+				const restRows = React.useMemo(() => splitPinned(rows, pinned)[1].filter(matchesFilter), [rows, pinned, matchesFilter])
 
 				// The splash owns the panel until the first metadata pass settles: the search
 				// box and the list render only afterwards.
@@ -3407,6 +3454,26 @@ window.__ModuleLoader__.load({
 				const showSplash = allowSplash && !splashDone && !historyDone
 
 
+
+				// Close the filter popover on any outside press or Escape.
+				const filterMenuRef = React.useRef(null)
+				React.useEffect(() => {
+					if (filterMenu === null) return undefined
+					const onPointerDown = (event) => {
+						const root = filterMenuRef.current
+						if (root && event.target instanceof Node && root.contains(event.target)) return
+						setFilterMenu(null)
+					}
+					const onKeyDown = (event) => {
+						if (event.key === 'Escape') setFilterMenu(null)
+					}
+					document.addEventListener('pointerdown', onPointerDown, true)
+					document.addEventListener('keydown', onKeyDown)
+					return () => {
+						document.removeEventListener('pointerdown', onPointerDown, true)
+						document.removeEventListener('keydown', onKeyDown)
+					}
+				}, [filterMenu])
 
 				// Close the row menu on any outside press, Escape, or list scroll.
 				const rowMenuRef = React.useRef(null)
@@ -3833,11 +3900,12 @@ window.__ModuleLoader__.load({
 							refreshing: refreshingUrls.has(reference.url) || autoProbing.has(reference.url),
 						})
 					}
-					const sectionHeader = (key, label, count, open, toggle) =>
+					const sectionHeader = (key, label, count, open, toggle, extra) =>
 						h(
 							'div',
 							{ key, className: 'dsh-links-section', style: { ...S.groupHeader, cursor: 'pointer' }, onClick: toggle },
 							h('span', null, `${label}(${count})`),
+							extra || null,
 							h(
 								'svg',
 								{
@@ -3875,6 +3943,7 @@ window.__ModuleLoader__.load({
 								const haystack = `${reference.title} ${reference.host} ${reference.pathname} ${reference.url}`.toLowerCase()
 								return haystack.indexOf(needle) >= 0
 							})
+							.filter(matchesFilter)
 							.sort((left, right) => turnCountOf(right) - turnCountOf(left) || right.lastSeq - left.lastSeq)
 						list = h(
 							'div',
@@ -3889,8 +3958,93 @@ window.__ModuleLoader__.load({
 							h(
 								'div',
 								{ key: 'all-group' },
-								sectionHeader('all-head', tr('section.all'), restRows.length, allOpen, () => setAllOpen((current) => !current)),
-								allOpen ? restRows.map((reference) => renderRow(reference)) : null,
+								sectionHeader(
+									'all-head',
+									linkFilter === null ? tr('section.all') : filterLabelOf(linkFilter),
+									restRows.length,
+									allOpen,
+									() => setAllOpen((current) => !current),
+									h(
+										'span',
+										{ style: { display: 'inline-flex', alignItems: 'center', gap: 2, marginLeft: 6 } },
+										linkFilter === null
+											? null
+											: h(
+													'button',
+													{
+														type: 'button',
+														title: tr('filter.clear'),
+														'aria-label': tr('filter.clear'),
+														onClick: (event) => {
+															event.stopPropagation()
+															setLinkFilter(null)
+														},
+														style: {
+															display: 'inline-flex',
+															alignItems: 'center',
+															justifyContent: 'center',
+															width: 16,
+															height: 16,
+															padding: 0,
+															border: 'none',
+															borderRadius: 4,
+															background: 'transparent',
+															color: COLOR_LABEL_SECONDARY,
+															cursor: 'pointer',
+														},
+													},
+													h('span', { 'aria-hidden': 'true', style: { fontSize: 12, lineHeight: '12px' } }, '×'),
+												),
+										h(
+											'button',
+											{
+												type: 'button',
+												title: tr('filter.title'),
+												'aria-label': tr('filter.title'),
+												'onClick': (event) => {
+													event.stopPropagation()
+													const rect = event.currentTarget.getBoundingClientRect()
+													setFilterMenu((current) => (current === null ? { rect } : null))
+												},
+												style: {
+													display: 'inline-flex',
+													alignItems: 'center',
+													justifyContent: 'center',
+													width: 18,
+													height: 18,
+													padding: 0,
+													border: 'none',
+													borderRadius: 4,
+													background: 'transparent',
+													color: linkFilter === null ? COLOR_LABEL_SECONDARY : '#3fb950',
+													cursor: 'pointer',
+												},
+											},
+											h(
+												'svg',
+												{
+													width: 12,
+													height: 12,
+													viewBox: '0 0 16 16',
+													fill: 'none',
+													stroke: 'currentColor',
+													strokeWidth: 1.5,
+													strokeLinecap: 'round',
+													strokeLinejoin: 'round',
+													'aria-hidden': 'true',
+												},
+												h('path', { d: 'M2.5 4h11l-4 4.5V13l-3 1V8.5z' }),
+											),
+										),
+									),
+								),
+								allOpen
+									? restRows.length > 0
+										? restRows.map((reference) => renderRow(reference))
+										: linkFilter === null
+											? null
+											: h('div', { style: { ...S.empty, padding: '10px 4px', fontSize: 12 } }, tr('filter.empty'))
+									: null,
 							),
 						)
 					}
@@ -4109,6 +4263,70 @@ window.__ModuleLoader__.load({
 							onClick: (event) => event.stopPropagation(),
 						},
 						items,
+					)
+				}
+
+				let filterMenuNode = null
+				if (filterMenu !== null) {
+					const rect = filterMenu.rect
+					const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1024
+					const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 768
+					const left = Math.max(8, Math.min(rect.left, viewportWidth - 232))
+					const top = Math.min(rect.bottom + 4, Math.max(8, viewportHeight - 360))
+					const pick = (filter) => () => {
+						setLinkFilter(filter)
+						setFilterMenu(null)
+					}
+					const groupLabel = (key, text) =>
+						h(
+							'div',
+							{
+								key,
+								style: {
+									padding: '6px 10px 2px',
+									fontSize: 10,
+									letterSpacing: '0.04em',
+									textTransform: 'uppercase',
+									color: COLOR_LABEL_TERTIARY,
+								},
+							},
+							text,
+						)
+					const filterItems = [h(MenuItem, { key: 'all', label: tr('filter.all'), onSelect: pick(null) })]
+					if (filterChoices.turns.length > 0) {
+						filterItems.push(groupLabel('turns', tr('filter.byTurn')))
+						for (const choice of filterChoices.turns) {
+							filterItems.push(
+								h(MenuItem, {
+									key: `turn-${choice.turn}`,
+									label: `${trf('row.turnLabel', { turn: choice.turn })} · ${choice.count}`,
+									onSelect: pick({ kind: 'turn', value: choice.turn }),
+								}),
+							)
+						}
+					}
+					if (filterChoices.hosts.length > 0) {
+						filterItems.push(groupLabel('hosts', tr('filter.byHost')))
+						for (const choice of filterChoices.hosts) {
+							filterItems.push(
+								h(MenuItem, {
+									key: `host-${choice.host}`,
+									label: `${choice.host} · ${choice.count}`,
+									onSelect: pick({ kind: 'host', value: choice.host }),
+								}),
+							)
+						}
+					}
+					filterMenuNode = h(
+						'div',
+						{
+							ref: filterMenuRef,
+							className: 'dsh-links-menu',
+							style: { ...S.menu, left, top, width: 220, maxHeight: 340, overflowY: 'auto', padding: 4 },
+							onPointerDown: (event) => event.stopPropagation(),
+							onClick: (event) => event.stopPropagation(),
+						},
+						filterItems,
 					)
 				}
 
@@ -4382,6 +4600,7 @@ window.__ModuleLoader__.load({
 							onScroll: () => {
 								if (menu !== null) setMenu(null)
 								if (countTip !== null) setCountTip(null)
+								if (filterMenu !== null) setFilterMenu(null)
 							},
 						},
 						list,
@@ -4491,6 +4710,7 @@ window.__ModuleLoader__.load({
 						),
 					),
 					countTipNode,
+					filterMenuNode,
 					updateNode,
 					rowMenu,
 				)
@@ -4510,7 +4730,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.83.4'
+		const BUILD = 'v0.84.0'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.
@@ -4536,6 +4756,12 @@ window.__ModuleLoader__.load({
 			'section.all': '全部链接',
 			'section.hidden': '已隐藏',
 			'section.searchResults': '搜索结果',
+			'filter.title': '按轮次 / Host 过滤',
+			'filter.all': '全部链接',
+			'filter.byTurn': '按对话轮次',
+			'filter.byHost': '按 Host',
+			'filter.clear': '清除过滤',
+			'filter.empty': '这个过滤条件下没有链接。',
 			'row.mentions': '在 {count} 轮对话中提及',
 			'row.turns': '轮',
 			'row.hiddenTag': '已隐藏',
@@ -4606,6 +4832,12 @@ window.__ModuleLoader__.load({
 			'section.all': 'All links',
 			'section.hidden': 'Hidden',
 			'section.searchResults': 'Search results',
+			'filter.title': 'Filter by turn or host',
+			'filter.all': 'All links',
+			'filter.byTurn': 'By conversation turn',
+			'filter.byHost': 'By host',
+			'filter.clear': 'Clear filter',
+			'filter.empty': 'No links match this filter.',
 			'row.mentions': 'Mentioned in {count} turns',
 			'row.turns': 'turns',
 			'row.hiddenTag': 'Hidden',

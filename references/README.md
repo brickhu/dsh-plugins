@@ -24,7 +24,8 @@ so you never have to scroll back through a long chat to find that link again.
 | **Pins** | Pin links to a separate “Pinned” section at the top. Pins are global and survive restarts. |
 | **Hidden** | Hide a single link or the whole host (`a.baidu.com`, never `baidu.com`). Hidden links stay expandable and restorable. |
 | **Icons** | A global favicon library keyed by host / registrable domain that stores **separate light and dark variants** when a page declares them (`<link rel="icon" media="(prefers-color-scheme: dark)">`), so each row shows the icon matching the active theme. Hosts without an entry are probed **one host at a time** through the Host process, then cached forever. Deterministic hash icons are the final fallback, and a neutral monochrome icon is inverted only when it has no theme-specific variant and would disappear against the background. |
-| **Search** | Search title or domain. While searching, grouping and collapsible sections are replaced by a flat list headed `Search results (N)`. |
+| **Search** | Search title or domain. While searching, grouping and collapsible sections are replaced by a flat list headed `Search results (N)`.
+| **Filter** | The funnel button on the `All links` header filters by conversation turn or by host; the header title becomes the chosen filter, with a `×` to clear it. | |
 | **Keyboard** | `⌘⇧L` on macOS, `Ctrl+Shift+L` elsewhere. The shortcut works from the conversation and is displayed on the guide card. |
 
 ## Installation
