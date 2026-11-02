@@ -2654,6 +2654,25 @@ window.__ModuleLoader__.load({
 			return dark
 		}
 
+		/** Load the title overrides once per picker query instead of once per row. */
+		let titleOverrideSnapshot = null
+		function customTitlesSnapshot() {
+			if (titleOverrideSnapshot === null) titleOverrideSnapshot = loadCustomTitles()
+			return titleOverrideSnapshot
+		}
+
+		/**
+		 * A row's display title for pickers that do not run inside the panel component.
+		 * @param {object} row - cached reference row.
+		 * @returns {string} title or URL.
+		 */
+		function customTitleOrTitle(row, overrides) {
+			const custom = overrides && typeof overrides[row.key] === 'string' ? overrides[row.key].trim() : ''
+			if (custom !== '') return custom
+			const title = normalizeTitle(row && row.title)
+			return title !== '' ? title : row.url
+		}
+
 		/**
 		 * Choose the icon to draw for one row in the current theme.
 		 * @param {object} reference - reference row.
@@ -4755,7 +4774,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.84.6'
+		const BUILD = 'v0.85.0'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.
@@ -4786,6 +4805,8 @@ window.__ModuleLoader__.load({
 			'filter.byTurn': '按对话轮次',
 			'filter.byHost': '按 Host',
 			'filter.empty': '这个过滤条件下没有链接。',
+			'at.section': '参考链接',
+			'at.header': '参考链接',
 			'row.mentions': '在 {count} 轮对话中提及',
 			'row.turns': '轮',
 			'row.hiddenTag': '已隐藏',
@@ -4861,6 +4882,8 @@ window.__ModuleLoader__.load({
 			'filter.byTurn': 'By conversation turn',
 			'filter.byHost': 'By host',
 			'filter.empty': 'No links match this filter.',
+			'at.section': 'Reference links',
+			'at.header': 'Reference links',
 			'row.mentions': 'Mentioned in {count} turns',
 			'row.turns': 'turns',
 			'row.hiddenTag': 'Hidden',
@@ -5099,6 +5122,86 @@ window.__ModuleLoader__.load({
 					'dsh-links: shortcut',
 				)
 			})
+			// `@` menu source: list the current conversation's links and insert one as text.
+			// Rows come from the same scanner the panel uses, so titles/URLs match exactly.
+			ctx.inject(['inputTriggers', 'sessions'], (scoped) => {
+				const inputTriggers = scoped.inputTriggers
+				const sessions = scoped.sessions
+				if (!inputTriggers || typeof inputTriggers.registerSource !== 'function' || !sessions) return
+				const atCache = new Map()
+				const rowsForSession = (sessionId) => {
+					let binding
+					try {
+						binding = sessions.binding(sessionId)
+					} catch (error) {
+						return []
+					}
+					const source = binding && binding.eventSource
+					if (!source || typeof source.getSnapshot !== 'function') return []
+					let state = atCache.get(sessionId)
+					if (state === undefined) {
+						state = { rows: [], seq: 0, cache: new Map(), callNames: new Map() }
+						if (atCache.size >= 5) {
+							const oldest = atCache.keys().next()
+							if (!oldest.done) atCache.delete(oldest.value)
+						}
+						atCache.set(sessionId, state)
+					}
+					try {
+						const snapshot = source.getSnapshot()
+						const entries = Array.isArray(snapshot && snapshot.entries) ? snapshot.entries : []
+						const fresh = entries.filter(
+							(entry) => entry && entry.event && typeof entry.event.seq === 'number' && entry.event.seq > state.seq,
+						)
+						if (fresh.length > 0) {
+							const scanned = aggregate(fresh, state.cache, state.callNames)
+							state.rows = mergeRows(state.rows, scanned)
+							let newest = state.seq
+							for (const entry of fresh) if (entry.event.seq > newest) newest = entry.event.seq
+							state.seq = newest
+						}
+					} catch (error) {
+						/* fall back to whatever was collected before */
+					}
+					return state.rows
+				}
+				const source = {
+					trigger: '@',
+					name: 'links',
+					candidates: (session, request) => {
+						titleOverrideSnapshot = null
+						const raw = request && typeof request.query === 'string' ? request.query.trim().toLowerCase() : ''
+						const rows = rowsForSession(session && session.sessionId)
+						const matches = []
+						for (const row of rows) {
+							const title = customTitleOrTitle(row, customTitlesSnapshot())
+							const haystack = `${title} ${row.host} ${row.url}`.toLowerCase()
+							if (raw !== '' && haystack.indexOf(raw) < 0) continue
+							matches.push(row)
+							if (matches.length >= 8) break
+						}
+						return matches.map((row) => ({
+							name: customTitleOrTitle(row),
+							description: row.host,
+							section: tr('at.section'),
+							value: JSON.stringify({ url: row.url, title: customTitleOrTitle(row, customTitlesSnapshot()) }),
+						}))
+					},
+					header: () => tr('at.header'),
+					onPick: ({ candidate }) => {
+						let parsed
+						try {
+							parsed = JSON.parse(candidate.value)
+						} catch (error) {
+							parsed = undefined
+						}
+						if (!parsed || typeof parsed.url !== 'string') return undefined
+						return { text: parsed.url }
+					},
+				}
+				scoped.effect(() => inputTriggers.registerSource(source), 'dsh-links: @ links source')
+			})
+
 			// Background tracker: keep each conversation's link rows up to date even while the
 			// panel is closed, so opening it later just renders an already-collected list.
 			ctx.effect(() => {
