@@ -36,7 +36,6 @@ without scrolling back.
 - **Icons** — real site icons (light and dark variants when a site offers them).
 - **Live** — new links appear as the conversation grows, even while the tab is closed.
 - **Shortcut** — `⌘⇧L` on macOS, `Ctrl+Shift+L` elsewhere.
-- **`@` picker** — type `@` in the composer and pick a link from this conversation to insert it as text.
 
 ## Install
 
@@ -75,7 +74,6 @@ Then quit and reopen DSH. (This also works for updating; see below.)
 | Filter | Click the funnel icon on the **All links** header and pick a turn or a host; pick **All links** to clear it |
 | Fold sections | Click a section header (Pinned / All links / Hidden) |
 | Find an old turn | Click a row's turn count, then any turn in the dialog to jump there |
-| Insert a link in the composer | Type `@`, pick a **Reference links** entry; the URL is inserted |
 
 The footer shows how many links are collected, a scan button to rebuild the list from
 history, and the running version.
