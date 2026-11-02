@@ -17,8 +17,6 @@ repos, articles, papers, dashboards. Then you need one of them again and the pai
 - 🔁 The same URL appears in several turns, so you cannot tell which mention was the useful one;
 - 📋 You copy links into a scratch note just to keep them, and still lose track;
 - 🧠 You remember **why** a link mattered, not what the URL looked like;
-- 🌗 Half the favicons vanish in dark mode, making the list hard to scan;
-- 🗂 One noisy site (a tracker, a search page) floods the list and hides the links you care about.
 
 Reference Links turns that chat history into a clean, searchable list: everything in one
 place, pinned items on top, and “which turn did I see this in?” answered in one click —
