@@ -51,6 +51,30 @@ The script backs up `package.json`, `pnpm-lock.yaml` and `cordis.patch.yml` to
 `~/.dsh/profiles/desktop/.dsh-links-backup/` on first install; re-running it only
 updates the symlink (useful after moving the repository).
 
+### Updating
+
+The plugin manager only offers an **Update** button for on-demand official catalog entries;
+third-party bundles have no update action, and reinstalling the same name keeps the version
+pinned in the profile lockfile. Use one of these:
+
+```bash
+# one command: newest npm release + release-age exemption + pnpm install
+node references/scripts/update-from-npm.mjs
+
+# or pin a specific version
+node references/scripts/update-from-npm.mjs --version 0.82.0
+```
+
+The script writes the exact version into `~/.dsh/profiles/<profile>/package.json`, adds a
+`minimumReleaseAgeExclude` entry for that version, runs the bundled pnpm, and then you only
+need to quit and reopen DSH. In the Harness UI you can also uninstall the bundle and add it
+again (optionally as `dsh-links-panel@<version>`) — but the script is the reliable path while
+the plugin manager has no third-party update action.
+
+Every release also updates the repository's market index automatically (the publish workflow
+does it after a successful npm publish), so **Discover** shows the new version as soon as the
+index is refreshed.
+
 ### Restarting
 
 DSH loads plugin halves at app launch and caches the client bundle. After changing this
