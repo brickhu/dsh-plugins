@@ -1167,9 +1167,11 @@ window.__ModuleLoader__.load({
 			return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 		}
 
-		/** Cached npm version probe: {version, at}, checked at most once per TTL. */
+		/** Cached npm version probe: {version, at}. Only a *newer* cached version is reused
+		 * for the TTL; a cached value that equals (or trails) the running build is always
+		 * revalidated, otherwise a fresh release would stay invisible for hours. */
 		const LATEST_CHECK_KEY = 'dsh-links.latestcheck.v1'
-		const LATEST_CHECK_TTL = 6 * 60 * 60 * 1000
+		const LATEST_CHECK_TTL = 5 * 60 * 1000
 
 		/** @returns {{version: string, at: number} | null} last known npm version. */
 		function readLatestCheck() {
@@ -3781,9 +3783,11 @@ window.__ModuleLoader__.load({
 				React.useEffect(() => {
 					if (!panelVisible || typeof fetch !== 'function') return undefined
 					const cached = readLatestCheck()
-					if (cached !== null && Date.now() - cached.at < LATEST_CHECK_TTL) {
+					if (cached !== null) {
 						setLatestVersion(cached)
-						return undefined
+						const cacheIsFresh = Date.now() - cached.at < LATEST_CHECK_TTL
+						const cacheShowsNewer = isNewerVersion(cached.version, BUILD)
+						if (cacheIsFresh && cacheShowsNewer) return undefined
 					}
 					let cancelled = false
 					const timer = setTimeout(async () => {
@@ -4712,7 +4716,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.84.1'
+		const BUILD = 'v0.84.2'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.
