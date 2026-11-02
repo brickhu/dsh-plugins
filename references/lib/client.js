@@ -3696,6 +3696,21 @@ window.__ModuleLoader__.load({
 				// Version check: at most one request per six hours, cached in localStorage. The
 				// footer then offers an upgrade hint when npm has a newer release than the bundle
 				// that is actually running.
+				const checkLatest = React.useCallback(async () => {
+					if (typeof fetch !== 'function') return
+					try {
+						const response = await fetch(new URL('/dsh-links/latest', document.baseURI))
+						if (!response || !response.ok) return
+						const payload = await response.json()
+						if (!payload || typeof payload.version !== 'string') return
+						const check = { version: payload.version, at: Date.now() }
+						saveLatestCheck(check)
+						setLatestVersion(check)
+					} catch (error) {
+						/* offline: keep the last known value */
+					}
+				}, [])
+
 				React.useEffect(() => {
 					if (!panelVisible || typeof fetch !== 'function') return undefined
 					const cached = readLatestCheck()
@@ -4175,7 +4190,7 @@ window.__ModuleLoader__.load({
 							h('div', { style: { fontSize: 11, color: COLOR_LABEL_TERTIARY, marginTop: 8, lineHeight: '16px' } }, tr('update.restart')),
 							h(
 								'div',
-								{ style: { ...S.editorActions, marginTop: 12 } },
+								{ style: { ...S.editorActions, marginTop: 12, flexWrap: 'wrap' } },
 								h(
 									'button',
 									{
@@ -4186,6 +4201,33 @@ window.__ModuleLoader__.load({
 										},
 									},
 									tr('update.copy'),
+								),
+								h(
+									'button',
+									{
+										type: 'button',
+										style: S.editorButton,
+										onClick: () => {
+											setLatestVersion(null)
+											checkLatest()
+										},
+									},
+									tr('update.recheck'),
+								),
+								h(
+									'button',
+									{
+										type: 'button',
+										style: S.editorButton,
+										onClick: () => {
+											try {
+												window.open('https://www.npmjs.com/package/dsh-links-panel', '_blank', 'noopener,noreferrer')
+											} catch (error) {
+												/* no window */
+											}
+										},
+									},
+									tr('update.npmPage'),
 								),
 								h('button', { type: 'button', style: S.editorButton, onClick: () => setUpdateOpen(false) }, tr('button.close')),
 							),
@@ -4436,7 +4478,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.83.2'
+		const BUILD = 'v0.83.3'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.
@@ -4497,6 +4539,8 @@ window.__ModuleLoader__.load({
 			'update.restart': '更新完成后需要 Cmd+Q 完全退出 DSH 再打开（仅刷新页面不够）。',
 			'update.copy': '复制命令',
 			'update.copied': '已复制更新命令',
+			'update.recheck': '重新检查',
+			'update.npmPage': 'npm 页面',
 			'empty.waiting': '正在等待会话就绪…',
 			'empty.loading': '正在读取链接…',
 			'empty.noLinks': '这个对话里还没有出现 URL。',
@@ -4565,6 +4609,8 @@ window.__ModuleLoader__.load({
 			'update.restart': 'After updating, quit DSH completely (Cmd+Q) and start it again — a page reload is not enough.',
 			'update.copy': 'Copy command',
 			'update.copied': 'Update command copied',
+			'update.recheck': 'Check again',
+			'update.npmPage': 'npm page',
 			'empty.waiting': 'Waiting for the session…',
 			'empty.loading': 'Reading links…',
 			'empty.noLinks': 'No URL has appeared in this conversation yet.',
