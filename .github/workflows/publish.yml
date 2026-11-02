@@ -69,7 +69,16 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add market/index.json
-          git commit -m "chore: refresh market index after npm publish"
-          git pull --rebase origin main
-          git push origin HEAD:main
+          # main can move while this job runs (tag pushes, manual commits): rebase, regenerate
+          # the index from the rebased tree, and retry the push instead of failing the release.
+          for push in 1 2 3; do
+            git fetch origin main
+            git rebase origin/main || { git rebase --abort; git reset --hard origin/main; }
+            node scripts/update-market-index.mjs >/dev/null
+            git add market/index.json
+            if git diff --cached --quiet; then echo "market index already current"; exit 0; fi
+            git commit -m "chore: refresh market index after npm publish"
+            if git push origin HEAD:main; then exit 0; fi
+            sleep 3
+          done
+          exit 1
