@@ -4102,7 +4102,7 @@ window.__ModuleLoader__.load({
 				let updateNode = null
 				if (updateOpen) {
 					const newer = updateAvailableVersion(latestVersion, BUILD)
-					const command = newer === '' ? 'node references/scripts/update-from-npm.mjs' : `node references/scripts/update-from-npm.mjs --version ${newer}`
+					const command = newer === '' ? 'npx --yes --package dsh-links-panel dsh-links-update' : `npx --yes --package dsh-links-panel dsh-links-update --version ${newer}`
 					updateNode = h(
 						'div',
 						{
@@ -4438,7 +4438,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.83.0'
+		const BUILD = 'v0.83.1'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.

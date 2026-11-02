@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /**
  * Install or update this plugin from the npm registry into a DSH profile.
  *
@@ -37,7 +38,13 @@ function flagValue(name, fallback) {
 	return value
 }
 
-const pluginDir = path.resolve(repoRoot, flagValue('--plugin', 'references'))
+const flagPlugin = flagValue('--plugin', '')
+const installedAsPackage = fileURLToPath(import.meta.url).includes(`${path.sep}node_modules${path.sep}`)
+const pluginDir = flagPlugin !== ''
+	? path.resolve(repoRoot, flagPlugin)
+	: installedAsPackage
+		? path.resolve(scriptDir, '..')
+		: path.resolve(repoRoot, 'references')
 const profileName = flagValue('--profile', 'desktop')
 const requested = flagValue('--version', '')
 const dryRun = flags.includes('--dry-run')
