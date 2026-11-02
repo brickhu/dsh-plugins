@@ -1167,6 +1167,77 @@ window.__ModuleLoader__.load({
 			return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 		}
 
+		/** Cached npm version probe: {version, at}, checked at most once per TTL. */
+		const LATEST_CHECK_KEY = 'dsh-links.latestcheck.v1'
+		const LATEST_CHECK_TTL = 6 * 60 * 60 * 1000
+
+		/** @returns {{version: string, at: number} | null} last known npm version. */
+		function readLatestCheck() {
+			const store = ignoreStore()
+			if (!store) return null
+			try {
+				const raw = store.getItem(LATEST_CHECK_KEY)
+				const parsed = raw ? JSON.parse(raw) : null
+				if (!parsed || typeof parsed.version !== 'string' || typeof parsed.at !== 'number') return null
+				return { version: parsed.version, at: parsed.at }
+			} catch (error) {
+				return null
+			}
+		}
+
+		/**
+		 * Remember the last npm version probe.
+		 * @param {{version: string, at: number}} check - probe result.
+		 * @returns {void}
+		 */
+		function saveLatestCheck(check) {
+			const store = ignoreStore()
+			if (!store) return
+			try {
+				store.setItem(LATEST_CHECK_KEY, JSON.stringify(check))
+			} catch (error) {
+				/* quota */
+			}
+		}
+
+		/**
+		 * Parse the numeric parts of a version stamp.
+		 * @param {string} value - version text such as `v0.82.0`.
+		 * @returns {number[] | null} three numeric parts.
+		 */
+		function parseVersionParts(value) {
+			const match = /^v?(\d+)\.(\d+)\.(\d+)/.exec(String(value || ''))
+			if (match === null) return null
+			return [Number(match[1]), Number(match[2]), Number(match[3])]
+		}
+
+		/**
+		 * Compare two version stamps.
+		 * @param {string} candidate - potential newer version.
+		 * @param {string} current - installed version.
+		 * @returns {boolean} true when candidate is strictly newer.
+		 */
+		function isNewerVersion(candidate, current) {
+			const left = parseVersionParts(candidate)
+			const right = parseVersionParts(current)
+			if (left === null || right === null) return false
+			for (let index = 0; index < 3; index += 1) {
+				if (left[index] !== right[index]) return left[index] > right[index]
+			}
+			return false
+		}
+
+		/**
+		 * Newer npm version to offer, or '' when the running bundle is current.
+		 * @param {{version: string} | null} check - last npm probe.
+		 * @param {string} build - current build stamp.
+		 * @returns {string} newer version text.
+		 */
+		function updateAvailableVersion(check, build) {
+			if (!check || typeof check.version !== 'string') return ''
+			return isNewerVersion(check.version, build) ? check.version : ''
+		}
+
 		/**
 		 * Global favicon library: host (or registrable domain) → favicon URL. It is filled
 		 * only from successful web_fetch results; nothing is fetched by the plugin itself.
@@ -3066,6 +3137,8 @@ window.__ModuleLoader__.load({
 					},
 					[],
 				)
+				const [latestVersion, setLatestVersion] = React.useState(() => readLatestCheck())
+				const [updateOpen, setUpdateOpen] = React.useState(false)
 				const [faviconLibrary, setFaviconLibrary] = React.useState(() => loadFaviconLibrary())
 				const darkTheme = useDarkTheme()
 				const faviconHintsRef = React.useRef(new Map())
@@ -3620,6 +3693,38 @@ window.__ModuleLoader__.load({
 					}
 				}, [binding, historyDone])
 
+				// Version check: at most one request per six hours, cached in localStorage. The
+				// footer then offers an upgrade hint when npm has a newer release than the bundle
+				// that is actually running.
+				React.useEffect(() => {
+					if (!panelVisible || typeof fetch !== 'function') return undefined
+					const cached = readLatestCheck()
+					if (cached !== null && Date.now() - cached.at < LATEST_CHECK_TTL) {
+						setLatestVersion(cached)
+						return undefined
+					}
+					let cancelled = false
+					const timer = setTimeout(async () => {
+						try {
+							const response = await fetch('https://registry.npmjs.org/dsh-links-panel/latest', {
+								headers: { accept: 'application/json' },
+							})
+							if (!response || !response.ok) return
+							const payload = await response.json()
+							if (cancelled || !payload || typeof payload.version !== 'string') return
+							const check = { version: payload.version, at: Date.now() }
+							saveLatestCheck(check)
+							setLatestVersion(check)
+						} catch (error) {
+							/* offline or blocked: keep the last known value */
+						}
+					}, 2500)
+					return () => {
+						cancelled = true
+						clearTimeout(timer)
+					}
+				}, [panelVisible])
+
 				// Reveal the list once the conversation is loaded; never let the splash (or a
 				// stuck load) blank the panel indefinitely.
 				React.useEffect(() => {
@@ -3994,6 +4099,102 @@ window.__ModuleLoader__.load({
 					)
 				}
 
+				let updateNode = null
+				if (updateOpen) {
+					const newer = updateAvailableVersion(latestVersion, BUILD)
+					const command = newer === '' ? 'node references/scripts/update-from-npm.mjs' : `node references/scripts/update-from-npm.mjs --version ${newer}`
+					updateNode = h(
+						'div',
+						{
+							style: S.editorBackdrop,
+							onClick: () => setUpdateOpen(false),
+							onKeyDown: (event) => {
+								if (event.key === 'Escape') setUpdateOpen(false)
+							},
+						},
+						h(
+							'div',
+							{
+								style: { ...S.editorCard, width: 440, maxWidth: 'calc(100vw - 32px)' },
+								onClick: (event) => event.stopPropagation(),
+							},
+							h(
+								'div',
+								{
+									style: {
+										display: 'flex',
+										alignItems: 'center',
+										justifyContent: 'space-between',
+										gap: 8,
+										fontSize: 13,
+										fontWeight: 600,
+									},
+								},
+								h('span', null, tr('update.title')),
+								h(
+									'button',
+									{
+										type: 'button',
+										title: tr('button.close'),
+										'aria-label': tr('button.close'),
+										onClick: () => setUpdateOpen(false),
+										style: {
+											display: 'inline-flex',
+											alignItems: 'center',
+											justifyContent: 'center',
+											width: 20,
+											height: 20,
+											padding: 0,
+											border: 'none',
+											background: 'transparent',
+											color: COLOR_LABEL_SECONDARY,
+											cursor: 'pointer',
+										},
+									},
+									h('span', { 'aria-hidden': 'true', style: { fontSize: 14 } }, '×'),
+								),
+							),
+							h('div', { style: { fontSize: 12, color: COLOR_LABEL_PRIMARY, marginTop: 10 } }, trf('update.installed', { version: BUILD })),
+							h('div', { style: { fontSize: 12, color: COLOR_LABEL_PRIMARY, marginTop: 2 } }, trf('update.latest', { version: newer !== '' ? newer : (latestVersion && latestVersion.version) || BUILD })),
+							h('div', { style: { fontSize: 12, color: COLOR_LABEL_SECONDARY, marginTop: 10, lineHeight: '18px' } }, tr('update.hint')),
+							h(
+								'pre',
+								{
+									style: {
+										margin: '8px 0 0',
+										padding: 8,
+										borderRadius: 6,
+										background: 'color-mix(in srgb, currentColor 7%, transparent)',
+										fontSize: 11,
+										lineHeight: '16px',
+										whiteSpace: 'pre-wrap',
+										wordBreak: 'break-all',
+										userSelect: 'text',
+									},
+								},
+								command,
+							),
+							h('div', { style: { fontSize: 11, color: COLOR_LABEL_TERTIARY, marginTop: 8, lineHeight: '16px' } }, tr('update.restart')),
+							h(
+								'div',
+								{ style: { ...S.editorActions, marginTop: 12 } },
+								h(
+									'button',
+									{
+										type: 'button',
+										style: S.editorButton,
+										onClick: () => {
+											copyText(command).then((ok) => showNotice(ok ? tr('update.copied') : tr('notice.copyFailed')))
+										},
+									},
+									tr('update.copy'),
+								),
+								h('button', { type: 'button', style: S.editorButton, onClick: () => setUpdateOpen(false) }, tr('button.close')),
+							),
+						),
+					)
+				}
+
 				return h(
 					'div',
 					{ ref: rootRef, style: S.root },
@@ -4170,9 +4371,55 @@ window.__ModuleLoader__.load({
 							},
 							rescanning ? tr('footer.rescanning') : tr('footer.rescan'),
 						),
-						h('span', { style: { fontSize: 10, color: COLOR_LABEL_TERTIARY, flex: 'none' }, title: '插件版本' }, BUILD),
+						h(
+							'span',
+							{ style: { display: 'inline-flex', alignItems: 'center', gap: 4, flex: 'none' } },
+							h('span', { style: { fontSize: 10, color: COLOR_LABEL_TERTIARY }, title: tr('footer.versionHint') }, BUILD),
+							updateAvailableVersion(latestVersion, BUILD) === ''
+								? null
+								: h(
+										'button',
+										{
+											type: 'button',
+											className: 'dsh-links-upgrade',
+											title: trf('footer.updateAvailable', { version: updateAvailableVersion(latestVersion, BUILD) }),
+											'aria-label': trf('footer.updateAvailable', { version: updateAvailableVersion(latestVersion, BUILD) }),
+											onClick: () => setUpdateOpen(true),
+											style: {
+												display: 'inline-flex',
+												alignItems: 'center',
+												justifyContent: 'center',
+												width: 16,
+												height: 16,
+												padding: 0,
+												border: 'none',
+												borderRadius: 4,
+												background: 'transparent',
+												color: '#3fb950',
+												cursor: 'pointer',
+											},
+										},
+										h(
+											'svg',
+											{
+												width: 12,
+												height: 12,
+												viewBox: '0 0 16 16',
+												fill: 'none',
+												stroke: 'currentColor',
+												strokeWidth: 1.6,
+												strokeLinecap: 'round',
+												strokeLinejoin: 'round',
+												'aria-hidden': 'true',
+											},
+											h('path', { d: 'M8 12.5V3.5' }),
+											h('path', { d: 'M4 7l4-4 4 4' }),
+										),
+									),
+						),
 					),
 					countTipNode,
+					updateNode,
 					rowMenu,
 				)
 			}
@@ -4191,7 +4438,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.82.0'
+		const BUILD = 'v0.83.0'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.
@@ -4243,6 +4490,15 @@ window.__ModuleLoader__.load({
 			'footer.rescan': '重新扫描',
 			'footer.rescanning': '正在重新扫描…',
 			'footer.rescanHint': '重新扫描整个对话，并刷新所有链接的标题与图标（保留置顶）',
+			'footer.versionHint': '当前运行的插件版本',
+			'footer.updateAvailable': '有新版本 {version}，点击查看更新方式',
+			'update.title': '插件更新',
+			'update.installed': '已安装：{version}',
+			'update.latest': '最新版本：{version}',
+			'update.hint': '在仓库目录执行下面这条命令，然后完全退出并重启 DSH：',
+			'update.restart': '更新完成后需要 Cmd+Q 完全退出 DSH 再打开（仅刷新页面不够）。',
+			'update.copy': '复制命令',
+			'update.copied': '已复制更新命令',
 			'empty.waiting': '正在等待会话就绪…',
 			'empty.loading': '正在读取链接…',
 			'empty.noLinks': '这个对话里还没有出现 URL。',
@@ -4302,6 +4558,15 @@ window.__ModuleLoader__.load({
 			'footer.rescan': 'Rescan',
 			'footer.rescanning': 'Rescanning…',
 			'footer.rescanHint': 'Rescan the whole conversation and refresh titles/icons (pins are kept)',
+			'footer.versionHint': 'Plugin version currently running',
+			'footer.updateAvailable': 'Version {version} is available — click for update instructions',
+			'update.title': 'Plugin update',
+			'update.installed': 'Installed: {version}',
+			'update.latest': 'Latest: {version}',
+			'update.hint': 'Run this in the repository directory, then fully quit and reopen DSH:',
+			'update.restart': 'After updating, quit DSH completely (Cmd+Q) and start it again — a page reload is not enough.',
+			'update.copy': 'Copy command',
+			'update.copied': 'Update command copied',
 			'empty.waiting': 'Waiting for the session…',
 			'empty.loading': 'Reading links…',
 			'empty.noLinks': 'No URL has appeared in this conversation yet.',
