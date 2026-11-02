@@ -37,7 +37,7 @@ function withOutboundLock(task) {
 }
 
 /** Host build stamp, echoed to the panel so a stale bundle is detectable. */
-export const BUILD = 'v0.83.1'
+export const BUILD = 'v0.83.2'
 /**
  * The desktop browser reaches the network through the system proxy; the Host's own
  * Node requests bypass it. Detect that proxy so probes can use the same route.
@@ -209,6 +209,8 @@ export const ROUTE_PATH = '/dsh-links/meta'
 export const FAVICON_ROUTE_PATH = '/dsh-links/favicon'
 /** Page icon discovery: returns the light/dark icon URLs declared by the page. */
 export const PAGE_ICONS_ROUTE_PATH = '/dsh-links/pageicons'
+/** Latest published version of this plugin, proxied so the panel needs no CORS. */
+export const LATEST_VERSION_ROUTE_PATH = '/dsh-links/latest'
 /** Largest favicon accepted, in bytes. */
 const FAVICON_MAX_BYTES = 64 * 1024
 
@@ -264,6 +266,50 @@ async function fetchServiceFavicon(target) {
 	}
 	if (host === '' || host === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(host)) return null
 	return fetchFaviconDataUrl(`https://icons.duckduckgo.com/ip3/${host}.ico`)
+}
+
+/**
+ * Answer `GET /dsh-links/latest` with the newest published version of this package.
+ * The panel asks its own Host so the version check is same-origin (no CORS/CSP) and
+ * uses the same proxy as every other outbound request.
+ * @param {object} req - request.
+ * @param {object} res - response.
+ * @returns {Promise<void>} completion.
+ */
+async function handleLatestVersionRequest(req, res) {
+	try {
+		if (req.method !== 'GET') {
+			res.writeHead(405, { allow: 'GET' })
+			res.end()
+			return
+		}
+		const version = await withOutboundLock(async () => {
+			const proxy = await systemProxy()
+			const text = await curlText('https://registry.npmjs.org/dsh-links-panel/latest', proxy)
+			if (!text) return ''
+			try {
+				const parsed = JSON.parse(text)
+				return parsed && typeof parsed.version === 'string' ? parsed.version : ''
+			} catch (error) {
+				return ''
+			}
+		})
+		if (version === '') {
+			res.writeHead(503)
+			res.end()
+			return
+		}
+		const payload = JSON.stringify({ version, build: BUILD })
+		res.writeHead(200, {
+			'content-type': 'application/json; charset=utf-8',
+			'content-length': Buffer.byteLength(payload),
+			'cache-control': 'no-store',
+		})
+		res.end(payload)
+	} catch (error) {
+		if (!res.headersSent) res.writeHead(500)
+		res.end()
+	}
 }
 
 /**
@@ -763,5 +809,6 @@ export function apply(ctx) {
 	registerRoute(ctx, ROUTE_PATH, (req, res) => handleMetaRequest(ctx, cache, req, res), 'dsh-links: metadata route')
 	registerRoute(ctx, FAVICON_ROUTE_PATH, (req, res) => handleFaviconRequest(req, res), 'dsh-links: favicon route')
 	registerRoute(ctx, PAGE_ICONS_ROUTE_PATH, (req, res) => handlePageIconsRequest(req, res), 'dsh-links: page icons route')
+	registerRoute(ctx, LATEST_VERSION_ROUTE_PATH, (req, res) => handleLatestVersionRequest(req, res), 'dsh-links: latest version route')
 	registerRoute(ctx, AI_TITLES_ROUTE_PATH, (req, res) => handleTitlesRequest(ctx, req, res), 'dsh-links: ai titles route')
 }

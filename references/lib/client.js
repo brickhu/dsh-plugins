@@ -3706,9 +3706,7 @@ window.__ModuleLoader__.load({
 					let cancelled = false
 					const timer = setTimeout(async () => {
 						try {
-							const response = await fetch('https://registry.npmjs.org/dsh-links-panel/latest', {
-								headers: { accept: 'application/json' },
-							})
+							const response = await fetch(new URL('/dsh-links/latest', document.baseURI))
 							if (!response || !response.ok) return
 							const payload = await response.json()
 							if (cancelled || !payload || typeof payload.version !== 'string') return
@@ -4438,7 +4436,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.83.1'
+		const BUILD = 'v0.83.2'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.
