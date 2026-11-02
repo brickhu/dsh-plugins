@@ -125,16 +125,26 @@ if (!fs.existsSync(nodeBin) || !fs.existsSync(pnpmCli)) {
 	console.error(`bundled pnpm runtime not found under ${runtime}; run "pnpm install" in ${profileDir} manually`)
 	process.exit(1)
 }
-const env = { ...process.env }
-const proxy = systemProxy()
-if (proxy !== '' && env.HTTPS_PROXY === undefined) env.HTTPS_PROXY = proxy
-try {
-	execFileSync(nodeBin, [pnpmCli, 'install', '--dir', profileDir, '--prefer-offline', '--reporter', 'append-only'], {
-		stdio: 'inherit',
-		env,
-	})
-} catch (error) {
-	console.error(`pnpm install failed: ${error.message}`)
+// Do not smuggle the macOS SOCKS proxy into pnpm: pnpm's fetch (undici) cannot use
+// SOCKS URLs and would fail even when the registry is reachable directly. Try the
+// default registry first, then the mainland mirror that pnpm/npm users in CN rely on.
+const attempts = [[], ['--config.registry=https://registry.npmmirror.com']]
+let lastError = null
+for (const extra of attempts) {
+	try {
+		execFileSync(nodeBin, [pnpmCli, 'install', '--dir', profileDir, '--prefer-offline', '--reporter', 'append-only', ...extra], {
+			stdio: 'inherit',
+			env: process.env,
+		})
+		lastError = null
+		break
+	} catch (error) {
+		lastError = error
+		console.error(`pnpm install failed${extra.length > 0 ? ' (mirror)' : ''}: ${error.message}`)
+	}
+}
+if (lastError !== null) {
+	console.error(`cannot install ${NAME}@${version} from the registry`)
 	process.exit(1)
 }
 
