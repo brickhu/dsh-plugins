@@ -14,7 +14,7 @@ A long conversation with an AI easily references **dozens of links** — docs, G
 repos, articles, papers, dashboards. Then you need one of them again and the pain starts:
 
 - 😩 You scroll back through hundreds of messages looking for “that link”;
-- 🔁 The same URL appears in several turns, so you cannot tell which mention was the useful one;
+- 🔁 The same link shows up in several turns — you remember the discussion around it, not which turn it was;
 - 📋 You copy links into a scratch note just to keep them, and still lose track;
 - 🧠 You remember **why** a link mattered, not what the URL looked like;
 
