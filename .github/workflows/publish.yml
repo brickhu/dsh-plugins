@@ -51,7 +51,14 @@ jobs:
 
       - name: Refresh the market index with the published version
         working-directory: ${{ github.workspace }}
-        run: node scripts/update-market-index.mjs
+        # npm may report "being processed" for a few minutes; poll before giving up.
+        run: |
+          for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            if node scripts/update-market-index.mjs; then exit 0; fi
+            echo "registry not updated yet (attempt $attempt), waiting 20s"
+            sleep 20
+          done
+          node scripts/update-market-index.mjs
 
       - name: Commit the refreshed market index
         working-directory: ${{ github.workspace }}
