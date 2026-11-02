@@ -3900,12 +3900,16 @@ window.__ModuleLoader__.load({
 							refreshing: refreshingUrls.has(reference.url) || autoProbing.has(reference.url),
 						})
 					}
-					const sectionHeader = (key, label, count, open, toggle, extra) =>
+					const sectionHeader = (key, icon, label, count, open, toggle) =>
 						h(
 							'div',
 							{ key, className: 'dsh-links-section', style: { ...S.groupHeader, cursor: 'pointer' }, onClick: toggle },
-							h('span', null, `${label}(${count})`),
-							extra || null,
+							h(
+								'span',
+								{ style: { display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0 } },
+								icon,
+								h('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, `${label}(${count})`),
+							),
 							h(
 								'svg',
 								{
@@ -3930,7 +3934,14 @@ window.__ModuleLoader__.load({
 							h(
 								'div',
 								{ key: 'pinned-group' },
-								sectionHeader('pinned-head', tr('section.pinned'), pinnedRows.length, pinnedOpen, () => setPinnedOpen((current) => !current)),
+								sectionHeader(
+									'pinned-head',
+									h(HeaderGlyph, { paths: ['M8 1.6a4 4 0 0 0-4 4c0 3 4 8.8 4 8.8s4-5.8 4-8.8a4 4 0 0 0-4-4z'], circle: [{ cx: 8, cy: 5.6, r: 1.4 }] }),
+									tr('section.pinned'),
+									pinnedRows.length,
+									pinnedOpen,
+									() => setPinnedOpen((current) => !current),
+								),
 								pinnedOpen ? pinnedRows.map((reference) => renderRow(reference)) : null,
 							),
 						)
@@ -3948,7 +3959,16 @@ window.__ModuleLoader__.load({
 						list = h(
 							'div',
 							{ key: 'search-group' },
-							h('div', { style: S.groupHeader }, `${tr('section.searchResults')}(${matches.length})`),
+							h(
+								'div',
+								{ style: S.groupHeader },
+								h(
+									'span',
+									{ style: { display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0 } },
+									h(HeaderGlyph, { paths: ['M14 14l-3.2-3.2'], circle: [{ cx: 6.8, cy: 6.8, r: 4.6 }] }),
+									h('span', null, `${tr('section.searchResults')}(${matches.length})`),
+								),
+							),
 							orderByDomain(matches).map((reference) => renderRow(reference)),
 						)
 					} else {
@@ -3960,83 +3980,38 @@ window.__ModuleLoader__.load({
 								{ key: 'all-group' },
 								sectionHeader(
 									'all-head',
+									h(
+										'button',
+										{
+											type: 'button',
+											title: tr('filter.title'),
+											'aria-label': tr('filter.title'),
+											onClick: (event) => {
+												event.stopPropagation()
+												const rect = event.currentTarget.getBoundingClientRect()
+												setFilterMenu((current) => (current === null ? { rect } : null))
+											},
+											style: {
+												display: 'inline-flex',
+												alignItems: 'center',
+												justifyContent: 'center',
+												width: 14,
+												height: 14,
+												padding: 0,
+												border: 'none',
+												borderRadius: 3,
+												background: 'transparent',
+												color: linkFilter === null ? 'inherit' : '#3fb950',
+												cursor: 'pointer',
+												flex: 'none',
+											},
+										},
+										h(HeaderGlyph, { paths: ['M2.5 4h11l-4 4.5V13l-3 1V8.5z'] }),
+									),
 									linkFilter === null ? tr('section.all') : filterLabelOf(linkFilter),
 									restRows.length,
 									allOpen,
 									() => setAllOpen((current) => !current),
-									h(
-										'span',
-										{ style: { display: 'inline-flex', alignItems: 'center', gap: 2, marginLeft: 6 } },
-										linkFilter === null
-											? null
-											: h(
-													'button',
-													{
-														type: 'button',
-														title: tr('filter.clear'),
-														'aria-label': tr('filter.clear'),
-														onClick: (event) => {
-															event.stopPropagation()
-															setLinkFilter(null)
-														},
-														style: {
-															display: 'inline-flex',
-															alignItems: 'center',
-															justifyContent: 'center',
-															width: 16,
-															height: 16,
-															padding: 0,
-															border: 'none',
-															borderRadius: 4,
-															background: 'transparent',
-															color: COLOR_LABEL_SECONDARY,
-															cursor: 'pointer',
-														},
-													},
-													h('span', { 'aria-hidden': 'true', style: { fontSize: 12, lineHeight: '12px' } }, '×'),
-												),
-										h(
-											'button',
-											{
-												type: 'button',
-												title: tr('filter.title'),
-												'aria-label': tr('filter.title'),
-												'onClick': (event) => {
-													event.stopPropagation()
-													const rect = event.currentTarget.getBoundingClientRect()
-													setFilterMenu((current) => (current === null ? { rect } : null))
-												},
-												style: {
-													display: 'inline-flex',
-													alignItems: 'center',
-													justifyContent: 'center',
-													width: 18,
-													height: 18,
-													padding: 0,
-													border: 'none',
-													borderRadius: 4,
-													background: 'transparent',
-													color: linkFilter === null ? COLOR_LABEL_SECONDARY : '#3fb950',
-													cursor: 'pointer',
-												},
-											},
-											h(
-												'svg',
-												{
-													width: 12,
-													height: 12,
-													viewBox: '0 0 16 16',
-													fill: 'none',
-													stroke: 'currentColor',
-													strokeWidth: 1.5,
-													strokeLinecap: 'round',
-													strokeLinejoin: 'round',
-													'aria-hidden': 'true',
-												},
-												h('path', { d: 'M2.5 4h11l-4 4.5V13l-3 1V8.5z' }),
-											),
-										),
-									),
 								),
 								allOpen
 									? restRows.length > 0
@@ -4054,7 +4029,14 @@ window.__ModuleLoader__.load({
 							h(
 								'div',
 								{ key: 'hidden-group' },
-								sectionHeader('hidden-head', tr('section.hidden'), hiddenCount, hiddenOpen, () => setHiddenOpen((current) => !current)),
+								sectionHeader(
+									'hidden-head',
+									h(HeaderGlyph, { paths: ['M2.2 8s2.2-4 5.8-4 5.8 4 5.8 4-2.2 4-5.8 4S2.2 8 2.2 8z', 'M2 2l12 12'], circle: [{ cx: 8, cy: 8, r: 1.6 }] }),
+									tr('section.hidden'),
+									hiddenCount,
+									hiddenOpen,
+									() => setHiddenOpen((current) => !current),
+								),
 								hiddenOpen ? ignoredRows.map((reference) => renderRow(reference, true)) : null,
 							),
 						)
@@ -4730,7 +4712,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.84.0'
+		const BUILD = 'v0.84.1'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.
@@ -4760,7 +4742,6 @@ window.__ModuleLoader__.load({
 			'filter.all': '全部链接',
 			'filter.byTurn': '按对话轮次',
 			'filter.byHost': '按 Host',
-			'filter.clear': '清除过滤',
 			'filter.empty': '这个过滤条件下没有链接。',
 			'row.mentions': '在 {count} 轮对话中提及',
 			'row.turns': '轮',
@@ -4836,7 +4817,6 @@ window.__ModuleLoader__.load({
 			'filter.all': 'All links',
 			'filter.byTurn': 'By conversation turn',
 			'filter.byHost': 'By host',
-			'filter.clear': 'Clear filter',
 			'filter.empty': 'No links match this filter.',
 			'row.mentions': 'Mentioned in {count} turns',
 			'row.turns': 'turns',
@@ -4898,6 +4878,31 @@ window.__ModuleLoader__.load({
 			'time.hoursAgo': '{count}h ago',
 			'time.daysAgo': '{count}d ago',
 			'jump.turn': 'Jump to turn {turn}',
+		}
+
+		/**
+		 * Small section-header icons (16px box, currentColor stroke).
+		 * @param {{d: string[]}} props - stroke paths.
+		 * @returns {object} SVG element.
+		 */
+		function HeaderGlyph({ paths, circle }) {
+			return h(
+				'svg',
+				{
+					width: 12,
+					height: 12,
+					viewBox: '0 0 16 16',
+					fill: 'none',
+					stroke: 'currentColor',
+					strokeWidth: 1.5,
+					strokeLinecap: 'round',
+					strokeLinejoin: 'round',
+					style: { flex: 'none' },
+					'aria-hidden': 'true',
+				},
+				(circle || []).map((item, index) => h('circle', { key: `c${index}`, cx: item.cx, cy: item.cy, r: item.r })),
+				(paths || []).map((d, index) => h('path', { key: `p${index}`, d })),
+			)
 		}
 
 		/**
