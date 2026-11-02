@@ -3910,7 +3910,7 @@ window.__ModuleLoader__.load({
 							{ key, className: 'dsh-links-section', style: { ...S.groupHeader, cursor: 'pointer' }, onClick: toggle },
 							h(
 								'span',
-								{ style: { display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0 } },
+								{ style: { display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0 } },
 								icon,
 								h('span', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, `${label}(${count})`),
 							),
@@ -3940,7 +3940,11 @@ window.__ModuleLoader__.load({
 								{ key: 'pinned-group' },
 								sectionHeader(
 									'pinned-head',
-									h(HeaderGlyph, { paths: ['M8 1.6a4 4 0 0 0-4 4c0 3 4 8.8 4 8.8s4-5.8 4-8.8a4 4 0 0 0-4-4z'], circle: [{ cx: 8, cy: 5.6, r: 1.4 }] }),
+									h(HeaderGlyph, {
+										paths: [
+											'M9.8 1.6a1 1 0 0 1 1.4 0l3.2 3.2a1 1 0 0 1 0 1.4l-1 1-.6-.6-2.6 2.6v2.1l-1.1 1.1-2.4-2.4-2.9 2.9-.7-.7 2.9-2.9-2.4-2.4 1.1-1.1h2.1l2.6-2.6-.6-.6z',
+										],
+									}),
 									tr('section.pinned'),
 									pinnedRows.length,
 									pinnedOpen,
@@ -3968,7 +3972,7 @@ window.__ModuleLoader__.load({
 								{ style: S.groupHeader },
 								h(
 									'span',
-									{ style: { display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0 } },
+									{ style: { display: 'inline-flex', alignItems: 'center', gap: 4, minWidth: 0 } },
 									h(HeaderGlyph, { paths: ['M14 14l-3.2-3.2'], circle: [{ cx: 6.8, cy: 6.8, r: 4.6 }] }),
 									h('span', null, `${tr('section.searchResults')}(${matches.length})`),
 								),
@@ -4716,7 +4720,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.84.2'
+		const BUILD = 'v0.84.3'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.
