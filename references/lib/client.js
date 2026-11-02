@@ -4392,24 +4392,56 @@ window.__ModuleLoader__.load({
 						'div',
 						{ style: S.footer },
 						h(
+							'button',
+							{
+								type: 'button',
+								title: rescanning ? tr('footer.rescanning') : tr('footer.rescanHint'),
+								'aria-label': tr('footer.rescan'),
+								onClick: rescanAll,
+								disabled: rescanning,
+								style: {
+									display: 'inline-flex',
+									alignItems: 'center',
+									justifyContent: 'center',
+									width: 18,
+									height: 18,
+									flex: 'none',
+									padding: 0,
+									border: 'none',
+									borderRadius: 4,
+									background: 'transparent',
+									color: COLOR_LABEL_SECONDARY,
+									cursor: rescanning ? 'default' : 'pointer',
+									opacity: rescanning ? 0.55 : 0.9,
+								},
+							},
+							h(
+								'svg',
+								{
+									width: 13,
+									height: 13,
+									viewBox: '0 0 16 16',
+									fill: 'none',
+									stroke: 'currentColor',
+									strokeWidth: 1.5,
+									strokeLinecap: 'round',
+									strokeLinejoin: 'round',
+									'aria-hidden': 'true',
+								},
+								h('path', { d: 'M2.5 8a5.5 5.5 0 0 1 9.4-3.9' }),
+								h('path', { d: 'M13.5 8a5.5 5.5 0 0 1-9.4 3.9' }),
+								h('path', { d: 'M11.9 1.9v2.4h-2.4' }),
+								h('path', { d: 'M4.1 14.1v-2.4h2.4' }),
+							),
+						),
+						h(
 							'span',
-							{ style: S.footerGrow },
+							{ style: { ...S.footerGrow, paddingLeft: 6 } },
 							historyDone
 								? trf('footer.collected', { count: all.length })
 								: snapshot.hasMore
 									? tr('footer.loadingHistory')
 									: trf('footer.events', { count: snapshot.entries.length }),
-						),
-						h(
-							'button',
-							{
-								type: 'button',
-								style: S.footerButton,
-								title: tr('footer.rescanHint'),
-								onClick: rescanAll,
-								disabled: rescanning,
-							},
-							rescanning ? tr('footer.rescanning') : tr('footer.rescan'),
 						),
 						h(
 							'span',
@@ -4478,7 +4510,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.83.3'
+		const BUILD = 'v0.83.4'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.
