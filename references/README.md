@@ -1,187 +1,106 @@
-# dsh-links-panel
+# Reference Links
 
-A **Reference Links** tab for the right sidebar of [DeepSeek Harness](https://github.com/brickhu/dsh-plugins) (DSH).
-It collects every URL that appears in the current conversation into one list — with pins,
-turn counts, real site icons, manual renaming, hiding, search and a keyboard shortcut —
-so you never have to scroll back through a long chat to find that link again.
+A **Reference Links** tab for the right sidebar of DeepSeek Harness (DSH).
+It collects every link that appears in the current conversation, so you can find,
+pin, rename and reopen them without scrolling back through the chat.
 
-- Design notes: [DESIGN.md](DESIGN.md)
-- 中文说明: [README.zh.md](README.zh.md)
-- Requires DSH `>=0.2.1-rc.3 <0.3.0` (declared in `package.json` → `engines.dsh`)
-- No build step: the client half is a self-contained lazy-CJS bundle
+> 🖥 中文说明见 [README.zh.md](README.zh.md)
 
 ---
 
-## What it does
+## What you get
 
-| Capability | Behaviour |
-|---|---|
-| **Collect** | Every `http(s)` URL from user and assistant messages (plain URLs and Markdown links), plus the titles/URLs carried by successful `web_search` / `web_fetch` results. |
-| **Ignore noise** | URLs that only appear in `bash`, `read`, `edit`, `write`, `grep`… results, or in tool *arguments*, are never collected. Static assets, private hosts, IP literals, placeholder domains and API endpoints are filtered out. |
-| **Live** | The panel is event-driven: a new `web_fetch` result appends its URL while the agent is still streaming, and a background tracker keeps collecting even when the tab is closed. |
-| **Titles** | Titles come **only from the conversation** — Markdown labels, `web_search` result titles, the page title line inside a successful `web_fetch` result — or from your own rename. Otherwise the URL itself is shown. No remote title probing ever happens. |
-| **Turns** | Each row shows how many **turns** mentioned the URL. Click the badge to open a dialog listing every turn, with relative timestamps (`5d ago`, `just now`) and “click to view” on hover, jumping straight to that turn. |
-| **Pins** | Pin links to a separate “Pinned” section at the top. Pins are global and survive restarts. |
-| **Hidden** | Hide a single link or the whole host (`a.baidu.com`, never `baidu.com`). Hidden links stay expandable and restorable. |
-| **Icons** | A global favicon library keyed by host / registrable domain that stores **separate light and dark variants** when a page declares them (`<link rel="icon" media="(prefers-color-scheme: dark)">`), so each row shows the icon matching the active theme. Hosts without an entry are probed **one host at a time** through the Host process, then cached forever. Deterministic hash icons are the final fallback, and a neutral monochrome icon is inverted only when it has no theme-specific variant and would disappear against the background. |
-| **Search** | Search title or domain. While searching, grouping and collapsible sections are replaced by a flat list headed `Search results (N)`.
-| **Filter** | The funnel button on the `All links` header filters by conversation turn or by host; the header title becomes the chosen filter, with a `×` to clear it. | |
-| **Keyboard** | `⌘⇧L` on macOS, `Ctrl+Shift+L` elsewhere. The shortcut works from the conversation and is displayed on the guide card. |
+- **All links in one place** — every URL from your messages, the assistant's replies,
+  web searches and fetched pages.
+- **Pinned section** — keep the important links on top.
+- **Turn counts** — each link shows how many turns mentioned it; click the number to see
+  those turns and jump back to them.
+- **Search** — by title or domain.
+- **Filter** — the funnel icon on the “All links” header filters by conversation turn or
+  by host, and the header shows the active filter.
+- **Rename / hide** — give a link your own title, or hide one link / a whole site.
+- **Icons** — real site icons (light and dark variants when a site offers them).
+- **Live** — new links appear as the conversation grows, even while the tab is closed.
+- **Shortcut** — `⌘⇧L` on macOS, `Ctrl+Shift+L` elsewhere.
 
-## Installation
+## Install
 
-### From npm (recommended)
+### From the DSH plugin manager
 
 1. Open DSH → right sidebar → **Plugins**.
-2. Install the bundle by name: `dsh-links-panel` (or `npm:dsh-links-panel`).
-3. Select the bundle for your profile and restart DSH.
-4. Open a conversation, expand the right sidebar, click **+** → **Reference Links**.
+2. Click **Add plugin** and enter:
 
-### Local development / linking this repository
+   ```
+   dsh-links-panel
+   ```
 
-The desktop profile lives at `~/.dsh/profiles/<profile>` (default `desktop`) and is owned
-by the Electron app, so use the bundled installer instead of editing it by hand:
+3. Install it, make sure the bundle is enabled, then **quit DSH completely**
+   (`Cmd+Q`) and start it again.
+4. Open a conversation, expand the right sidebar, click **+** and choose
+   **Reference Links**.
 
-```bash
-# from the repository root
-node references/scripts/install.mjs              # symlink + dependency + bundle patch
-node references/scripts/install.mjs --uninstall  # restore the pre-install profile
-```
-
-The script backs up `package.json`, `pnpm-lock.yaml` and `cordis.patch.yml` to
-`~/.dsh/profiles/desktop/.dsh-links-backup/` on first install; re-running it only
-updates the symlink (useful after moving the repository).
-
-### Updating
-
-The plugin manager only offers an **Update** button for on-demand official catalog entries;
-third-party bundles have no update action, and reinstalling the same name keeps the version
-pinned in the profile lockfile. Use one of these:
+### From the command line
 
 ```bash
-# one command: newest npm release + release-age exemption + pnpm install
-node references/scripts/update-from-npm.mjs
-
-# or pin a specific version
-node references/scripts/update-from-npm.mjs --version 0.82.0
+npx --yes --package dsh-links-panel dsh-links-update
 ```
 
-The script writes the exact version into `~/.dsh/profiles/<profile>/package.json`, adds a
-`minimumReleaseAgeExclude` entry for that version, runs the bundled pnpm, and then you only
-need to quit and reopen DSH. In the Harness UI you can also uninstall the bundle and add it
-again (optionally as `dsh-links-panel@<version>`) — but the script is the reliable path while
-the plugin manager has no third-party update action.
+Then quit and reopen DSH. (This also works for updating; see below.)
 
-Every release also updates the repository's market index automatically (the publish workflow
-does it after a successful npm publish), so **Discover** shows the new version as soon as the
-index is refreshed.
+## Using it
 
-### Restarting
-
-DSH loads plugin halves at app launch and caches the client bundle. After changing this
-plugin **quit the app completely** (`Cmd+Q`, the Dock icon must disappear) and start it
-again. The build stamp in the panel footer (e.g. `v0.77.0`) tells you which build is
-actually running.
-
-## Using the panel
-
-- **Sections** — `Pinned (N)`, `All links (N)`, `Hidden (N)`. Section headers are
-  collapsible; hover a header for the chevron. Counts are omitted while searching.
-- **Rows** — click opens the link in the built-in browser, `⌘`/`Ctrl`+click in the system
-  browser. Long titles are truncated with a gradient mask and shown in full by a marquee
-  on hover.
-- **Row menu (⋮)** — `Copy link` · `Open in built-in browser` · `Open in system browser` ·
-  `Edit title…` · `Hide this link` · `Hide all from <host>` · `Pin this link`.
-- **Edit title…** — inline dialog with `Leave empty to restore the automatic title`;
-  custom titles persist and win over conversation titles.
-- **Footer** — live status, collected link count, `Rescan` (rebuilds this conversation's
-  list from history; pins and the global icon library are kept) and the build stamp.
-  The footer is hidden when the conversation has no links yet; the empty state then shows
-  a centred explanation and its own `Rescan` button.
-- **Empty/hidden states** are fully localized (English / 中文 follow the Harness language).
-
-## Architecture
-
-```
-references/
-  package.json             # dsh.bundle.patch + dsh.client(platform: web), engines.dsh
-  cordis.patch.yml         # Loader insert: id dsh-links, name dsh-links-panel
-  lib/index.js             # Host half: favicon route, serialized outbound requests
-  lib/client.js            # Browser half: tab type, scanning, aggregation, render
-  scripts/install.mjs      # install / uninstall into a DSH profile
-  test/run.mjs             # offline tests (VM + fake React, no DSH required)
-  locale/                  # en/zh manifests for the DSH plugin page
-```
-
-### Host half (`lib/index.js`)
-
-- Registers `GET /dsh-links/pageicons?url=…` (page-declared light/dark icon URLs) and
-  `GET /dsh-links/favicon?url=…`, which fetches a favicon through
-  `curl` (respecting the desktop system proxy) and returns it as a data URL
-  (64 KB cap; PNG / GIF / JPEG / WebP / ICO / SVG sniffing).
-- Every outbound request is serialized through one promise chain — the plugin never
-  issues parallel network requests.
-
-### Browser half (`lib/client.js`)
-
-- Lazy-CJS module: `window.__ModuleLoader__.load({ id, factory })`, only `react` is
-  required, so the bundle is self-contained.
-- Scans the session event stream (`assistant/message`, `user/message`, and results of
-  web-facing tools only), aggregates rows per seq with a cache, and merges newest titles.
-- Registers the sidebar tab, the guide entry, the pane title and the shortcut.
-- Runs a background tracker over the sessions service so rows keep accumulating while
-  the panel is closed.
-
-## Data stored in the browser
-
-| Key | Contents |
+| What | How |
 |---|---|
-| `dsh-links.links.v3:<sessionId>` | Per-conversation rows + scan cursor |
-| `dsh-links.pinned.v1` | Pinned URLs |
-| `dsh-links.customtitles.v1` | User-renamed titles (URL → title) |
-| `dsh-links.favicons.v2` | Global favicon library (host/domain → `{light, dark}` data URLs) |
-| `dsh-links.blocked-hosts.v1` | Globally hidden hosts |
-| `dsh-links.ignored.v1:<sessionId>` | Per-conversation hidden links |
+| Open a link | Click the row (built-in browser); `⌘`/`Ctrl`+click opens the system browser |
+| Row menu | The `⋮` at the end of the row: copy link, open, edit title, hide link, hide all from this site, pin |
+| Pin | `⋮` → **Pin this link**; pinned links move to the top section |
+| Rename | `⋮` → **Edit title…**; leave the field empty to restore the automatic title |
+| Hide | `⋮` → **Hide this link**, or **Hide all from `<site>`** |
+| Restore | The hidden section at the bottom lists hidden links; `⋮` → **Restore this link** |
+| Filter | Click the funnel icon on the **All links** header and pick a turn or a host; pick **All links** to clear it |
+| Fold sections | Click a section header (Pinned / All links / Hidden) |
+| Find an old turn | Click a row's turn count, then any turn in the dialog to jump there |
 
-Everything is defensive: storage failures (private mode, quota) only disable persistence,
-never the panel.
+The footer shows how many links are collected, a scan button to rebuild the list from
+history, and the running version.
 
-## Development
+## Update
 
-```bash
-node test/run.mjs     # offline test suite (no DSH needed)
-```
-
-The tests cover URL normalization and filtering, event extraction (including tool-result
-titles), aggregation/turn counting, per-seq caching, tab registration, rendering,
-Markdown export, hide/restore semantics, localization dictionaries and the Host half's
-helpers.
-
-To iterate on the UI, link the repository with `scripts/install.mjs`, edit
-`lib/client.js`, then fully restart DSH and confirm the footer build stamp.
-
-## Limitations
-
-- Titles are only as good as the conversation: a bare URL that was never fetched,
-  labelled or renamed shows as the URL.
-- `web_fetch` refuses binary content (`application/pdf` and friends), so PDF links never
-  receive a page title from the fetch pipeline.
-- No remote title scraping and no LLM calls — by design.
-- Icons are fetched once per host and cached; a site that changes its favicon keeps the
-  cached one until the browser storage is cleared.
-
-## Publishing
+When a newer version is published, a small green **↑** appears next to the version in the
+footer. Click it for the update command, or simply run:
 
 ```bash
-cd references
-npm pack --dry-run      # inspect the package contents
-npm version patch       # or minor / major
-npm publish --access public
+npx --yes --package dsh-links-panel dsh-links-update
 ```
 
-Keep `exports` (`"."`, `"./client"`, `"./locale/*.json"`, `"./icon"`, `"./package.json"`),
-`dsh.bundle.patch`, `dsh.client.inject`, `files` and `engines.dsh` intact.
+Then quit DSH completely and reopen it. A page reload is not enough.
 
-## License
+## Notes
 
-MIT — see [LICENSE](LICENSE).
+- **Titles come from the conversation**: link text, search-result titles, fetched page
+  titles, or the name you gave it. If nothing exists, the URL itself is shown. The plugin
+  never fetches page titles on its own and never calls a model.
+- **Icons** are stored locally; the plugin only contacts a site to fetch its icon, one host
+  at a time.
+- **All data stays on your machine** (browser local storage): pinned links, custom titles,
+  hidden links and icons. Reinstalling the plugin does not erase them.
+- **Uninstall**: remove the bundle in DSH → Plugins, then restart.
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| The tab is not listed | Make sure the bundle is installed **and enabled**, then fully quit and reopen DSH |
+| New version is not shown | Quit and reopen DSH; a plain page reload keeps the old bundle |
+| No icon for a site | Some sites block non-browser requests; the plugin falls back to a generated icon |
+| Version number in the footer is old | Run the update command above, then restart DSH |
+
+Still stuck? Open an issue at
+<https://github.com/brickhu/dsh-plugins/issues> with the version shown in the footer.
+
+---
+
+Developer documentation (architecture, tests, publishing) lives in
+[DEVELOPMENT.md](DEVELOPMENT.md).
+
+License: MIT.
