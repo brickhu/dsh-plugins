@@ -3381,9 +3381,17 @@ window.__ModuleLoader__.load({
 									/* fall through to the sidebar service */
 								}
 							}
-							if (ctx && ctx.sidebarRight && typeof ctx.sidebarRight.openTab === 'function') {
+							let sidebar = ctx ? ctx.sidebarRight : undefined
+							if (!sidebar && ctx && typeof ctx.get === 'function') {
 								try {
-									ctx.sidebarRight.openTab(BROWSER_KIND, { params: { url: reference.url } })
+									sidebar = ctx.get('sidebarRight')
+								} catch (error) {
+									sidebar = undefined
+								}
+							}
+							if (sidebar && typeof sidebar.openTab === 'function') {
+								try {
+									sidebar.openTab(BROWSER_KIND, { params: { url: reference.url } })
 									return
 								} catch (error) {
 									/* fall through to the system browser */
@@ -4150,10 +4158,10 @@ window.__ModuleLoader__.load({
 		// ------------------------------------------------------------------
 
 		/** Required browser services: the tab registry and the keyed seat. */
-		const inject = ['slots', 'sidebarRightTabs', 'sidebarRight', 'sessions', 'locale']
+		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.81.0'
+		const BUILD = 'v0.81.1'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.
@@ -4524,13 +4532,33 @@ window.__ModuleLoader__.load({
 					}
 					for (const sessionId of ids) attach(sessionId)
 				}
-				sync()
-				const off = sessions.list.subscribe(sync)
+				// Never compete with application boot: start the tracker a couple of seconds
+				// later, and never let a failure here escape into the plugin lifecycle.
+				let off = () => {}
+				const startTimer = setTimeout(() => {
+					try {
+						sync()
+						off = sessions.list.subscribe(sync)
+					} catch (error) {
+						off = () => {}
+					}
+				}, 2000)
 				return () => {
-					off()
+					clearTimeout(startTimer)
+					try {
+						off()
+					} catch (error) {
+						/* ignore */
+					}
 					for (const tracker of trackers.values()) {
 						if (tracker.timer !== null) clearTimeout(tracker.timer)
-						if (typeof tracker.dispose === 'function') tracker.dispose()
+						if (typeof tracker.dispose === 'function') {
+							try {
+								tracker.dispose()
+							} catch (error) {
+								/* ignore */
+							}
+						}
 					}
 					trackers.clear()
 				}

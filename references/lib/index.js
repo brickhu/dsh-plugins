@@ -37,7 +37,7 @@ function withOutboundLock(task) {
 }
 
 /** Host build stamp, echoed to the panel so a stale bundle is detectable. */
-export const BUILD = 'v0.81.0'
+export const BUILD = 'v0.81.1'
 /**
  * The desktop browser reaches the network through the system proxy; the Host's own
  * Node requests bypass it. Detect that proxy so probes can use the same route.
@@ -652,33 +652,28 @@ async function handleMetaRequest(ctx, cache, req, res) {
  * Host plugin body: register the metadata route.
  * @param {object} ctx - host context with the `web` and `webServer` services.
  */
+/**
+ * Register one HTTP route defensively: a route failure must never take the whole
+ * harness host down (the desktop shell reports that as a startup/auth failure).
+ * @param {object} ctx - host context.
+ * @param {string} path - exact route path.
+ * @param {Function} handler - request handler.
+ * @param {string} label - effect label.
+ * @returns {void}
+ */
+function registerRoute(ctx, path, handler, label) {
+	ctx.effect(() => {
+		try {
+			return ctx.webServer.register({ kind: 'exact', path, handler })
+		} catch (error) {
+			return () => {}
+		}
+	}, label)
+}
+
 export function apply(ctx) {
 	const cache = new Map()
-	ctx.effect(
-		() =>
-			ctx.webServer.register({
-				kind: 'exact',
-				path: ROUTE_PATH,
-				handler: (req, res) => handleMetaRequest(ctx, cache, req, res),
-			}),
-		'dsh-links: metadata route',
-	)
-	ctx.effect(
-		() =>
-			ctx.webServer.register({
-				kind: 'exact',
-				path: FAVICON_ROUTE_PATH,
-				handler: (req, res) => handleFaviconRequest(req, res),
-			}),
-		'dsh-links: favicon route',
-	)
-	ctx.effect(
-		() =>
-			ctx.webServer.register({
-				kind: 'exact',
-				path: AI_TITLES_ROUTE_PATH,
-				handler: (req, res) => handleTitlesRequest(ctx, req, res),
-			}),
-		'dsh-links: ai titles route',
-	)
+	registerRoute(ctx, ROUTE_PATH, (req, res) => handleMetaRequest(ctx, cache, req, res), 'dsh-links: metadata route')
+	registerRoute(ctx, FAVICON_ROUTE_PATH, (req, res) => handleFaviconRequest(req, res), 'dsh-links: favicon route')
+	registerRoute(ctx, AI_TITLES_ROUTE_PATH, (req, res) => handleTitlesRequest(ctx, req, res), 'dsh-links: ai titles route')
 }
