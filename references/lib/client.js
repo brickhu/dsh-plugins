@@ -3162,6 +3162,8 @@ window.__ModuleLoader__.load({
 				const [countTip, setCountTip] = React.useState(null)
 				const [countTipHover, setCountTipHover] = React.useState(null)
 				const [tooltip, setTooltip] = React.useState(null)
+				// Any open overlay owns the space above the list: the hover tooltip stays off.
+				const overlayOpen = menu !== null || filterMenu !== null || countTip !== null || updateOpen
 				const [panelVisible, setPanelVisible] = React.useState(true)
 				const [autoProbing, setAutoProbing] = React.useState(() => new Set())
 				const [autoTotal, setAutoTotal] = React.useState(0)
@@ -3456,6 +3458,12 @@ window.__ModuleLoader__.load({
 				const showSplash = allowSplash && !splashDone && !historyDone
 
 
+
+				// The row menu and the hover tooltip share the same screen space: while an
+				// overlay is open the tooltip must not render on top of it.
+				React.useEffect(() => {
+					if (menu !== null && tooltip !== null) setTooltip(null)
+				}, [menu, tooltip])
 
 				// Close the filter popover on any outside press or Escape.
 				const filterMenuRef = React.useRef(null)
@@ -3898,7 +3906,7 @@ window.__ModuleLoader__.load({
 							iconEpoch: metaEpoch,
 							onOpen: openReference,
 							onToggleMenu: (next) => setMenu((current) => (current && current.key === next.key ? null : next)),
-							onTooltip: setTooltip,
+							onTooltip: (next) => setTooltip(overlayOpen ? null : next),
 							onCountHover: (next) =>
 								setCountTip((current) => (current !== null && next !== null && current.key === next.key ? null : next)),
 							refreshing: refreshingUrls.has(reference.url) || autoProbing.has(reference.url),
@@ -4054,7 +4062,7 @@ window.__ModuleLoader__.load({
 				}
 
 				let tooltipNode = null
-				if (tooltip !== null && typeof tooltip.text === 'string' && tooltip.text !== '') {
+				if (!overlayOpen && tooltip !== null && typeof tooltip.text === 'string' && tooltip.text !== '') {
 					const rect = tooltip.rect
 					const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1024
 					const lines = tooltip.text.split('\n')
@@ -4720,7 +4728,7 @@ window.__ModuleLoader__.load({
 		const inject = ['slots', 'sidebarRightTabs', 'sessions', 'locale']
 
 		/** Build stamp shown in the footer, so a stale bundle is visible at a glance. */
-		const BUILD = 'v0.84.3'
+		const BUILD = 'v0.84.4'
 		/**
 		 * Translate one key and fill `{name}` placeholders.
 		 * @param {string} key - dictionary key.
