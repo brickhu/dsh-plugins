@@ -181,6 +181,15 @@ function collectStringVars(source) {
 }
 
 /** One attribute of a React props object, resolving identifiers to string constants. */
+/** Object constants (`const stroke = { fill: 'none', … }`) used through spreads. */
+function collectObjectVars(source) {
+	const vars = new Map()
+	const re = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*\{([^{}]*)\}/gu
+	let match
+	while ((match = re.exec(source)) !== null) vars.set(match[1], match[2])
+	return vars
+}
+
 function attrValueFrom(attrs, name, vars) {
 	const match = new RegExp(`\\b${name}\\s*:\\s*(?:'([^']*)'|"([^"]*)"|\`([^\`]*)\`|(-?[\\d.]+)|([A-Za-z_$][\\w$]*))`, 'u').exec(attrs)
 	if (!match) return ''
@@ -209,6 +218,8 @@ export function jsxSvgBlocks(text) {
 	const blocks = []
 	const source = String(text || '')
 	const vars = collectStringVars(source)
+	const objects = collectObjectVars(source)
+	const expand = (attrs) => attrs.replace(/\.\.\.([A-Za-z_$][\w$]*)/gu, (whole, name) => (objects.has(name) ? ` ${objects.get(name)} ` : whole))
 	const re = /h\(\s*['"](svg)['"]/gu
 	let match
 	while ((match = re.exec(source)) !== null) {
@@ -219,20 +230,42 @@ export function jsxSvgBlocks(text) {
 		const call = source.slice(match.index, end)
 		const propsOpen = call.indexOf('{')
 		const propsEnd = propsOpen === -1 ? -1 : closingIndex(call, propsOpen)
-		const props = propsEnd === -1 ? '' : call.slice(propsOpen + 1, propsEnd)
+		const props = expand(propsEnd === -1 ? '' : call.slice(propsOpen + 1, propsEnd))
 		const viewBox = attrValueFrom(call, 'viewBox', vars) || '0 0 24 24'
 		const rootFill = attrValueFrom(props, 'fill', vars)
 		const elements = []
 		const sites = []
 		let geometry = 0
+		// Paint on an enclosing h('g') is inherited by its children; flattening the
+		// group without carrying it would make stroke-only icons invisible.
+		const frames = []
+		const gRe = /h\(\s*['"]g['"]\s*,\s*\{/gu
+		let group
+		while ((group = gRe.exec(call)) !== null) {
+			const open = call.indexOf('(', group.index + 1)
+			const end = open === -1 ? -1 : closingIndex(call, open)
+			const brace = call.indexOf('{', group.index + 1)
+			const close = brace === -1 ? -1 : closingIndex(call, brace)
+			if (end === -1 || close === -1) continue
+			frames.push({ start: group.index, end, attrs: expand(call.slice(brace + 1, close - 1)) })
+		}
 		const elRe = /h\(\s*['"](path|circle|rect|line|polygon|polyline|ellipse)['"]\s*,\s*\{/gu
 		let element
 		while ((element = elRe.exec(call)) !== null) {
 			const brace = call.indexOf('{', element.index + 1)
 			const close = closingIndex(call, brace)
 			if (close === -1) continue
-			const attrs = call.slice(brace + 1, close - 1)
+			const attrs = expand(call.slice(brace + 1, close - 1))
 			const tag = element[1]
+			const enclosing = frames.filter((frame) => element.index > frame.start && element.index < frame.end)
+			const inherited = (name) => {
+				for (let index = enclosing.length - 1; index >= 0; index -= 1) {
+					const value = attrValueFrom(enclosing[index].attrs, name, vars)
+					if (value !== '') return value
+				}
+				return ''
+			}
+			const paint = (name) => attrValueFrom(attrs, name, vars) || inherited(name)
 			const resolvedD = attrResolve(attrs, 'd', vars)
 			const d = resolvedD.value
 			const DYNAMIC = { line: ['x1', 'y1', 'x2', 'y2'], polygon: ['points'], polyline: ['points'], circle: ['cx', 'cy', 'r'], ellipse: ['cx', 'cy', 'rx', 'ry'], rect: ['width', 'height'] }
@@ -247,15 +280,15 @@ export function jsxSvgBlocks(text) {
 			geometry += 1
 			const attrsOut = []
 			for (const [key, name] of Object.entries(REACT_ATTR)) {
-				const value = attrValueFrom(attrs, key, vars)
+				const value = paint(key)
 				if (value !== '') attrsOut.push(`${name}="${value}"`)
 			}
 			for (const name of ['cx', 'cy', 'r', 'rx', 'ry', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'width', 'height', 'points']) {
 				if (values[name] !== '') attrsOut.push(`${name}="${values[name]}"`)
 			}
-			const fill = attrValueFrom(attrs, 'fill', vars) || rootFill
+			const fill = paint('fill') || rootFill
 			if (fill !== '') attrsOut.push(`fill="${fill}"`)
-			const stroke = attrValueFrom(attrs, 'stroke', vars)
+			const stroke = paint('stroke')
 			if (stroke !== '') attrsOut.push(`stroke="${stroke}"`)
 			if (tag === 'path') {
 				if (d !== '') {
