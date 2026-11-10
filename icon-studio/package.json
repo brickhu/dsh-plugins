@@ -69,6 +69,6 @@
     "url": "https://github.com/brickhu/dsh-plugins/issues"
   },
   "bin": {
-    "dsh-icon-library-install": "./scripts/install.mjs"
+    "dsh-icon-library-install": "scripts/install.mjs"
   }
 }
