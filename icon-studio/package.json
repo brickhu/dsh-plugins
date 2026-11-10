@@ -1,6 +1,6 @@
 {
   "name": "dsh-icon-library",
-  "version": "0.17.19",
+  "version": "0.17.20",
   "description": "A workspace icon library for DeepSeek Harness: drag icons into the chat as <name>, let agents pick icons by meaning, and edit an SVG once to update every place it is used. 项目级图标库。",
   "license": "MIT",
   "type": "module",

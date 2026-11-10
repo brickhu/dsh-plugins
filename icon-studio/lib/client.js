@@ -71,7 +71,7 @@ window.__ModuleLoader__.load({
       studioTitle: 'dsh-icon-library',
       panelSub: '项目图标库',
       guideDesc: '当前项目的图标库，存放在根目录 `.icons.json`；点开任意图标管理名称与应用规则，或粘贴新 SVG 替换图形',
-      listSearch: '搜索名字（也匹配备注和关键词）',
+      listSearch: '搜索名称与应用规则',
       logoBadge: '插件 logo：',
       logoSetHint: '设为插件 logo（写入插件代码）',
       logoPushHint: '图标已改动，点击同步到插件代码',
@@ -98,8 +98,7 @@ window.__ModuleLoader__.load({
       logoSynced: '插件 logo 已是最新',
       listNew: '添加',
       listImport: '粘贴 SVG',
-      listScan: '扫描代码中的图标',
-      listIconify: '从 Iconify 导入',
+      listLibrary: '从图标库导入',
       scanTitle: '工作区里的所有 SVG',
       scanBar: '{workspace} 中有 {n} 个未命名的 SVG',
       scanBarTitle: '查看并命名工作区里的 SVG',
@@ -113,6 +112,7 @@ window.__ModuleLoader__.load({
       scanAddConfirm: '添加',
       scanImported: '已添加：{name}',
       scanDesc: '{n} 个不同的 SVG 图形',
+      scanExcluded: '另有 {n} 个非正方形 SVG 已排除（这个库只收方形画框）',
       scanSites: '{n} 处',
       scanExisting: '已在库中：{name}',
       scanNameHint: '唯一名称',
@@ -123,47 +123,68 @@ window.__ModuleLoader__.load({
       scanAgain: '重新扫描',
       scanImport: '导入 {n} 个',
       scanDone: '已导入扫描到的图标并建立引用索引',
-      iconifyTitle: '从 Iconify 导入',
-      iconifySearchHint: '搜索图标（如 trash、home）',
-      iconifySearch: '搜索',
-      iconifyAllSets: '全部图标集',
-      iconifyEmpty: '输入关键词搜索 Iconify 的图标',
-      iconifyNoMatch: '没有匹配的结果',
-      iconifySelected: '已选 {n} 个',
-      iconifyAdd: '添加 {n} 个到图标库',
-      iconifyImported: '已导入 {n} 个图标',
-      iconifySkipped: '跳过重复 {n} 个',
-      iconifySets: '图标集',
-      iconifySet: '图标集',
-      iconifySearchResults: '搜索结果',
-      iconifyBack: '返回图标集',
-      iconifyPrev: '上一页',
-      iconifyNext: '下一页',
-      iconifyNoSets: '图标集列表加载失败或为空',
-      iconifyCount: '{n} 个图标',
-      iconifyAddOne: '添加到图标库',
-      iconifyAddedOne: '已添加：{name}',
-      iconifyExists: '已在库中：{name}',
-      iconifyAddFailed: '添加失败',
-      iconifyAdded: '已添加',
-      iconifySame: '已在库中：{name}',
-      iconifyConflictTitle: '图标已存在',
-      iconifyNameConflict: '本地已有同名图标「{name}」，要用远程的 SVG 替换它吗？',
-      iconifyShapeConflict: '这个图形已存在于本地「{of}」，要把它的名称改成「{name}」吗？',
-      iconifyReplace: '替换 SVG',
-      iconifyRename: '重命名',
-      iconifyRenameHint: '已作为「{of}」存在于本地，点击重命名为「{name}」',
+      supplyTitle: '从图标库导入',
+      supplySearchHint: '搜索图标（如 trash、home）',
+      supplySearch: '搜索',
+      supplyAllSets: '全部图标集',
+      supplyEmpty: '输入关键词，同时搜索 Iconify 与 IconMCP',
+      supplyNoMatch: '没有匹配的结果',
+      supplySelected: '已选 {n} 个',
+      supplyAdd: '添加 {n} 个到图标库',
+      supplyImported: '已导入 {n} 个图标',
+      supplySkipped: '跳过重复 {n} 个',
+      supplySets: '图标集',
+      supplySet: '图标集',
+      supplySearchResults: '搜索结果',
+      supplyBack: '返回图标集',
+      supplyPrev: '上一页',
+      supplyNext: '下一页',
+      supplyNoSets: '图标集列表加载失败或为空',
+      supplyCount: '{n} 个图标',
+      supplyAddOne: '添加到图标库',
+      supplyAddedOne: '已添加：{name}',
+      supplyExists: '已在库中：{name}',
+      supplyAddFailed: '添加失败',
+      supplyAddTitle: '添加到图标库',
+      supplyAddConfirm: '添加',
+      supplyAddStyle: '风格',
+      supplyAddStyleOutline: '描边',
+      supplyAddStyleSolid: '实心',
+      supplyAddStyleOnly: '这家只有描边画法，没有实心版本',
+      supplyAddShapeExists: '库里已有同样图形：{of}。换个名字，或先在图层里删掉它。',
+      commonCancel: '取消',
+      supplyAdded: '已添加',
+      supplySame: '已在库中：{name}',
       listMore: '更多',
-      initDesc: '这个工作区还没有图标库。初始化会在项目根目录创建 `.icons.json`，之后即可扫描代码、粘贴 SVG 或从 Iconify 导入图标。',
+      listAi: 'AI 生成图标',
+      aiPromptLabel: '描述',
+      aiPromptPlaceholder: '描述你要的图标，例如：带锁的日历',
+      aiHint: '按当前库的画布、线宽和画法风格生成；生成后进入入库对话框，可改名称与应用规则。⌘↵ 生成。',
+      aiPromptHint: '描述你要的图标。生成后才会打开入库框，可改名称和应用规则。⌘↵ 生成。',
+      aiDraftReady: '草稿已生成。确认名称和应用规则后入库。',
+      aiGenerate: '生成',
+      aiGenerating: '生成中…',
+      aiFailed: '生成失败，换一种描述再试。',
+      aiNoModel: '当前没有可用模型，无法生成。',
+      aiRejected: '生成结果不符合本库规则：{issues}',
+      aiTooLong: '生成被长度限制截断，请再试一次。',
+      aiRefs: '参考了 {n} 个库外同类图标（{sources}）的构图，画法仍是本库自己的。',
+      aiWarnCrossing: '有 {n} 处描边互相穿过：两个形状可能叠在一起了，建议重画。',
+      aiFeedback: '哪里不对（重画时告诉模型）',
+      aiFeedbackPlaceholder: '例如：线穿过了另一个形状 / 锁应该更小 / 和库里线宽不一致',
+      aiRetry: '重画',
+      aiUseIt: '用这张入库',
+      aiBack: '改描述',
+      initDesc: '这个工作区还没有图标库。初始化会在项目根目录创建 `.icons.json`，之后即可扫描代码、粘贴 SVG，或从内置供给库（Iconify / IconMCP）导入图标。',
       initAction: '初始化图标库',
       initName: 'dsh-icon-library',
       initSlogan: '在工作区创建一个可供 Agent 消费的图标库。',
       initFeature1Title: '按形状索引',
       initFeature1Desc: '扫描 UI 代码里已有的图标，自动记录每一处引用。',
       initFeature2Title: '随处导入',
-      initFeature2Desc: '粘贴 SVG、选择本地文件，或从 Iconify 浏览添加。',
-      initFeature3Title: '语义化描述',
-      initFeature3Desc: '每个图标都有名称与说明，Agent 可按含义取用。',
+      initFeature2Desc: '粘贴 SVG、选择本地文件，或从 Iconify / IconMCP 浏览添加。',
+      initFeature3Title: '应用规则',
+      initFeature3Desc: '每个图标都有名称与应用规则，Agent 按含义选图，而不是猜。',
       initFeature4Title: '自动同步',
       initFeature4Desc: '保存时原地重写所有引用，改一次全站生效。',
       initHint: '初始化不会修改业务代码，只会在项目根目录创建 `.icons.json`。',
@@ -198,7 +219,6 @@ window.__ModuleLoader__.load({
       createHeight: '高',
       createCancel: '取消',
       createSize: '{w} × {h}',
-      importTitle: '导入 SVG',
       importPaste: '把 SVG 源码粘到这里（支持 Figma 导出的 transform / 合并路径 / style）',
       importParse: '解析并预览',
       importName: '名称',
@@ -294,7 +314,7 @@ window.__ModuleLoader__.load({
       pasteEmpty: '这段 SVG 里没有可用的矢量元素',
       pasteFailed: '粘贴失败：{msg}',
       editorNoteHint: '选填。写清它是什么、什么时候用、什么时候别用，agent 会靠这段文字选图。',
-      editorRule: '描述',
+      editorRule: '应用规则',
       editorRuleHint: '它是什么、什么时候用、什么时候别用；用户可能怎么称呼它。',
       detailReplace: 'SVG',
       detailReplaceHint: '粘贴新的 SVG，保存后原地替换当前图形；旧版本保留，可撤销。',
@@ -305,7 +325,7 @@ window.__ModuleLoader__.load({
       detailRedo: '重做',
       detailRedoHint: '重做下一步',
       saveConfirmTitle: '保存并更新引用',
-      saveConfirmBody: '这次保存会更新 {n} 处代码引用：',
+      saveConfirmBody: '这次保存会更新 {n} 处派生：',
       saveConfirmNone: '这次保存没有要更新的代码引用。',
       saveConfirmSkipped: '另有 {n} 处未勾选，本次不会更新。',
       saveConfirmOk: '确认保存',
@@ -321,15 +341,17 @@ window.__ModuleLoader__.load({
       metaSize: '文件尺寸',
       metaLicense: '许可协议',
       metaAliases: '别名',
-      metaRefs: '代码引用',
-      detailNoRefs: '没有代码引用。',
-      detailInputDescription: 'Input Description',
-      detailGenerateHint: '用模型生成名称和描述',
+      metaRefs: '派生',
+      detailNoRefs: '还没有派生。',
+      derivStale: '另有 {n} 条派生因代码改动无法定位，重新打开图标会重新扫描。',
+      detailInputDescription: '输入应用规则，例如：用于删除、不要用于撤销',
+      detailGenerateHint: '用模型生成名称和应用规则',
       detailGenerateNone: '模型没有返回结果',
       detailGenerateError: '生成失败：{reason}',
-      detailGenerated: '已生成名称和描述',
+      detailGenerated: '已生成名称和应用规则',
       detailUndone: '已回到上一版图形',
-      detailPointers: '{n} 处代码引用',
+      detailPointers: '{n} 处派生',
+      detailPointersOne: '{n} 处派生',
       detailScanFiles: '扫描了 {n} 个文件',
       detailDupes: '库里还有同形图标：{names}',
       detailNeedName: '先填名称',
@@ -364,7 +386,7 @@ window.__ModuleLoader__.load({
       studioTitle: 'dsh-icon-library',
       panelSub: 'Project icon library',
       guideDesc: 'This project\'s icon library in `.icons.json` at the root; open an icon to manage its name and application rule, or paste a new SVG to replace the artwork',
-      listSearch: 'Search name and description',
+      listSearch: 'Search name and rule',
       logoBadge: 'Plugin logo: ',
       logoSetHint: 'Use as the plugin logo (writes the plugin source)',
       logoPushHint: 'Changed since the last push — click to sync',
@@ -391,8 +413,7 @@ window.__ModuleLoader__.load({
       logoSynced: 'Plugin logo is already current',
       listNew: 'Add',
       listImport: 'Paste SVG',
-      listScan: 'Scan code for icons',
-      listIconify: 'Import from Iconify',
+      listLibrary: 'Add from library',
       scanTitle: 'All svgs in the workspace',
       scanBar: '{n} unnamed SVGs in {workspace}',
       scanBarTitle: 'Review and name the workspace SVGs',
@@ -406,6 +427,7 @@ window.__ModuleLoader__.load({
       scanAddConfirm: 'Add',
       scanImported: 'Added: {name}',
       scanDesc: '{n} distinct SVG shapes',
+      scanExcluded: '{n} non-square SVGs were left out — this library keeps square canvases only',
       scanSites: '{n} sites',
       scanExisting: 'Already in the library: {name}',
       scanNameHint: 'Unique name',
@@ -416,48 +438,69 @@ window.__ModuleLoader__.load({
       scanAgain: 'Scan again',
       scanImport: 'Import {n}',
       scanDone: 'Imported the scanned icons and indexed their references',
-      iconifyTitle: 'Import from Iconify',
-      iconifySearchHint: 'Search icons (trash, home, …)',
-      iconifySearch: 'Search',
-      iconifyAllSets: 'All icon sets',
-      iconifyEmpty: 'Search Iconify to browse icons',
-      iconifyNoMatch: 'No matches found',
-      iconifySelected: '{n} selected',
-      iconifyAdd: 'Add {n} to library',
-      iconifyImported: 'Imported {n} icons',
-      iconifySkipped: 'skipped {n} duplicates',
-      iconifySets: 'Icon sets',
-      iconifySet: 'Icon set',
-      iconifySearchResults: 'Search results',
-      iconifyBack: 'Back to icon sets',
-      iconifyPrev: 'Previous',
-      iconifyNext: 'Next',
-      iconifyNoSets: 'Could not load icon sets',
-      iconifyCount: '{n} icons',
-      iconifyAddOne: 'Add to library',
-      iconifyAddedOne: 'Added: {name}',
-      iconifyExists: 'Already in the library: {name}',
-      iconifyAddFailed: 'Could not add the icon',
-      iconifyAdded: 'Added',
-      iconifySame: 'Already in the library: {name}',
-      iconifyConflictTitle: 'Icon already exists',
-      iconifyNameConflict: 'An icon named "{name}" already exists. Replace its artwork with the Iconify version?',
-      iconifyShapeConflict: 'This artwork already exists locally as "{of}". Rename it to "{name}"?',
-      iconifyReplace: 'Replace SVG',
-      iconifyRename: 'Rename',
-      iconifyRenameHint: 'Already local as "{of}" — click to rename it to "{name}"',
+      supplyTitle: 'Add from library',
+      supplySearchHint: 'Search icons (trash, home, …)',
+      supplySearch: 'Search',
+      supplyAllSets: 'All icon sets',
+      supplyEmpty: 'Search Iconify and IconMCP at once',
+      supplyNoMatch: 'No matches found',
+      supplySelected: '{n} selected',
+      supplyAdd: 'Add {n} to library',
+      supplyImported: 'Imported {n} icons',
+      supplySkipped: 'skipped {n} duplicates',
+      supplySets: 'Icon sets',
+      supplySet: 'Icon set',
+      supplySearchResults: 'Search results',
+      supplyBack: 'Back to icon sets',
+      supplyPrev: 'Previous',
+      supplyNext: 'Next',
+      supplyNoSets: 'Could not load icon sets',
+      supplyCount: '{n} icons',
+      supplyAddOne: 'Add to library',
+      supplyAddedOne: 'Added: {name}',
+      supplyExists: 'Already in the library: {name}',
+      supplyAddFailed: 'Could not add the icon',
+      supplyAddTitle: 'Add to library',
+      supplyAddConfirm: 'Add',
+      supplyAddStyle: 'Style',
+      supplyAddStyleOutline: 'Outline',
+      supplyAddStyleSolid: 'Solid',
+      supplyAddStyleOnly: 'Only an outline drawing is available for this icon',
+      supplyAddShapeExists: 'The same drawing is already in the library as {of}. Pick another name, or delete that one first.',
+      commonCancel: 'Cancel',
+      supplyAdded: 'Added',
+      supplySame: 'Already in the library: {name}',
       listMore: 'More',
+      listAi: 'AI create',
+      aiPromptLabel: 'Describe it',
+      aiPromptPlaceholder: 'Describe the icon, e.g. a calendar with a lock',
+      aiHint: 'Drawn in this library\'s canvas, stroke width and style; the draft then opens the add dialog so name and rule can be edited. ⌘↵ to generate.',
+      aiPromptHint: 'Describe the icon. The add dialog only opens once a draft exists, so name and rule can be reviewed. ⌘↵ to generate.',
+      aiDraftReady: 'Draft ready. Review the name and rule, then save it.',
+      aiGenerate: 'Generate',
+      aiGenerating: 'Drawing…',
+      aiFailed: 'That did not work — try another description.',
+      aiNoModel: 'No model is available right now.',
+      aiRejected: 'The drawing breaks this library\'s rules: {issues}',
+      aiTooLong: 'The answer was cut off by the token limit — try again.',
+      aiRefs: 'Arrangement studied from {n} icons in {sources}; the drawing itself is this library\'s own.',
+      aiWarnCrossing: '{n} pairs of strokes cross each other — the shapes may be laid on top of one another. Consider a redraw.',
+      aiFeedback: 'What is wrong (told to the model on redraw)',
+      aiFeedbackPlaceholder: 'e.g. a line passes through another shape / the lock should be smaller',
+      aiRetry: 'Redraw',
+      aiUseIt: 'Use this drawing',
+      aiBack: 'Edit prompt',
       listEmpty: 'This workspace has no icon library yet',
-      initDesc: 'This workspace has no icon library yet. Initialising creates `.icons.json` at the project root; after that you can scan code, paste an SVG or import from Iconify.',
+      initDesc: 'This workspace has no icon library yet. Initialising creates `.icons.json` at the project root; after that you can scan code, paste an SVG, or import from the built-in supply library (Iconify / IconMCP).',
       initAction: 'Initialise icon library',
       initName: 'dsh-icon-library',
       initSlogan: 'Create a workspace icon library that agents can consume.',
       initFeature1Title: 'Shape indexing',
       initFeature1Desc: 'Scans icons already drawn in your UI code and records every reference.',
       initFeature2Title: 'Import anywhere',
-      initFeature2Desc: 'Paste an SVG, pick a local file, or browse Iconify.',
-      initFeature3Title: 'Semantic metadata',
-      initFeature3Desc: 'Every icon carries a name and description an agent can pick by meaning.',
+      initFeature2Desc: 'Paste an SVG, pick a local file, or browse Iconify / IconMCP.',
+      initFeature3Title: 'Application rule',
+      initFeature3Desc: 'Every icon carries a name and a rule: an agent picks by meaning, not by guessing.',
       initFeature4Title: 'Automatic sync',
       initFeature4Desc: 'Saving rewrites every reference in place — one edit, everywhere.',
       initHint: 'Initialising only creates `.icons.json` at the project root; it never edits business code.',
@@ -491,7 +534,6 @@ window.__ModuleLoader__.load({
       createHeight: 'H',
       createCancel: 'Cancel',
       createSize: '{w} × {h}',
-      importTitle: 'Import SVG',
       importPaste: 'Paste SVG markup (transforms, merged paths and styles are normalised)',
       importParse: 'Parse and preview',
       importName: 'Name',
@@ -587,7 +629,7 @@ window.__ModuleLoader__.load({
       pasteEmpty: 'That SVG has no usable vector elements',
       pasteFailed: 'Paste failed: {msg}',
       editorNoteHint: 'What it is, when to use it, when not to. Agents pick by this text.',
-      editorRule: 'Description',
+      editorRule: 'Application rule',
       editorRuleHint: 'What it is, when to use it, when not to — and what a user might call it.',
       detailReplace: 'SVG',
       detailReplaceHint: 'Paste a new SVG; it replaces the current artwork in place. The previous revision is kept and undoable.',
@@ -598,7 +640,7 @@ window.__ModuleLoader__.load({
       detailRedo: 'Redo',
       detailRedoHint: 'Redo the next edit',
       saveConfirmTitle: 'Save and update references',
-      saveConfirmBody: 'This save updates {n} code references:',
+      saveConfirmBody: 'This save updates {n} derivations:',
       saveConfirmNone: 'This save has no code references to update.',
       saveConfirmSkipped: '{n} unchecked references are left as they are.',
       saveConfirmOk: 'Save',
@@ -614,15 +656,17 @@ window.__ModuleLoader__.load({
       metaSize: 'Size',
       metaLicense: 'License',
       metaAliases: 'Aliases',
-      metaRefs: 'References',
-      detailNoRefs: 'No code references.',
-      detailInputDescription: 'Input Description',
-      detailGenerateHint: 'Generate name and description with the model',
+      metaRefs: 'Derivations',
+      detailNoRefs: 'No derivations yet.',
+      derivStale: '{n} derivations could not be located after code changes; reopen the icon to rescan.',
+      detailInputDescription: 'Input rule',
+      detailGenerateHint: 'Generate a name and a rule with the model',
       detailGenerateNone: 'The model returned nothing',
       detailGenerateError: 'Generation failed: {reason}',
-      detailGenerated: 'Name and description generated',
+      detailGenerated: 'Name and rule generated',
       detailUndone: 'Back to the previous artwork',
-      detailPointers: '{n} code references',
+      detailPointers: '{n} derivations',
+      detailPointersOne: '{n} derivation',
       detailScanFiles: 'scanned {n} files',
       detailDupes: 'Same shape also exists as: {names}',
       detailNeedName: 'Name is required',
@@ -887,6 +931,13 @@ window.__ModuleLoader__.load({
 .gs-step.on b{background:var(--dsw-alias-brand-primary,#4d6bfe);color:var(--dsw-alias-bg-base)}
 .gs-sizes{display:flex;gap:6px;flex-wrap:wrap}
 
+.gs-ai-preview{display:flex;align-items:center;justify-content:center;height:132px;border:.5px solid var(--dsw-alias-border-l1);border-radius:10px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 5%,transparent);color:var(--dsw-alias-label-primary)}
+.gs-ai-preview svg{width:96px;height:96px}
+.gs-derivs{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none;max-height:46vh;overflow:auto}
+.gs-deriv{display:flex;align-items:center;gap:10px;padding:6px 8px;border:.5px solid var(--dsw-alias-border-l1);border-radius:8px}
+.gs-deriv-art{display:flex;align-items:center;justify-content:center;width:26px;height:26px;flex:none;color:var(--dsw-alias-label-primary)}
+.gs-deriv-art svg{width:20px;height:20px}
+.gs-deriv-file{color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .gs-warn{margin:0;padding:8px 10px;border-radius:8px;background:color-mix(in srgb,var(--dsw-alias-state-warn-primary,#f5a524) 12%,transparent);color:var(--dsw-alias-label-primary);font-size:11px;line-height:1.5}
 .gs-previewbox{display:flex;align-items:center;justify-content:center;height:150px;padding:16px;border-radius:10px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
 .gs-previewbox svg{width:96px;height:96px;max-width:100%;max-height:100%;flex:none}
@@ -894,31 +945,34 @@ window.__ModuleLoader__.load({
 .gs-detail-head{display:flex;align-items:center;gap:8px;padding:16px 12px 10px}
 .gs-detail-title{min-width:0;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .gs-detail-body{flex:1;min-width:0;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;gap:12px;padding:12px}
-.gs-iconify{display:flex;flex-direction:column;flex:1;min-height:0;min-width:0;background:var(--dsw-alias-bg-base,var(--dsw-alias-bg-layer-1));color:var(--dsw-alias-label-primary)}
+.gs-supply{display:flex;flex-direction:column;flex:1;min-height:0;min-width:0;background:var(--dsw-alias-bg-base,var(--dsw-alias-bg-layer-1));color:var(--dsw-alias-label-primary)}
 .gs-card.on{border-color:var(--dsw-alias-brand-primary,#4d6bfe)}
-.gs-iconify-add{position:absolute;right:5px;bottom:5px;display:flex;align-items:center;justify-content:center;width:22px;height:22px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:14px;line-height:1;cursor:pointer;opacity:0;transition:opacity .12s,background .12s,color .12s}
-.gs-card:hover .gs-iconify-add,.gs-iconify-add:focus-visible{opacity:1}
-.gs-iconify-add:hover{background:transparent;color:var(--dsw-alias-label-primary)}
-.gs-iconify-add:disabled{opacity:.5;cursor:default}
-.gs-iconify-done{position:absolute;right:5px;bottom:5px;display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:transparent;color:var(--dsw-alias-label-tertiary)}
-.gs-iconify-head{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:.5px solid var(--dsw-alias-border-l1)}
-.gs-iconify-title{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.gs-iconify-body{flex:1;min-height:80vh;overflow:auto;padding:16px}
-.gs-iconify-foot{display:flex;align-items:center;gap:8px;padding:10px 16px;border-top:.5px solid var(--dsw-alias-border-l1)}
+.gs-supply-add{position:absolute;right:5px;bottom:5px;display:flex;align-items:center;justify-content:center;width:22px;height:22px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:14px;line-height:1;cursor:pointer;opacity:0;transition:opacity .12s,background .12s,color .12s}
+.gs-card:hover .gs-supply-add,.gs-supply-add:focus-visible{opacity:1}
+.gs-supply-add:hover{background:transparent;color:var(--dsw-alias-label-primary)}
+.gs-supply-add:disabled{opacity:.5;cursor:default}
+.gs-supply-done{position:absolute;right:5px;bottom:5px;display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:transparent;color:var(--dsw-alias-label-tertiary)}
+.gs-supply-head{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:.5px solid var(--dsw-alias-border-l1)}
+.gs-supply-title{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gs-supply-body{flex:1;min-height:80vh;overflow:auto;padding:16px}
+.gs-supply-foot{display:flex;align-items:center;gap:8px;padding:10px 16px;border-top:.5px solid var(--dsw-alias-border-l1)}
 .gs-loading{display:flex;align-items:center;justify-content:center;gap:8px;min-height:calc(80vh - 32px);padding:16px;color:var(--dsw-alias-label-secondary)}
 .gs-loading .gs-spinner{margin:0}
-.gs-iconify-sets{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px}
-.gs-iconify-set{display:flex;flex-direction:column;gap:4px;align-items:flex-start;padding:10px 12px;border:.5px solid var(--dsw-alias-border-l1);border-radius:9px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 5%,var(--dsw-alias-bg-base));color:inherit;cursor:pointer;text-align:left;font:inherit}
-.gs-iconify-set:hover{border-color:var(--dsw-alias-border-l2)}
+.gs-supply-sets{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px}
+.gs-stylepick{display:flex;gap:2px;padding:2px;border-radius:8px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 6%,transparent)}
+.gs-stylepick-item{flex:1;height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;cursor:pointer}
+.gs-stylepick-item.on{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}
+.gs-supply-set{display:flex;flex-direction:column;gap:4px;align-items:flex-start;padding:10px 12px;border:.5px solid var(--dsw-alias-border-l1);border-radius:9px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 5%,var(--dsw-alias-bg-base));color:inherit;cursor:pointer;text-align:left;font:inherit}
+.gs-supply-set:hover{border-color:var(--dsw-alias-border-l2)}
 .gs-set-head{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%}
 .gs-set-samples{display:flex;gap:4px;flex:none;opacity:.8}
 .gs-set-sample{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px}
 .gs-set-sample svg{width:16px;height:16px}
-.gs-iconify-item{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;border:.5px solid var(--dsw-alias-border-l1);border-radius:8px;background:transparent;color:inherit;cursor:pointer}
-.gs-iconify-item.on{border-color:var(--dsw-alias-brand-primary,#4d6bfe);background:color-mix(in srgb,var(--dsw-alias-brand-primary,#4d6bfe) 12%,transparent)}
-.gs-iconify-thumb{display:flex;align-items:center;justify-content:center;width:28px;height:28px}
-.gs-iconify-thumb svg{width:24px;height:24px}
-.gs-iconify-name{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:var(--dsw-alias-label-secondary)}
+.gs-supply-item{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;border:.5px solid var(--dsw-alias-border-l1);border-radius:8px;background:transparent;color:inherit;cursor:pointer}
+.gs-supply-item.on{border-color:var(--dsw-alias-brand-primary,#4d6bfe);background:color-mix(in srgb,var(--dsw-alias-brand-primary,#4d6bfe) 12%,transparent)}
+.gs-supply-thumb{display:flex;align-items:center;justify-content:center;width:28px;height:28px}
+.gs-supply-thumb svg{width:24px;height:24px}
+.gs-supply-name{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:var(--dsw-alias-label-secondary)}
 .gs-scanbar{display:flex;align-items:center;gap:6px;margin:0;padding:7px 10px 7px 6px;border:0;border-top:1px solid color-mix(in srgb,var(--dsw-alias-label-primary) 10%,transparent);border-radius:0;background:rgba(255,255,255,.1);-webkit-backdrop-filter:blur(12px) saturate(1.2);backdrop-filter:blur(12px) saturate(1.2);color:var(--dsw-alias-label-secondary);text-align:left;flex:none}
 .gs-scanbar-scan{display:flex;align-items:center;justify-content:center;width:24px;height:24px;flex:none;padding:0;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer}
 .gs-scanbar-scan:hover{background:rgba(255,255,255,.16);color:var(--dsw-alias-label-primary)}
@@ -1572,6 +1626,11 @@ window.__ModuleLoader__.load({
         h('rect', { key: 'a', x: 2, y: 16, width: 4, height: 4, fill: 'none' }),
         h('rect', { key: 'b', x: 18, y: 2, width: 4, height: 4, fill: 'none' }),
       ]),
+      // <ai-magic> from this workspace's library, inlined as the menu glyph.
+      aiMagic: () => svgIcon([
+        h('path', { key: 'big', d: 'M15 8.86L16.98 13.02L21.14 15L16.98 16.98L15 21.14L13.02 16.98L8.86 15L13.02 13.02L15 8.86Z' }),
+        h('path', { key: 'small', d: 'M6.25 2.86L7.45 5.05L9.64 6.25L7.45 7.45L6.25 9.64L5.05 7.45L2.86 6.25L5.05 5.05L6.25 2.86Z' }),
+      ], { strokeWidth: 2 }),
       wand: () => svgIcon([
         h('path', { key: 'p', d: 'M4 20L14 10M12 3l1.2 2.8L16 7l-2.8 1.2L12 11l-1.2-2.8L8 7l2.8-1.2z' }),
         h('path', { key: 'q', d: 'M19 13l.8 1.7 1.7.8-1.7.8-.8 1.7-.8-1.7-1.7-.8 1.7-.8z' }),
@@ -1633,6 +1692,33 @@ window.__ModuleLoader__.load({
       }, children)
     }
 
+    /**
+     * How a site is named: a standalone `.svg` file is just its path — a line
+     * number inside it means nothing — while a site inside a source file keeps
+     * `<file>:<line>`.
+     */
+    function siteLabel(pointer) {
+      const file = pointer && typeof pointer.file === 'string' ? pointer.file : ''
+      if (pointer && pointer.kind === 'file') return file
+      const line = Number(pointer && pointer.line) || 1
+      return `${file}:${line}`
+    }
+
+    /**
+     * One derivative site: the drawing as the code makes it, and where it lives.
+     *
+     * No colour or weight badge: the thumbnail already is the real rendering, so
+     * a chip would only repeat what the picture says.
+     */
+    function DerivationRow(props) {
+      const { t, item } = props
+      return h('li', { className: 'gs-deriv' },
+        h('span', { className: 'gs-deriv-art' }, item.svg === ''
+          ? h(PointerMark, { kind: item.kind, size: 14 })
+          : svgArt(item.svg, `deriv-${item.index}`)),
+        h('span', { className: 'gs-deriv-file', title: item.file }, siteLabel(item)))
+    }
+
     function Modal(props) {
       return h('div', { className: 'gs-modal', onMouseDown: (event) => { if (event.target === event.currentTarget) props.onClose?.() } },
         h('div', { className: `gs-dialog${props.wide ? ' wide' : ''}` },
@@ -1681,10 +1767,10 @@ window.__ModuleLoader__.load({
       const [view, setView] = useState('list')
       const [opened, setOpened] = useState(null)
       const [opening, setOpening] = useState(false)
-      const [importOpen, setImportOpen] = useState(false)
-      const [importSeed, setImportSeed] = useState('')
-      const [importName, setImportName] = useState('')
+      // One add dialog for every source: paste, file, remote library, AI.
+      const [add, setAdd] = useState(null)
       const [toast, setToast] = useState(null)
+      const [aiOpen, setAiOpen] = useState(false)
       const toastTimer = useRef(null)
 
       const say = useCallback((text, kind = '') => {
@@ -1712,20 +1798,46 @@ window.__ModuleLoader__.load({
           }
           libraryRef.current = result
           setLibrary(result)
+          return result
         } catch (err) {
           if (!silent) setError(err.message || String(err))
+          return null
         } finally {
           if (!silent) setLoading(false)
         }
-      }, [sessionId])
+      }, [sessionId, workspace])
 
+      // A fresh host can answer before the project is mounted, reporting "no
+      // library" for a workspace that does have one. Reopening the tab used to be
+      // the only cure; instead, probe a few times and show loading meanwhile.
+      const probeTimers = useRef([])
+      const [confirming, setConfirming] = useState(false)
       useEffect(() => {
         libraryRef.current = null
         setLibrary(null)
         setView('list')
         setOpened(null)
         setLoading(true)
-        load()
+        let alive = true
+        const timers = probeTimers.current
+        const stop = () => {
+          timers.forEach((timer) => clearTimeout(timer))
+          timers.length = 0
+        }
+        stop()
+        const attempt = async (waits) => {
+          const result = await load()
+          if (!alive) return
+          if (shouldRetryLibrary(result, waits.length)) {
+            setConfirming(true)
+            const [wait, ...rest] = waits
+            timers.push(setTimeout(() => { if (alive) attempt(rest) }, wait))
+            return
+          }
+          setConfirming(false)
+        }
+        attempt([400, 1200, 3000])
+        return () => { alive = false; stop() }
       }, [load])
 
       // The tab stays mounted for the whole session, so another window can edit
@@ -1800,12 +1912,7 @@ window.__ModuleLoader__.load({
        * first save (which a drawn element triggers) creates it, so leaving an
        * untouched blank canvas leaves nothing behind.
        */
-      const createGraphic = () => {
-        // An icon enters the library as artwork the user pastes; there is no
-        // blank canvas to draw on any more.
-        setImportSeed('')
-        setImportOpen(true)
-      }
+      const createGraphic = () => setAdd({ mode: 'paste', text: '' })
 
       const expandMaskElement = (element) => api.post('expand-mask', {
         mask: element.mask,
@@ -1830,11 +1937,9 @@ window.__ModuleLoader__.load({
         }
       }
 
-      const pasteImport = (text) => {
-        // Naming is mandatory, so a paste always goes through the dialog.
-        setImportName('')
-        setImportSeed(text)
-        setImportOpen(true)
+      const pasteImport = (text, suggestedName = '') => {
+        // Naming is mandatory, so every paste goes through the one add dialog.
+        setAdd({ mode: 'paste', text: text || '', name: suggestedName || '' })
       }
 
       const pasteRef = useRef(pasteImport)
@@ -1855,14 +1960,6 @@ window.__ModuleLoader__.load({
         window.addEventListener('paste', onPaste)
         return () => window.removeEventListener('paste', onPaste)
       }, [view])
-
-      const importGraphic = async (input) => {
-        await api.post('save', { ...target, ...input })
-        setImportOpen(false)
-        setImportSeed('')
-        setImportName('')
-        await load()
-      }
 
       const inspectSvg = (svg) => api.post('inspect', { ...target, svg, preserveViewBox: true })
 
@@ -1891,7 +1988,9 @@ window.__ModuleLoader__.load({
       }
 
       /** Push: record this icon as the mark and write it into the plugin source. */
-      const body = library && library.libraryExists === false
+      const body = confirming && (!library || library.libraryExists === false)
+        ? h(Loading, { t })
+        : library && library.libraryExists === false
         ? h(InitView, { t, busy: initializing, onInit: initialize })
         : view === 'scan'
         ? h(ScanView, {
@@ -1902,15 +2001,15 @@ window.__ModuleLoader__.load({
           onBack: () => setView('list'),
           onImported: () => load({ silent: true }),
         })
-        : view === 'iconify'
-        ? h(IconifyView, {
+        : view === 'supply'
+        ? h(SupplyView, {
           t,
           sessionId,
           workspace,
           library,
           say,
           onBack: () => { setView('list'); load() },
-          onImported: () => load({ silent: true }),
+          onAdd: (payload) => setAdd(payload),
         })
         : view === 'editor' && opened
         ? h(Detail, {
@@ -1946,8 +2045,11 @@ window.__ModuleLoader__.load({
           opening,
           onCreate: createGraphic,
           onDelete: deleteGraphic,
+          onAiCreate: () => setAiOpen(true),
+          // The ⋯ menu no longer lists it, but the bar at the bottom of the
+          // list is still the way into the workspace scan.
           onScan: () => setView('scan'),
-          onIconify: () => setView('iconify'),
+          onSupply: () => setView('supply'),
           onRefresh: load,
           say,
         })
@@ -1955,16 +2057,33 @@ window.__ModuleLoader__.load({
       return h('div', { className: 'gs-root' },
         h('style', null, CSS),
         body,
-        importOpen ? h(ImportDialog, {
+        aiOpen ? h(AiPromptDialog, {
+          t,
+          sessionId,
+          workspace,
+          onClose: () => setAiOpen(false),
+          onDraft: (draft) => {
+            setAiOpen(false)
+            setAdd({ mode: 'ai', draft })
+          },
+        }) : null,
+        add ? h(AddIconDialog, {
+          key: `${add.mode}:${add.ref || ''}`,
           t,
           sessionId,
           workspace,
           library,
-          initialSvg: importSeed,
-          initialName: importName,
+          mode: add.mode,
+          draft: add.draft || null,
+          text: add.text || '',
+          name: add.name || '',
+          iconRef: add.ref || '',
           onOpen: openGraphicByName,
-          onClose: () => { setImportOpen(false); setImportSeed(''); setImportName('') },
-          onSubmit: importGraphic,
+          onClose: () => setAdd(null),
+          onImported: async (savedName) => {
+            if (savedName) say(t('importedToast', { name: savedName }))
+            await load()
+          },
         }) : null,
         toast ? h('div', { className: `gs-toast${toast.kind === 'err' ? ' err' : ''}` },
           h('span', null, toast.text),
@@ -1990,7 +2109,7 @@ window.__ModuleLoader__.load({
           ? h('div', { className: 'gs-warn' },
             h('b', null, t('deleteRefs', { n: props.references.length })),
             h('ul', { className: 'gs-confirm-list' }, props.references.slice(0, 8).map((pointer, index) => h('li', { key: `${pointer.file}:${pointer.line}:${index}` },
-              h('span', null, `${pointer.file}:${pointer.line || 1}`)))),
+              h('span', null, siteLabel(pointer))))),
             props.references.length > 8
               ? h('p', { className: 'gs-hint', style: { margin: '4px 0 0' } }, t('deleteRefsMore', { n: props.references.length - 8 }))
               : null)
@@ -2327,13 +2446,13 @@ window.__ModuleLoader__.load({
                   h('button', {
                     type: 'button',
                     role: 'menuitem',
-                    onClick: () => { setMoreOpen(false); if (props.onScan) props.onScan() },
-                  }, h(I.search), t('listScan')),
+                    onClick: () => { setMoreOpen(false); if (props.onAiCreate) props.onAiCreate() },
+                  }, h(I.aiMagic), t('listAi')),
                   h('button', {
                     type: 'button',
                     role: 'menuitem',
-                    onClick: () => { setMoreOpen(false); if (props.onIconify) props.onIconify() },
-                  }, h(I.import), t('listIconify')))
+                    onClick: () => { setMoreOpen(false); if (props.onSupply) props.onSupply() },
+                  }, h(I.import), t('listLibrary')))
                 : null,
               h(Btn, { className: 'pill', onClick: pickSvgFile, title: t('listNew') },
                 h(I.plus), h('span', { className: 'gs-newlabel' }, t('listNew'))))) : null,
@@ -2537,7 +2656,7 @@ window.__ModuleLoader__.load({
                         const before = pathsOf(site.code)
                         const after = pathsOf(site.source)
                         return h('div', { key: `${site.file}:${site.line}`, className: 'gs-diff-site' },
-                          h('div', { className: 'gs-diff-where' }, `${site.file}:${site.line}`),
+                          h('div', { className: 'gs-diff-where' }, siteLabel(site)),
                           site.stale
                             ? h(react.Fragment, null,
                               h('div', { className: 'gs-diff-line minus' }, `− ${t('syncCode')} ${clip(before.join(' ')) || '—'}`),
@@ -2595,7 +2714,7 @@ window.__ModuleLoader__.load({
                     : h('div', { className: 'gs-pushbox', dangerouslySetInnerHTML: { __html: scopeIds(after, `${pushTarget}-new`) } }))),
               h('p', { className: 'gs-hint' }, t('pushCount', { n: stale.length })),
               stale.length > 0
-                ? h('ul', { className: 'gs-pushlist' }, stale.map((site) => h('li', { key: `${site.file}:${site.line}` }, `${site.file}:${site.line}`)))
+                ? h('ul', { className: 'gs-pushlist' }, stale.map((site) => h('li', { key: `${site.file}:${site.line}` }, siteLabel(site))))
                 : null)
           })()
           : null,
@@ -2614,23 +2733,99 @@ window.__ModuleLoader__.load({
         props.opening ? h('div', { className: 'gs-toast' }, t('commonLoading')) : null)
     }
 
-    /* ───────────────────────────── import dialog ───────────────────────────── */
-
-    function ImportDialog(props) {
-      const { t } = props
-      const target = props.workspace ? { sessionId: props.sessionId, workspace: props.workspace } : { sessionId: props.sessionId }
-      const [text, setText] = useState(props.initialSvg || '')
-      const [name, setName] = useState(props.initialName || '')
-      const [rule, setRule] = useState('')
-      const [parsed, setParsed] = useState(null)
+    /** AI create, step one: the prompt. The save dialog only opens after a draft exists. */
+    function AiPromptDialog(props) {
+      const { t, sessionId, workspace, onClose, onDraft } = props
+      const target = workspace ? { sessionId, workspace } : { sessionId }
+      const [prompt, setPrompt] = useState('')
+      const [busy, setBusy] = useState(false)
       const [error, setError] = useState('')
+
+      const generate = async () => {
+        const value = prompt.trim()
+        if (value === '' || busy) return
+        setBusy(true)
+        setError('')
+        try {
+          const result = await api.post('ai-create', { ...target, prompt: value })
+          if (result.error) {
+            setError(aiErrorText(t, result))
+            return
+          }
+          onDraft(result)
+        } catch (err) {
+          setError(err && err.message ? err.message : String(err))
+        } finally {
+          setBusy(false)
+        }
+      }
+
+      return h(Modal, {
+        title: t('listAi'),
+        wide: true,
+        onClose,
+        footer: h(react.Fragment, null,
+          h('div', { className: 'gs-spacer' }),
+          h(Btn, { onClick: onClose }, t('commonCancel')),
+          h(Btn, { variant: 'primary', onClick: generate, disabled: busy || prompt.trim() === '' },
+            busy ? t('aiGenerating') : t('aiGenerate'))),
+      },
+        h('p', { className: 'gs-hint' }, t('aiPromptHint')),
+        h('textarea', {
+          className: 'gs-textarea',
+          rows: 3,
+          autoFocus: true,
+          'aria-label': t('aiPromptLabel'),
+          value: prompt,
+          placeholder: t('aiPromptPlaceholder'),
+          onChange: (event) => { setPrompt(event.target.value); setError('') },
+          onKeyDown: (event) => {
+            if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') generate()
+          },
+        }),
+        error ? h('p', { className: 'gs-hint', style: { color: 'var(--dsw-alias-state-error-primary,#e5484d)' } }, error) : null)
+    }
+
+    /**
+     * The one door into the library.
+     *
+     * Four ways in — pasted markup, a local .svg file, an icon from the remote
+     * supply library, a drawing from the model — and they differ only in how the
+     * artwork arrives. The preview, the name, the application rule, the conflict
+     * checks and the save itself are identical for all of them.
+     */
+    function AddIconDialog(props) {
+      const { t, sessionId, workspace, library, mode, onClose, onImported } = props
+      const target = workspace ? { sessionId, workspace } : { sessionId }
+      const [text, setText] = useState(mode === 'paste' ? (props.text || '') : '')
+      const [name, setName] = useState((props.draft && props.draft.name) || props.name || '')
+      const [rule, setRule] = useState((props.draft && props.draft.rule) || '')
+      const [parsed, setParsed] = useState(null)
+      const [peek, setPeek] = useState(null)
+      const [style, setStyle] = useState('outline')
+      const [draft, setDraft] = useState(props.draft || null)
       const [busy, setBusy] = useState(false)
       const [suggesting, setSuggesting] = useState(false)
-      const [codeOpen, setCodeOpen] = useState(true)
-      const [refsOpen, setRefsOpen] = useState(false)
+      const [error, setError] = useState('')
 
-      /** Auto naming + rule: the main path, the user only corrects it. */
-      const autoName = async (svgText) => {
+      const existing = useMemo(
+        () => (library && Array.isArray(library.graphics) ? library.graphics : []),
+        [library],
+      )
+      const taken = useMemo(() => existing.find((entry) => entry.name === name.trim()), [existing, name])
+      const duplicate = parsed && parsed.duplicate ? existing.find((entry) => entry.name === parsed.duplicate) : null
+      const styles = peek && Array.isArray(peek.styles) ? peek.styles : []
+      const artwork = mode === 'supply'
+        ? (peek && peek.previews ? (peek.previews[style] || peek.previews.outline || '') : '')
+        : mode === 'ai'
+          ? (draft ? draft.svg : '')
+          : (parsed ? parsed.svg : '')
+      const ready = name.trim() !== '' && (
+        mode === 'supply' ? Boolean(peek) : mode === 'ai' ? Boolean(draft) : Boolean(parsed)
+      )
+
+      /** Naming from the model: pasted artwork only needs a name and a rule. */
+      const suggestName = async (svgText) => {
         setSuggesting(true)
         try {
           const result = await api.post('suggest', { ...target, svg: svgText })
@@ -2643,104 +2838,155 @@ window.__ModuleLoader__.load({
         setSuggesting(false)
       }
 
-      const existing = useMemo(
-        () => (props.library && Array.isArray(props.library.graphics) ? props.library.graphics : []),
-        [props.library],
-      )
-      const taken = useMemo(
-        () => existing.find((entry) => entry.name === name.trim()),
-        [existing, name],
-      )
-      const duplicate = parsed && parsed.duplicate
-        ? existing.find((entry) => entry.name === parsed.duplicate)
-        : null
-
-      /** A paste opens the dialog already parsed, so the name is the only step. */
+      // Supply: what the icon is, before anything is written.
       useEffect(() => {
-        const seed = props.initialSvg
+        if (mode !== 'supply' || !props.iconRef) return undefined
+        let alive = true
+        api.post('library-peek', { ...target, ref: props.iconRef })
+          .then((result) => {
+            if (!alive) return
+            setPeek(result)
+            setName((current) => (current === '' ? result.name || '' : current))
+            setRule((current) => (current === '' ? result.rule || '' : current))
+          })
+          .catch((err) => { if (alive) setError(err && err.message ? err.message : String(err)) })
+        return () => { alive = false }
+      }, [mode, props.iconRef])
+
+      // Paste / file: a seed is inspected on arrival so the name is the only step.
+      useEffect(() => {
+        if (mode !== 'paste') return undefined
+        const seed = props.text
         if (!seed || seed.trim() === '') return undefined
         let alive = true
         api.post('inspect', { ...target, svg: seed, preserveViewBox: true })
           .then((result) => { if (alive) setParsed(result) })
-          .catch((err) => { if (alive) setError(err.message || String(err)) })
+          .catch((err) => { if (alive) setError(err && err.message ? err.message : String(err)) })
         return () => { alive = false }
-      }, [props.initialSvg])
+      }, [mode, props.text])
 
-      const parse = async () => {
+      const inspectText = async () => {
         if (text.trim() === '') { setError(t('importNeedSvg')); return }
         setBusy(true)
         setError('')
         try {
           const result = await api.post('inspect', { ...target, svg: text, preserveViewBox: true })
           setParsed(result)
-          autoName(result.svg || text)
+          await suggestName(result.svg || text)
         } catch (err) {
           setParsed(null)
-          setError(err.message || String(err))
+          setError(err && err.message ? err.message : String(err))
         } finally {
           setBusy(false)
         }
+      }
+
+      const finish = async (savedName) => {
+        if (onImported) await onImported(savedName)
+        onClose()
       }
 
       const submit = async () => {
         if (name.trim() === '') { setError(t('importNeedName')); return }
         if (taken) { setError(t('importNameTaken', { name: taken.name })); return }
-        if (!parsed) { setError(t('importNeedSvg')); return }
+        if (!ready) return
         setBusy(true)
         setError('')
         try {
-          await props.onSubmit({
+          if (mode === 'supply') {
+            // The supplier is asked again on save, so the stored artwork is the
+            // one whose style the user picked, and it keeps its provenance.
+            const result = await api.post('library-import', {
+              ...target,
+              items: [{ ref: props.iconRef, name: name.trim(), rule: rule.trim(), style }],
+            })
+            const row = (Array.isArray(result.results) ? result.results : [])[0] || {}
+            if (row.status === 'saved' || row.status === 'same') { await finish(row.local || name.trim()); return }
+            if (row.status === 'name-conflict') setError(t('importNameTaken', { name: row.of || name.trim() }))
+            else if (row.status === 'shape-conflict') setError(t('supplyAddShapeExists', { of: row.of || '' }))
+            else setError(row.message || t('supplyAddFailed'))
+            return
+          }
+          const art = mode === 'ai'
+            ? { svg: draft.svg, viewBox: draft.viewBox }
+            : { svg: parsed.svg || text, viewBox: parsed.viewBox }
+          const result = await api.post('save', {
+            ...target,
             name: name.trim(),
-            svg: parsed.svg || text,
-            // The pasted artwork keeps its own canvas: re-cropping it would
-            // change the shapes' scale relative to the icon's frame.
-            preserveViewBox: true,
-            viewBox: parsed.viewBox,
+            svg: art.svg,
+            // Pasted art keeps its own canvas: re-cropping would change its scale.
+            viewBox: art.viewBox,
             rule: rule.trim(),
-            source: 'pasted-svg',
+            source: mode === 'ai' ? 'ai-created' : 'pasted-svg',
           })
+          if (!result.entry) { setError(t('supplyAddShapeExists', { of: result.of || '' })); return }
+          await finish(name.trim())
         } catch (err) {
-          setError(err.message || String(err))
+          setError(err && err.message ? err.message : String(err))
         } finally {
           setBusy(false)
         }
       }
 
+      const sourceBlock = mode === 'paste'
+        ? h('div', { className: 'gs-field' },
+          h('textarea', {
+            className: 'gs-textarea',
+            style: { minHeight: 96, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 11 },
+            placeholder: t('importPaste'),
+            value: text,
+            spellCheck: false,
+            onChange: (event) => { setText(event.target.value); setParsed(null) },
+          }),
+          h('div', { className: 'gs-row' },
+            h(Btn, { onClick: inspectText, disabled: busy || text.trim() === '' }, busy ? t('commonLoading') : t('importParse'))))
+        : mode === 'supply'
+          ? h('div', { className: 'gs-field' },
+            peek ? h('p', { className: 'gs-hint' }, [peek.source, peek.license].filter(Boolean).join(' · ')) : null,
+            styles.includes('solid')
+              ? h('div', { className: 'gs-stylepick' }, ['outline', 'solid'].map((option) => h('button', {
+                key: option,
+                type: 'button',
+                className: `gs-stylepick-item${style === option ? ' on' : ''}`,
+                onClick: () => setStyle(option),
+              }, option === 'outline' ? t('supplyAddStyleOutline') : t('supplyAddStyleSolid'))))
+              : null,
+            peek && peek.supplier === 'iconmcp' && !styles.includes('solid')
+              ? h('p', { className: 'gs-hint' }, t('supplyAddStyleOnly'))
+              : null)
+          : h('div', null,
+            h('p', { className: 'gs-hint' }, t('aiDraftReady')),
+            Array.isArray(draft && draft.references) && draft.references.length > 0
+              ? h('p', { className: 'gs-hint' }, t('aiRefs', {
+                n: draft.references.length,
+                sources: [...new Set(draft.references.map((item) => (item.source === 'iconmcp' ? 'IconMCP' : 'Iconify')))].join(' / '),
+              }))
+              : null,
+            draft && draft.crossings > 0
+              ? h('p', { className: 'gs-warn' }, t('aiWarnCrossing', { n: draft.crossings }))
+              : null)
+
       return h(Modal, {
-        title: t('importTitle'),
+        title: t('supplyAddTitle'),
         wide: true,
-        onClose: props.onClose,
+        onClose,
         footer: h(react.Fragment, null,
           h('div', { className: 'gs-spacer' }),
-          h(Btn, { onClick: parse, disabled: busy }, busy ? t('commonLoading') : t('importParse')),
-          h(Btn, { variant: 'primary', onClick: submit, disabled: busy || !parsed || Boolean(duplicate) }, t('importSave'))),
+          h(Btn, { onClick: onClose }, t('commonCancel')),
+          h(Btn, { variant: 'primary', onClick: submit, disabled: busy || !ready }, t('supplyAddConfirm'))),
       },
-        h('textarea', {
-          className: 'gs-textarea',
-          style: { minHeight: 110, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 11 },
-          placeholder: t('importPaste'),
-          value: text,
-          spellCheck: false,
-          onChange: (event) => { setText(event.target.value); setParsed(null) },
-        }),
-        parsed
-          ? h(react.Fragment, null,
-            h('div', { className: 'gs-previewbox' }, svgArt(parsed.svg, 'import')),
-            h('p', { className: 'gs-hint' },
-              `${parsed.viewBox} · ${t('importElements', { n: parsed.elements.length })}${parsed.palette.length > 0 ? ` · ${parsed.palette.join(' ')}` : ''}`),
-            duplicate
-              ? h('div', { className: 'gs-warn' },
-                h('b', null, t('importDup', { name: duplicate.name })),
-                duplicate.rule ? h('p', { style: { margin: '4px 0 0' } }, duplicate.rule) : null,
-                h('div', { style: { marginTop: 8 } },
-                  h(Btn, {
-                    onClick: () => { props.onClose(); if (props.onOpen) props.onOpen(duplicate.name) },
-                  }, t('importUseExisting', { name: duplicate.name }))))
-              : null,
-            parsed.warnings.length > 0
-              ? h('div', { className: 'gs-warn' }, h('b', null, `${t('importWarn')}: `), parsed.warnings.join('；'))
-              : null)
+        sourceBlock,
+        artwork ? h('div', { className: 'gs-ai-preview' }, svgArt(artwork, 'add')) : null,
+        duplicate
+          ? h('div', { className: 'gs-warn' },
+            h('b', null, t('importDup', { name: duplicate.name })),
+            duplicate.rule ? h('p', { style: { margin: '4px 0 0' } }, duplicate.rule) : null,
+            h('div', { style: { marginTop: 8 } },
+              h(Btn, {
+                onClick: () => { onClose(); if (props.onOpen) props.onOpen(duplicate.name) },
+              }, t('importUseExisting', { name: duplicate.name }))))
           : null,
+        taken && name.trim() !== '' ? h('p', { className: 'gs-warn' }, t('importNameTaken', { name: taken.name })) : null,
         h('div', { className: 'gs-row' },
           h('label', null, t('importName')),
           h('input', {
@@ -2750,13 +2996,27 @@ window.__ModuleLoader__.load({
             placeholder: suggesting ? t('importNaming') : t('importNameHint'),
             onChange: (event) => { setName(event.target.value); setError('') },
           })),
-        taken && name.trim() !== '' ? h('p', { className: 'gs-warn' }, t('importNameTaken', { name: taken.name })) : null,
         h('div', null,
           h('label', { className: 'gs-hint' }, t('importNote')),
-          h('textarea', { className: 'gs-textarea', value: rule, placeholder: t('importNoteHint'), onChange: (event) => setRule(event.target.value) })),
-        error ? h('p', { className: 'gs-hint', style: { color: 'var(--dsw-alias-state-error-primary, #e5484d)' } }, error) : null)
+          h('textarea', {
+            className: 'gs-textarea',
+            value: rule,
+            placeholder: t('importNoteHint'),
+            onChange: (event) => setRule(event.target.value),
+          })),
+        error ? h('p', { className: 'gs-hint', style: { color: 'var(--dsw-alias-state-error-primary,#e5484d)' } }, error) : null)
     }
 
+    /**
+     * Do not believe a "no library" answer the moment a host boots: the session
+     * or the project mount may land a moment later. A few quiet retries beat
+     * showing the setup screen for a library that exists.
+     */
+    function shouldRetryLibrary(result, waitsLeft) {
+      if (waitsLeft <= 0) return false
+      if (!result) return false
+      return result.libraryExists === false
+    }
 
     /** One loading treatment everywhere: spinner + centred text. */
     function Loading(props) {
@@ -2828,10 +3088,19 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * Second-level page: browse Iconify sets, open one, and add icons one by one
+     * Second-level page: browse the supply library (Iconify + IconMCP), open one
+     * set, and add icons one by one
      * with the "+" on each card.
      */
-    function IconifyView(props) {
+    /** One line for a failed generation, in words a user can act on. */
+    function aiErrorText(t, result) {
+      if (result.error === 'rejected') return t('aiRejected', { issues: (result.issues || []).join(', ') })
+      if (result.error === 'no-llm' || result.error === 'no-model') return t('aiNoModel')
+      if (result.error === 'max-tokens') return t('aiTooLong')
+      return t('aiFailed')
+    }
+
+    function SupplyView(props) {
       const { t, sessionId, say } = props
       const target = props.workspace ? { sessionId, workspace: props.workspace } : { sessionId }
       const PAGE = 48
@@ -2847,9 +3116,9 @@ window.__ModuleLoader__.load({
       const [names, setNames] = useState([])
       const [previews, setPreviews] = useState({})
       const [matches, setMatches] = useState({})
+      const [setSamples, setSetSamples] = useState({})
+      const askedSamples = useRef(new Set())
       const [busy, setBusy] = useState(false)
-      const [adding, setAdding] = useState('')
-      const [conflict, setConflict] = useState(null)
       const [error, setError] = useState('')
       const [searchOpen, setSearchOpen] = useState(false)
       const searchTimer = useRef(null)
@@ -2859,8 +3128,12 @@ window.__ModuleLoader__.load({
         const names = new Set()
         const graphics = props.library && Array.isArray(props.library.graphics) ? props.library.graphics : []
         for (const entry of graphics) {
-          if (typeof entry.source !== 'string' || !entry.source.startsWith('iconify:')) continue
+          if (typeof entry.source !== 'string') continue
+          if (!entry.source.startsWith('iconify:') && !entry.source.startsWith('iconmcp:')) continue
           names.add(entry.name)
+          // The local name is the user's choice, so the upstream ref is what
+          // tells the browser "this icon is already in the library".
+          if (typeof entry.origin === 'string' && entry.origin !== '') names.add(entry.origin)
         }
         return names
       }, [props.library])
@@ -2877,7 +3150,7 @@ window.__ModuleLoader__.load({
       }
 
       useEffect(() => {
-        api.get('iconify-collections')
+        api.get('library-collections')
           .then((result) => setSets(Array.isArray(result.collections) ? result.collections : []))
           .catch((err) => setError(err && err.message ? err.message : String(err)))
           .finally(() => setLoadingSets(false))
@@ -2887,12 +3160,42 @@ window.__ModuleLoader__.load({
         if (mode !== 'sets') return undefined
         const page = sets.slice(setsPage * SETS_PAGE, (setsPage + 1) * SETS_PAGE)
         const list = page.flatMap((set) => (Array.isArray(set.samples) ? set.samples : []).map((sample) => `${set.prefix}:${sample}`))
-        if (list.length === 0) return undefined
+        // Iconify ships samples with its collection list; IconMCP has none, so ask
+        // once per set for three drawings — one request per card, not per icon.
+        const wanted = page.filter((set) => set.source === 'iconmcp' && !askedSamples.current.has(set.prefix))
         let alive = true
         ;(async () => {
-          try {
-            if (alive) await loadPreviews(list)
-          } catch (_error) { /* sample previews are optional */ }
+          if (list.length > 0) {
+            try {
+              if (alive) await loadPreviews(list)
+            } catch (_error) { /* sample previews are optional */ }
+          }
+          if (wanted.length === 0) return
+          for (const set of wanted) askedSamples.current.add(set.prefix)
+          // Batches of eight: the first cards get their art in about a second
+          // instead of the whole page waiting for the last set.
+          for (let index = 0; index < wanted.length; index += 8) {
+            const slice = wanted.slice(index, index + 8)
+            try {
+              const result = await api.post('library-samples', { ...target, prefixes: slice.map((set) => set.prefix) })
+              if (!alive) return
+              const samples = result.samples || {}
+              const names = {}
+              const svgs = {}
+              for (const [prefix, icons] of Object.entries(samples)) {
+                if (!Array.isArray(icons) || icons.length === 0) continue
+                names[prefix] = icons.map((icon) => icon.name)
+                for (const icon of icons) {
+                  SUPPLY_PREVIEWS.set(`${prefix}:${icon.name}`, icon.svg)
+                  svgs[`${prefix}:${icon.name}`] = icon.svg
+                }
+              }
+              // The cards read component state, so the drawings must land there
+              // too — the module cache alone leaves every card blank.
+              if (Object.keys(svgs).length > 0) setPreviews((current) => ({ ...current, ...svgs }))
+              if (Object.keys(names).length > 0) setSetSamples((current) => ({ ...current, ...names }))
+            } catch (_error) { /* the cards just stay plainer */ }
+          }
         })()
         return () => { alive = false }
       }, [mode, setsPage, sets])
@@ -2903,17 +3206,17 @@ window.__ModuleLoader__.load({
         // parallel batches: cards fill in as each batch lands.
         const cached = {}
         for (const name of list) {
-          const hit = ICONIFY_PREVIEWS.get(name)
+          const hit = SUPPLY_PREVIEWS.get(name)
           if (hit) cached[name] = hit
         }
         if (Object.keys(cached).length > 0) setPreviews((current) => ({ ...current, ...cached }))
-        const missing = list.filter((name) => !ICONIFY_PREVIEWS.has(name))
+        const missing = list.filter((name) => !SUPPLY_PREVIEWS.has(name))
         const chunks = []
-        for (let index = 0; index < missing.length; index += 48) chunks.push(missing.slice(index, index + 48))
+        for (let index = 0; index < missing.length; index += 24) chunks.push(missing.slice(index, index + 24))
         await Promise.all(chunks.map(async (chunk) => {
-          const fetched = await api.post('iconify-fetch', { ...target, names: chunk })
+          const fetched = await api.post('library-fetch', { ...target, names: chunk })
           const icons = fetched.icons || {}
-          for (const [name, svg] of Object.entries(icons)) ICONIFY_PREVIEWS.set(name, svg)
+          for (const [name, svg] of Object.entries(icons)) SUPPLY_PREVIEWS.set(name, svg)
           if (Object.keys(icons).length > 0) setPreviews((current) => ({ ...current, ...icons }))
           if (fetched.matches && Object.keys(fetched.matches).length > 0) {
             setMatches((current) => ({ ...current, ...fetched.matches }))
@@ -2933,11 +3236,19 @@ window.__ModuleLoader__.load({
         setBusy(true)
         setError('')
         try {
-          const result = await api.get('iconify-set', { prefix, offset: nextOffset, limit: PAGE })
+          const source = (sets.find((set) => set.prefix === prefix) || {}).source
+          // IconMCP can draw a whole page in one call; Iconify pages arrive as
+          // names and get drawn from its batched .json endpoint.
+          const result = await api.get('library-set', { prefix, offset: nextOffset, limit: PAGE, ...(source === 'iconmcp' ? { format: 'svg' } : {}) })
           setTotal(Number(result.total) || 0)
           const list = (Array.isArray(result.names) ? result.names : []).map((name) => `${prefix}:${name}`)
           setNames(list)
-          await loadPreviews(list)
+          const inline = result.icons && typeof result.icons === 'object' ? result.icons : null
+          if (inline) {
+            for (const [name, svg] of Object.entries(inline)) SUPPLY_PREVIEWS.set(name, svg)
+            setPreviews((current) => ({ ...current, ...inline }))
+          }
+          await loadPreviews(list.filter((name) => !inline || inline[name] === undefined))
         } catch (err) {
           setError(err && err.message ? err.message : String(err))
         } finally {
@@ -2952,7 +3263,7 @@ window.__ModuleLoader__.load({
         setBusy(true)
         setError('')
         try {
-          const result = await api.get('iconify-search', { query: value, prefix: '', limit: PAGE })
+          const result = await api.get('library-search', { query: value, prefix: '', limit: PAGE })
           const list = Array.isArray(result.icons) ? result.icons : []
           setMode('search')
           setActive(null)
@@ -3001,59 +3312,33 @@ window.__ModuleLoader__.load({
         setPreviews({})
       }
 
-      const addOne = async (full, action = '') => {
-        setAdding(full)
-        try {
-          const result = await api.post('iconify-import', { ...target, names: [full], action })
-          const row = (Array.isArray(result.results) ? result.results : [])[0] || {}
-          if (row.status === 'saved') {
-            setMatches((current) => ({ ...current, [full]: row.local || full }))
-            say(t('iconifyAddedOne', { name: row.local || full }))
-            if (props.onImported) await props.onImported()
-          } else if (row.status === 'same') {
-            setMatches((current) => ({ ...current, [full]: row.local || full }))
-            say(t('iconifySame', { name: row.local || full }))
-          } else if (row.status === 'name-conflict') {
-            setConflict({ kind: 'name', name: full })
-          } else if (row.status === 'shape-conflict') {
-            setConflict({ kind: 'shape', name: full, of: row.of || '' })
-          } else {
-            say(t('iconifyAddFailed'), 'err')
-          }
-        } catch (err) {
-          say(t('commonError', { msg: err && err.message ? err.message : String(err) }), 'err')
-        } finally {
-          setAdding('')
-        }
-      }
+      /** Opening the panel is the only way in: name, rule and style are confirmed first. */
+      const addOne = (full) => { if (props.onAdd) props.onAdd({ mode: 'supply', ref: full }) }
 
-      const resolveConflict = async (action) => {
-        const current = conflict
-        setConflict(null)
-        if (current) await addOne(current.name, action)
-      }
-
+      const samplesOf = (set) => (Array.isArray(set.samples) && set.samples.length > 0
+        ? set.samples
+        : (setSamples[set.prefix] || [])).slice(0, 3)
       const setsPageCount = Math.max(1, Math.ceil(sets.length / SETS_PAGE))
       const pageSets = sets.slice(setsPage * SETS_PAGE, (setsPage + 1) * SETS_PAGE)
       const iconPageCount = Math.max(1, Math.ceil(total / PAGE))
       const pager = (page, count, onPage) => h(react.Fragment, null,
-        h(Btn, { onClick: () => onPage(Math.max(0, page - 1)), disabled: page <= 0 || busy }, t('iconifyPrev')),
+        h(Btn, { onClick: () => onPage(Math.max(0, page - 1)), disabled: page <= 0 || busy }, t('supplyPrev')),
         h('span', { className: 'gs-hint' }, `${page + 1} / ${count}`),
-        h(Btn, { onClick: () => onPage(Math.min(count - 1, page + 1)), disabled: page >= count - 1 || busy }, t('iconifyNext')))
+        h(Btn, { onClick: () => onPage(Math.min(count - 1, page + 1)), disabled: page >= count - 1 || busy }, t('supplyNext')))
 
       return h(react.Fragment, null,
-        h('div', { className: 'gs-iconify' },
-        h('header', { className: 'gs-iconify-head' },
+        h('div', { className: 'gs-supply' },
+        h('header', { className: 'gs-supply-head' },
           mode === 'search'
             ? null
             : h('button', {
               type: 'button',
               className: 'gs-iconbtn',
               onClick: mode === 'sets' ? props.onBack : backToSets,
-              title: mode === 'sets' ? t('editorBack') : t('iconifyBack'),
+              title: mode === 'sets' ? t('editorBack') : t('supplyBack'),
             }, h(I.arrowLeft)),
-          h('strong', { className: 'gs-iconify-title' },
-            mode === 'sets' ? t('iconifySets') : mode === 'search' ? t('iconifySearchResults') : active),
+          h('strong', { className: 'gs-supply-title' },
+            mode === 'sets' ? t('supplySets') : mode === 'search' ? t('supplySearchResults') : active),
           h('div', { className: 'gs-spacer' }),
           searchOpen
             ? h(react.Fragment, null,
@@ -3063,7 +3348,7 @@ window.__ModuleLoader__.load({
                 value: query,
                 spellCheck: false,
                 autoFocus: true,
-                placeholder: t('iconifySearchHint'),
+                placeholder: t('supplySearchHint'),
                 onChange: (event) => changeQuery(event.target.value),
                 onKeyDown: (event) => {
                   if (event.key === 'Escape') { closeSearch() }
@@ -3093,35 +3378,38 @@ window.__ModuleLoader__.load({
               : h('button', {
                 type: 'button',
                 className: 'gs-iconbtn',
-                title: t('iconifySearch'),
-                'aria-label': t('iconifySearch'),
+                title: t('supplySearch'),
+                'aria-label': t('supplySearch'),
                 onClick: () => setSearchOpen(true),
               }, h(I.search))),
-        h('div', { className: 'gs-iconify-body' },
+        h('div', { className: 'gs-supply-body' },
           error ? h('p', { className: 'gs-hint' }, error) : null,
           busy && names.length === 0 && mode !== 'sets' ? h(Loading, { t }) : null,
           mode === 'sets'
             ? (pageSets.length > 0
-              ? h('div', { className: 'gs-iconify-sets' }, pageSets.map((set) => h('button', {
+              ? h('div', { className: 'gs-supply-sets' }, pageSets.map((set) => h('button', {
                 key: set.prefix,
                 type: 'button',
-                className: 'gs-iconify-set',
+                className: 'gs-supply-set',
+                title: set.description || set.name,
                 onClick: () => loadSet(set.prefix, 0),
               },
                 h('span', { className: 'gs-set-head' },
                   h('strong', null, set.name),
-                  h('span', { className: 'gs-set-samples' }, (Array.isArray(set.samples) ? set.samples : []).slice(0, 3).map((sample) => h('span', {
+                  h('span', { className: 'gs-set-samples' }, samplesOf(set).map((sample) => h('span', {
                     key: sample,
                     className: 'gs-set-sample',
                     children: svgArt(previews[`${set.prefix}:${sample}`] || '', sample),
                   })))),
+                // The supplier belongs on the facts line: IconMCP · MIT · 141 icons.
                 h('span', { className: 'gs-hint' },
-                  [set.license, t('iconifyCount', { n: set.total })].filter(Boolean).join(' · ')))))
+                  [set.source === 'iconmcp' ? 'IconMCP' : set.source === 'iconify' ? 'Iconify' : '', set.license, t('supplyCount', { n: set.total })]
+                    .filter(Boolean).join(' · ')))))
               : loadingSets
                 ? h(Loading, { t })
-                : h('p', { className: 'gs-hint' }, t('iconifyNoSets')))
+                : h('p', { className: 'gs-hint' }, t('supplyNoSets')))
             : names.length === 0
-              ? (busy ? null : h('p', { className: 'gs-hint' }, t('iconifyNoMatch')))
+              ? (busy ? null : h('p', { className: 'gs-hint' }, t('supplyNoMatch')))
               : h('div', { className: 'gs-grid', style: { padding: 0 } }, names.map((name) => h('div', {
               key: name,
               className: `gs-card${isImported(name) ? ' on' : ''}`,
@@ -3130,36 +3418,19 @@ window.__ModuleLoader__.load({
               h('div', { className: 'gs-thumb' }, svgArt(previews[name] || '', name)),
               h('span', { className: 'gs-card-name' }, String(name).split(':')[1] || name),
               isImported(name)
-                ? h('span', { className: 'gs-iconify-done', title: t('iconifyAdded') }, h(CheckMark, { size: 12 }))
+                ? h('span', { className: 'gs-supply-done', title: t('supplyAdded') }, h(CheckMark, { size: 12 }))
                 : h('button', {
                   type: 'button',
-                  className: 'gs-iconify-add',
-                  title: t('iconifyAddOne'),
-                  disabled: adding === name,
+                  className: 'gs-supply-add',
+                  title: t('supplyAddOne'),
                   onClick: () => addOne(name),
-                }, adding === name ? '…' : '+')))),
-        h('footer', { className: 'gs-iconify-foot' },
+                }, '+')))),
+        h('footer', { className: 'gs-supply-foot' },
           mode === 'sets'
             ? pager(setsPage, setsPageCount, setSetsPage)
             : pager(Math.floor(offset / PAGE), iconPageCount, (next) => {
               if (mode === 'set') loadSet(active, next * PAGE)
-            }))),
-        conflict
-          ? h(Modal, {
-            title: t('iconifyConflictTitle'),
-            onClose: () => setConflict(null),
-            footer: h(react.Fragment, null,
-              h('div', { className: 'gs-spacer' }),
-              h(Btn, { onClick: () => setConflict(null) }, t('saveConfirmCancel')),
-              h(Btn, {
-                variant: 'primary',
-                onClick: () => resolveConflict(conflict.kind === 'name' ? 'replace' : 'rename'),
-              }, conflict.kind === 'name' ? t('iconifyReplace') : t('iconifyRename'))),
-          },
-            h('p', { className: 'gs-hint' }, conflict.kind === 'name'
-              ? t('iconifyNameConflict', { name: conflict.name })
-              : t('iconifyShapeConflict', { of: conflict.of, name: conflict.name })))
-          : null))
+            })))))
     }
 
     /**
@@ -3172,6 +3443,7 @@ window.__ModuleLoader__.load({
       const { t, sessionId, say } = props
       const target = props.workspace ? { sessionId, workspace: props.workspace } : { sessionId }
       const [groups, setGroups] = useState(null)
+      const [excluded, setExcluded] = useState(0)
       const [error, setError] = useState('')
       const [busy, setBusy] = useState(false)
       const [naming, setNaming] = useState(null)
@@ -3183,6 +3455,7 @@ window.__ModuleLoader__.load({
         try {
           const result = await api.post('scan', target)
           setGroups(Array.isArray(result.groups) ? result.groups : [])
+          setExcluded(Number(result.excluded) || 0)
         } catch (err) {
           setGroups([])
           setError(err && err.message ? err.message : String(err))
@@ -3233,8 +3506,8 @@ window.__ModuleLoader__.load({
         const refs = group.sites.slice(0, 8).map((site, index) => h('span', {
           key: `${site.file}:${site.line}:${index}`,
           className: 'gs-scan-ref',
-          title: `${site.file}:${site.line || 1}`,
-        }, `${site.file}:${site.line || 1}`))
+          title: siteLabel(site),
+        }, siteLabel(site)))
         if (group.sites.length > 8) refs.push(h('span', { key: 'more', className: 'gs-scan-ref more' }, `+${group.sites.length - 8}`))
         const action = group.existing
           ? h('span', { className: 'gs-scan-done', title: t('scanExisting', { name: group.existing }) }, h(CheckMark, { size: 12 }))
@@ -3281,7 +3554,9 @@ window.__ModuleLoader__.load({
             h('strong', { className: 'gs-detail-title' }, rows ? t('scanDesc', { n: rows.length }) : t('scanTitle')),
             h('div', { className: 'gs-spacer' }),
             h(Btn, { onClick: scan, disabled: busy }, busy ? t('commonLoading') : t('scanAgain'))),
-          h('div', { className: 'gs-scan-body' }, body)),
+          h('div', { className: 'gs-scan-body' },
+            excluded > 0 ? h('p', { className: 'gs-hint' }, t('scanExcluded', { n: excluded })) : null,
+            body)),
         modal)
     }
 
@@ -3305,6 +3580,9 @@ window.__ModuleLoader__.load({
       const [suggesting, setSuggesting] = useState(false)
       const [codeOpen, setCodeOpen] = useState(true)
       const [refsOpen, setRefsOpen] = useState(false)
+      const [derivations, setDerivations] = useState(null)
+      const [derivStale, setDerivStale] = useState(0)
+      const [derivError, setDerivError] = useState('')
       const focusCounter = useRef(0)
       const [fieldEditing, setFieldEditing] = useState(false)
       const enterField = () => { focusCounter.current += 1; setFieldEditing(true) }
@@ -3312,6 +3590,27 @@ window.__ModuleLoader__.load({
         focusCounter.current = Math.max(0, focusCounter.current - 1)
         setFieldEditing(focusCounter.current > 0)
       }
+      // The panel shows what the code actually draws at each derivative site, so
+      // the drawings are read on open rather than trusted from a stale list.
+      useEffect(() => {
+        if (!refsOpen) return undefined
+        let alive = true
+        setDerivations(null)
+        setDerivError('')
+        api.post('derivations', { ...target, name: entry.name })
+          .then((result) => {
+            if (!alive) return
+            setDerivations(Array.isArray(result.derivations) ? result.derivations : [])
+            setDerivStale(Number(result.stale) || 0)
+          })
+          .catch((err) => {
+            if (!alive) return
+            setDerivations([])
+            setDerivError(err && err.message ? err.message : String(err))
+          })
+        return () => { alive = false }
+      }, [refsOpen, entry.name])
+
       const focusValueRef = useRef(replacement)
       const codeRef = useRef(null)
       const fitCode = () => {
@@ -3596,7 +3895,7 @@ window.__ModuleLoader__.load({
                 className: `gs-meta-link${pointers.length === 0 ? ' off' : ''}`,
                 disabled: pointers.length === 0,
                 onClick: () => { if (pointers.length > 0) setRefsOpen(true) },
-              }, t('detailPointers', { n: pointers.length }))))),
+              }, t(pointers.length === 1 ? 'detailPointersOne' : 'detailPointers', { n: pointers.length }))))),
         ),
         confirmOpen
           ? h(Modal, {
@@ -3615,27 +3914,33 @@ window.__ModuleLoader__.load({
                 const key = keyOf(pointer)
                 const checked = !skipped.has(key)
                 return h('li', { key },
-                  h('label', { className: `gs-pointer${checked ? '' : ' off'}`, title: `${pointer.kind} · ${pointer.file}:${pointer.line || 1}` },
+                  h('label', { className: `gs-pointer${checked ? '' : ' off'}`, title: `${pointer.kind} · ${siteLabel(pointer)}` },
                     h('input', { type: 'checkbox', checked, onChange: () => toggleSkip(key) }),
                     h(PointerMark, { kind: pointer.kind, size: 12 }),
-                    h('span', null, `${pointer.file}:${pointer.line || 1}`)))
+                    h('span', null, siteLabel(pointer))))
               }))
               : null,
             skipped.size > 0 ? h('p', { className: 'gs-hint' }, t('saveConfirmSkipped', { n: skipped.size })) : null)
           : null,
         refsOpen
           ? h(Modal, {
-            title: t('detailPointers', { n: pointers.length }),
+            title: t(pointers.length === 1 ? 'detailPointersOne' : 'detailPointers', { n: pointers.length }),
             onClose: () => setRefsOpen(false),
             footer: h(react.Fragment, null,
               h('div', { className: 'gs-spacer' }),
               h(Btn, { onClick: () => setRefsOpen(false) }, t('commonClose'))),
           },
-            pointers.length > 0
-              ? h('ul', { className: 'gs-confirm-list' }, pointers.map((pointer) => h('li', { key: keyOf(pointer) },
-                h(PointerMark, { kind: pointer.kind, size: 12 }),
-                h('span', null, `${pointer.file}:${pointer.line || 1}`))))
-              : h('p', { className: 'gs-hint' }, t('detailNoRefs')))
+            derivError ? h('p', { className: 'gs-hint' }, derivError) : null,
+            derivStale > 0 ? h('p', { className: 'gs-hint' }, t('derivStale', { n: derivStale })) : null,
+            derivations === null && derivError === ''
+              ? h(Loading, { t })
+              : derivations !== null && derivations.length === 0
+                ? h('p', { className: 'gs-hint' }, t('detailNoRefs'))
+                : h('ul', { className: 'gs-derivs' }, (derivations || []).map((item) => h(DerivationRow, {
+                  key: `${item.kind}:${item.file}:${item.index}`,
+                  t,
+                  item,
+                }))))
           : null))
     }
 
@@ -3735,7 +4040,7 @@ window.__ModuleLoader__.load({
     }
 
     /** Session cache of remote previews: re-opening the browser is instant. */
-    const ICONIFY_PREVIEWS = new Map()
+    const SUPPLY_PREVIEWS = new Map()
 
     /** Checkmark, copied from the library's `<check>` (markup pointer). */
     const CHECK_MARK = {
@@ -3930,7 +4235,7 @@ window.__ModuleLoader__.load({
 
     exports.apply = apply
     exports.inject = INJECT
-    exports._test = { parsePath, segmentsToD, isClosedPath, kindOf, pathBBox, transformD, penD, ellipseD, rectD, matrixInvert, ICON_CANVAS, Panel, Detail, ListView, IconifyView, InitView, ScanView, ImportDialog, GuideIcon, PanelTitle, TabMark, GuideMark, makeT }
+    exports._test = { parsePath, segmentsToD, isClosedPath, kindOf, pathBBox, transformD, penD, ellipseD, rectD, matrixInvert, ICON_CANVAS, Panel, Detail, ListView, SupplyView, AddIconDialog, AiPromptDialog, DerivationRow, siteLabel, shouldRetryLibrary, InitView, ScanView, GuideIcon, PanelTitle, TabMark, GuideMark, makeT }
     return module.exports
   },
 })

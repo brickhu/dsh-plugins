@@ -9,11 +9,13 @@
 
 import assert from 'node:assert/strict'
 import { readFileSync, existsSync } from 'node:fs'
+import path from 'node:path'
 import { normalizeSvg, pathBBox, parsePath, serializeGraphic, transformPath, bakeIconifyTransform } from '../lib/svg.js'
 import { createStore, MANIFEST_FILE, slugify, normalizeName, refName } from '../lib/store.js'
 import { applyAsset, cascadeRename, scanUsage } from '../lib/assets.js'
-import { findShapePointers, pushShapePointers, isUiSource, scanCodeShapes } from '../lib/sync.js'
-import { bodySignature } from '../lib/shape.js'
+import { findShapePointers, pushShapePointers, readDerivations, isUiSource, scanCodeShapes } from '../lib/sync.js'
+import { bodySignature, shapeSignature, mergeInner, isSquareCanvas, generatedIconIssues } from '../lib/shape.js'
+import { parseSupplyRef, seedRule, svgCanvasSize, isImportedSource, createIconmcpClient } from '../lib/supply.js'
 
 let passed = 0
 let failed = 0
@@ -81,6 +83,17 @@ function memIo(initial = {}) {
 		},
 	}
 }
+
+/** A real IconMCP drawing: 16-unit grid, paint on the root, a <g> wrapper. */
+const ICONMCP_SOLID = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="0.833">
+  <g><path d="M2.75 8H13.25" fill="currentColor" stroke="none"/></g>
+</svg>`
+const ICONMCP_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="0.833" stroke-linecap="round" stroke-linejoin="round">
+  <g>
+    <path d="M3.5 4.25 L4.105 11.907 C4.187 12.948 5.055 13.75 6.098 13.75 L9.902 13.75 C10.945 13.75 11.813 12.948 11.895 11.907 L12.5 4.25"/>
+    <line x1="2.25" y1="4.25" x2="13.75" y2="4.25"/>
+  </g>
+</svg>`
 
 const FIGMA_ICON = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
   <g clip-path="url(#clip0_1_2)">
@@ -443,6 +456,31 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 		assert.deepEqual(groups[0].sites.map((site) => site.file), ['src/A.tsx'])
 	})
 
+	await test('only a square canvas is offered by the workspace scan', () => {
+		assert.equal(isSquareCanvas('<svg viewBox="0 0 24 24"><path d="M4 4H20"/></svg>'), true)
+		assert.equal(isSquareCanvas('<svg viewBox="0 0 16 16"><path d="M2 2H14"/></svg>'), true)
+		assert.equal(isSquareCanvas('<svg viewBox="0 0 24 23.995"><path d="M4 4H20"/></svg>'), true, 'rounding is tolerated')
+		assert.equal(isSquareCanvas('<svg viewBox="0 0 32 24"><path d="M4 4H28"/></svg>'), false, 'a wide canvas is not an icon')
+		assert.equal(isSquareCanvas('<svg viewBox="0 0 24 48"><path d="M4 4H20"/></svg>'), false)
+		assert.equal(isSquareCanvas('<svg width="40" height="40"><path d="M4 4H20"/></svg>'), true)
+		assert.equal(isSquareCanvas('<svg width="40" height="20"><path d="M4 4H20"/></svg>'), false)
+		assert.equal(isSquareCanvas('<svg><path d="M4 4H20"/></svg>'), false, 'no declared canvas is not a square canvas')
+	})
+
+	await test('the scan drops non-square art and counts what it dropped', async () => {
+		const io = memIo({
+			'package.json': '{}',
+			'src/marks.tsx': [
+				'export const A = () => <svg viewBox="0 0 24 24" fill="none"><path d="M4 4H20" stroke="currentColor"/></svg>',
+				'export const B = () => <svg viewBox="0 0 32 24" fill="none"><path d="M4 4H28" stroke="currentColor"/></svg>',
+			].join('\n'),
+		})
+		const groups = await scanCodeShapes(io)
+		assert.equal(groups.length, 1, 'the wide canvas is not offered')
+		assert.ok(groups[0].svg.includes('viewBox="0 0 24 24"'))
+		assert.equal(groups.excluded, 1, 'and the panel can say why something disappeared')
+	})
+
 	await test('the workspace scan groups one shape once', async () => {
 		const box = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 4h16v16H4z" fill="currentColor"/></svg>'
 		const dot = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg>'
@@ -482,6 +520,72 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 		assert.equal(pushed.rewritten, 2)
 		assert.ok(io.files.get('src/Icon.tsx').includes('M2 2h20v20H2z'))
 		assert.ok(io.files.get('public/close.svg').includes('M2 2h20v20H2z'))
+	})
+
+	await test('one shape, many derivations: paint is not identity', () => {
+		const magenta = '<svg viewBox="0 0 24 24"><path d="M4 4H20" stroke="#ff00ff"/></svg>'
+		const blue = '<svg viewBox="0 0 24 24"><path d="M4 4H20" stroke="#000ff0" stroke-width="4"/></svg>'
+		assert.notEqual(bodySignature(magenta), bodySignature(blue), 'the paint-aware signature sees two')
+		assert.equal(shapeSignature(magenta), shapeSignature(blue), 'geometry says they are one shape')
+		const other = '<svg viewBox="0 0 24 24"><path d="M2 2H22" stroke="#ff00ff"/></svg>'
+		assert.notEqual(shapeSignature(magenta), shapeSignature(other), 'a different drawing is a different shape')
+	})
+
+	await test('recoloured copies are derivations, and a redraw keeps each colour', async () => {
+		const plain = '<svg viewBox="0 0 24 24"><path d="M4 4H20" stroke="currentColor" stroke-width="2"/></svg>'
+		const magenta = '<svg viewBox="0 0 24 24"><path d="M4 4H20" stroke="#ff00ff" stroke-width="4"/></svg>'
+		const io = memIo({
+			'package.json': '{}',
+			'src/a.tsx': `export const A = () => ${plain}\nexport const B = () => ${magenta}`,
+		})
+		const icon = '<svg viewBox="0 0 24 24"><path d="M4 4H20" stroke="currentColor" stroke-width="1"/></svg>'
+		const pointers = await findShapePointers(io, icon)
+		assert.equal(pointers.length, 2, 'both copies derive from the one shape')
+		await pushShapePointers(io, icon.replace('M4 4H20', 'M2 2H22'), pointers)
+		const out = io.files.get('src/a.tsx')
+		assert.equal((out.match(/M2 2H22/gu) || []).length, 2, 'both got the new geometry')
+		assert.ok(out.includes('stroke="#ff00ff"'), 'the coloured derivation keeps its colour')
+		assert.ok(out.includes('stroke-width="4"'), 'and its weight')
+		assert.ok(out.includes('stroke="currentColor"'), 'the plain one still follows the theme')
+	})
+
+	await test('a derivation that no longer draws the shape is reported stale', async () => {
+		const io = memIo({
+			'package.json': '{}',
+			'src/a.tsx': 'export const A = () => <svg viewBox="0 0 24 24"><path d="M2 2H22" stroke="currentColor"/></svg>',
+		})
+		const icon = '<svg viewBox="0 0 24 24"><path d="M4 4H20" stroke="currentColor"/></svg>'
+		const [recoded] = await readDerivations(io, [{ file: 'src/a.tsx', kind: 'inline', index: 0, line: 1 }], icon)
+		assert.equal(recoded.stale, true, 'the file no longer draws this shape at that place')
+		const [moved] = await readDerivations(io, [{ file: 'src/a.tsx', kind: 'inline', index: 4, line: 1 }], icon)
+		assert.equal(moved.stale, true, 'a block that moved cannot be read back')
+		const [good] = await readDerivations(
+			io,
+			[{ file: 'src/a.tsx', kind: 'inline', index: 0, line: 1 }],
+			'<svg viewBox="0 0 24 24"><path d="M2 2H22" stroke="currentColor"/></svg>',
+		)
+		assert.equal(good.stale, false, 'a site that still draws it stays')
+	})
+
+	await test('a derivation panel reads each site the way the code draws it', async () => {
+		const io = memIo({
+			'package.json': '{}',
+			'src/a.tsx': [
+				'export const A = () => <svg viewBox="0 0 24 24"><path d="M4 4H20" stroke="currentColor" stroke-width="2"/></svg>',
+				'export const B = () => <svg viewBox="0 0 24 24"><path d="M4 4H20" stroke="#000ff0" stroke-width="4"/></svg>',
+			].join('\n'),
+		})
+		const list = await readDerivations(io, [
+			{ file: 'src/a.tsx', kind: 'inline', index: 0, line: 1 },
+			{ file: 'src/a.tsx', kind: 'inline', index: 1, line: 2 },
+		])
+		assert.equal(list.length, 2)
+		// The drawing itself is the derivation: no colour or weight is recorded
+		// anywhere, the code is read back as it is.
+		assert.ok(list[0].svg.includes('stroke="currentColor"'), 'the theme-following site is read as written')
+		assert.ok(list[0].svg.includes('stroke-width="2"'))
+		assert.ok(list[1].svg.includes('#000ff0'), 'the coloured site keeps its own paint')
+		assert.ok(list[1].svg.includes('stroke-width="4"'))
 	})
 
 	await test('a replace rewrites the inline body in place', async () => {
@@ -621,6 +725,149 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 		await assert.rejects(() => store.save({ name: '../escape', svg: FIGMA_ICON }), (error) => error.code === 'invalid-name')
 	})
 
+	console.log('supply library')
+
+	await test('a supply ref names its supplier and set', () => {
+		assert.deepEqual(parseSupplyRef('lucide:trash'), { source: 'iconify', set: 'lucide', prefix: 'lucide', icon: 'trash' })
+		assert.deepEqual(parseSupplyRef('iconmcp-generic:trash'), { source: 'iconmcp', set: 'generic', prefix: 'iconmcp-generic', icon: 'trash' })
+		assert.deepEqual(parseSupplyRef('iconmcp:trash'), { source: 'iconmcp', set: '', prefix: 'iconmcp', icon: 'trash' })
+		assert.equal(parseSupplyRef('trash'), null, 'no prefix is not a ref')
+		assert.equal(parseSupplyRef(':trash'), null)
+		assert.equal(parseSupplyRef('lucide:'), null, 'an empty icon name is not a ref')
+		assert.equal(parseSupplyRef(null), null)
+	})
+
+	await test('a remote label and tags seed the first rule', () => {
+		assert.equal(seedRule('Trash', ['delete', 'remove', 'bin']), 'Trash — delete, remove, bin')
+		assert.equal(seedRule('Trash', ['Trash', 'DELETE', 'delete']), 'Trash — delete', 'the label and repeats are dropped')
+		assert.equal(seedRule('', ['delete']), 'delete', 'no label: the tags stand alone')
+		assert.equal(seedRule('Trash', []), 'Trash')
+		assert.equal(seedRule(undefined, undefined), '')
+		const many = seedRule('Trash', Array.from({ length: 20 }, (_, index) => `t${index}`))
+		assert.equal(many.split(', ').length, 6, 'six tags at most')
+	})
+
+	await test('the authored canvas is read from the drawing itself', () => {
+		assert.deepEqual(svgCanvasSize(ICONMCP_ICON), { width: 16, height: 16 })
+		assert.deepEqual(svgCanvasSize('<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0"/></svg>', 24), { width: 24, height: 24 })
+		assert.deepEqual(svgCanvasSize(null, 16), { width: 16, height: 16 })
+	})
+
+	await test('an IconMCP drawing becomes one single-colour body on its own canvas', () => {
+		const out = normalizeSvg(ICONMCP_ICON, { viewBox: '0 0 16 16' })
+		assert.equal(out.viewBox, '0 0 16 16')
+		assert.ok(out.svg.includes('stroke="currentColor"'), 'paint on the root reaches every element')
+		assert.ok(!/#[0-9a-f]{3,8}/iu.test(out.svg), 'no colour is baked in: the body inherits currentColor')
+		assert.ok(!out.svg.includes('<g'), 'the group wrapper is flattened')
+	})
+
+	/** A stand-in for the MCP endpoint: answers per tool, and counts the calls. */
+	function mcpFetch(answers) {
+		const calls = []
+		const fetchImpl = async (_url, init) => {
+			const payload = JSON.parse(init.body)
+			const tool = payload.params.name
+			calls.push({ tool, args: payload.params.arguments })
+			const answer = answers[tool]
+			if (answer === undefined) return { ok: false, status: 404, json: async () => ({}) }
+			if (answer && answer.error) return { ok: true, status: 200, json: async () => ({ jsonrpc: '2.0', id: 1, error: answer.error }) }
+			const content = typeof answer === 'function' ? answer(payload.params.arguments) : answer
+			return { ok: true, status: 200, json: async () => ({ jsonrpc: '2.0', id: 1, result: { content } }) }
+		}
+		return { fetchImpl, calls }
+	}
+
+	await test('a get_icon answer is two blocks: the SVG and its description', async () => {
+		const { fetchImpl } = mcpFetch({
+			get_icon: [
+				{ type: 'text', text: ICONMCP_ICON },
+				{ type: 'text', text: JSON.stringify({ name: 'trash', label: 'Trash', set: 'generic', tags: ['delete', 'bin'] }) },
+			],
+		})
+		const client = createIconmcpClient({ fetch: fetchImpl })
+		const { svg, meta } = await client.icon('trash')
+		assert.ok(svg.startsWith('<svg'), 'the drawing is picked out of the blocks')
+		assert.equal(meta.label, 'Trash')
+		assert.deepEqual(meta.tags, ['delete', 'bin'])
+	})
+
+	await test('list_sets and search_icons map onto supply refs', async () => {
+		const { fetchImpl, calls } = mcpFetch({
+			list_sets: [{ type: 'text', text: JSON.stringify({ icons: 7745, sets: [{ id: 'generic', label: 'Generic', group: 'Essentials', count: 141 }] }) }],
+			search_icons: [{ type: 'text', text: JSON.stringify({ weak: false, results: [{ name: 'trash', label: 'Trash', set: 'generic', tags: ['delete'] }] }) }],
+		})
+		const client = createIconmcpClient({ fetch: fetchImpl })
+		const sets = await client.sets()
+		assert.equal(sets[0].prefix, 'iconmcp-generic', 'the prefix carries the set')
+		assert.equal(sets[0].license, 'MIT')
+		assert.equal(sets[0].source, 'iconmcp')
+		assert.equal(sets[0].total, 141)
+		const found = await client.search('delete', '', 5)
+		assert.equal(found[0].ref, 'iconmcp-generic:trash')
+		assert.equal(found[0].label, 'Trash')
+		assert.deepEqual(found[0].tags, ['delete'])
+		const scoped = await client.search('delete', 'generic', 5)
+		assert.equal(scoped[0].ref, 'iconmcp-generic:trash')
+		assert.deepEqual(calls.filter((call) => call.tool === 'search_icons')[1].args, { query: 'delete', limit: 5, set: 'generic' }, 'a scoped search passes the set through')
+	})
+
+	await test('a JSON-RPC error and a bad status both surface as throws', async () => {
+		const broken = createIconmcpClient({ fetch: mcpFetch({ list_sets: { error: { message: 'boom' } } }).fetchImpl })
+		await assert.rejects(() => broken.sets(), /boom/u)
+		const down = createIconmcpClient({ fetch: mcpFetch({}).fetchImpl })
+		await assert.rejects(() => down.sets(), /iconmcp 404/u)
+		const empty = createIconmcpClient({ fetch: mcpFetch({ list_sets: [] }).fetchImpl })
+		await assert.rejects(() => empty.sets(), /empty answer/u)
+	})
+
+	await test('a repeated call is answered from the cache', async () => {
+		const { fetchImpl, calls } = mcpFetch({
+			list_sets: [{ type: 'text', text: JSON.stringify({ sets: [] }) }],
+		})
+		const client = createIconmcpClient({ fetch: fetchImpl })
+		await client.sets()
+		await client.sets()
+		assert.equal(calls.length, 1, 'the second browse must not hit the network again')
+	})
+
+	await test('a page of drawings survives one failing icon', async () => {
+		const { fetchImpl } = mcpFetch({
+			get_icon: (args) => (args.name === 'broken'
+				? { error: { message: 'no such icon' } }
+				: [{ type: 'text', text: ICONMCP_ICON }, { type: 'text', text: JSON.stringify({ name: args.name, label: args.name, set: 'generic', tags: [] }) }]),
+		})
+		const client = createIconmcpClient({ fetch: fetchImpl })
+		const out = await client.svgs(['plus', 'broken', 'minus'])
+		assert.deepEqual([...out.keys()].sort(), ['minus', 'plus'], 'the good drawings still arrive')
+	})
+
+	await test('an import stores provenance, and a new drawing keeps the rule', async () => {
+		const store = createStore(memIo({}))
+		const saved = await store.save({
+			name: 'iconmcp-generic:trash',
+			svg: ICONMCP_ICON,
+			viewBox: '0 0 16 16',
+			rule: seedRule('Trash', ['delete', 'remove']),
+			source: 'iconmcp:generic',
+			license: 'MIT',
+		})
+		assert.equal(saved.entry.viewBox, '0 0 16 16', 'the 16-unit canvas is kept, not rescaled to 24')
+		assert.equal(saved.entry.source, 'iconmcp:generic')
+		assert.equal(saved.entry.license, 'MIT')
+		assert.equal(saved.entry.rule, 'Trash — delete, remove')
+		assert.ok(isImportedSource(saved.entry.source), 'provenance marks it as an import')
+		const replaced = await store.save({
+			name: 'iconmcp-generic:trash',
+			previousName: 'iconmcp-generic:trash',
+			svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M2.75 8H13.25" stroke="currentColor"/></svg>',
+			viewBox: '0 0 16 16',
+			allowDuplicate: true,
+		})
+		assert.equal(replaced.entry.rule, 'Trash — delete, remove', 'replacing artwork never wipes the rule')
+		const cleared = await store.annotate({ name: 'iconmcp-generic:trash', rule: '' })
+		assert.equal(cleared.entry.rule, '', 'an explicit empty string still clears it')
+	})
+
 	await test('a rename carries every name-keyed record', async () => {
 		const io = memIo({})
 		const store = createStore(io)
@@ -722,6 +969,323 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 			svg: '<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0L14 14" fill="currentColor"/></svg>',
 		})
 		assert.equal(bare.entry.viewBox, '0 0 14 14', 'no canvas at all: trim to the content')
+	})
+
+	console.log('ai create')
+
+	await test('a model drawing is accepted only when it fits the library', () => {
+		const good = '<svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="17" rx="2" stroke="currentColor" stroke-width="1.5"/></svg>'
+		assert.deepEqual(generatedIconIssues(good), [])
+		assert.deepEqual(generatedIconIssues('<svg viewBox="0 0 32 24"><path d="M4 4H28" stroke="currentColor"/></svg>'), ['not-square'])
+		assert.ok(generatedIconIssues('<svg viewBox="0 0 24 24"><path d="M4 4H20" fill="#ff0000"/></svg>').includes('baked-colour'))
+		assert.ok(generatedIconIssues('<svg viewBox="0 0 24 24"><text x="2" y="2">A</text><path d="M4 4H20" stroke="currentColor"/></svg>').includes('forbidden-element'))
+		assert.ok(generatedIconIssues('<svg viewBox="0 0 24 24"><style>.a{}</style><path d="M4 4H20" stroke="currentColor"/></svg>').includes('forbidden-element'))
+		assert.ok(generatedIconIssues('<svg viewBox="0 0 24 24"></svg>').includes('no-geometry'))
+		assert.ok(generatedIconIssues('<svg viewBox="0 0 24 24"><path d="M0 0" fill="url(#g)"/></svg>').includes('paint-server'))
+	})
+
+	await test('AI create profiles the library, draws, and refuses a broken answer', async () => {
+		const workspace = '/w/ai'
+		const files = new Map()
+		const dirs = new Set(['/', workspace])
+		const remember = (abs) => { let dir = path.dirname(abs); while (dir !== '/' && !dirs.has(dir)) { dirs.add(dir); dir = path.dirname(dir) } }
+		const fsPort = {
+			async resolve(rel, options = {}) { return path.isAbsolute(rel) ? rel : path.resolve(options.cwd || '/', rel) },
+			async stat(abs) {
+				if (files.has(abs)) return { type: 'file', size: files.get(abs).length }
+				if (dirs.has(abs)) return { type: 'directory' }
+				return null
+			},
+			async readText(abs) { return files.get(abs) ?? null },
+			async writeText(abs, text) { files.set(abs, text); remember(abs) },
+			async listDir(abs) {
+				const out = []
+				for (const key of files.keys()) if (path.dirname(key) === abs) out.push({ name: path.basename(key), type: 'file', size: files.get(key).length })
+				for (const dir of dirs) if (dir !== abs && path.dirname(dir) === abs) out.push({ name: path.basename(dir), type: 'directory' })
+				return out
+			},
+		}
+		// Seed the library so the profile has something to read.
+		const { createStore: makeStore } = await import('../lib/store.js')
+		const seed = makeStore({
+			async readText(rel) { const abs = path.join(workspace, rel); return files.get(abs) ?? null },
+			async writeText(rel, text) { const abs = path.join(workspace, rel); files.set(abs, text); remember(abs) },
+			async stat(rel) { const abs = path.join(workspace, rel); return files.has(abs) ? { type: 'file', size: files.get(abs).length } : null },
+			async listDir() { return [] },
+		})
+		await seed.save({
+			name: 'close',
+			svg: '<svg viewBox="0 0 24 24" fill="none"><path d="M6 6L18 18" stroke="currentColor" stroke-width="1.5"/></svg>',
+			rule: '关闭浮层',
+		})
+
+		// The reference lookup must stay offline in tests: answer both suppliers.
+		const originalFetch = globalThis.fetch
+		globalThis.fetch = async (url, options) => {
+			const target = String(url)
+			const reply = (body) => ({ ok: true, status: 200, json: async () => body })
+			if (target.startsWith('https://iconmcp.com/mcp')) {
+				const { params } = JSON.parse(options.body)
+				if (params.name === 'search_icons') {
+					return reply({ jsonrpc: '2.0', id: 1, result: { content: [{ type: 'text', text: JSON.stringify({ results: [{ name: 'calendar', label: 'Calendar', set: 'time', tags: ['date'] }] }) }] } })
+				}
+				if (params.name === 'get_icon') {
+					return reply({ jsonrpc: '2.0', id: 1, result: { content: [
+						{ type: 'text', text: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor"><rect x="2" y="3" width="12" height="11"/><path d="M2 6.5H14"/></svg>' },
+						{ type: 'text', text: JSON.stringify({ name: 'calendar', label: 'Calendar', set: 'time', tags: ['date'] }) },
+					] } })
+				}
+			}
+			if (target.startsWith('https://api.iconify.design')) {
+				if (target.includes('/search')) return reply({ icons: ['lucide:calendar-days'] })
+				if (target.includes('/lucide.json')) return reply({ width: 24, height: 24, icons: { 'calendar-days': { body: '<rect x="3" y="4" width="18" height="17"/><path d="M3 9H21"/>' } } })
+			}
+			return { ok: false, status: 404, json: async () => ({}) }
+		}
+
+		const answers = []
+		let next = ''
+		const seen = []
+		const routes = new Map()
+		const ctx = {
+			effect: (fn) => { fn() },
+			inject: (_deps, run) => run({
+				get: (name) => ({
+					webServer: { register: (spec) => { routes.set(spec.path, spec.handler); return () => {} } },
+					fs: fsPort,
+					sessions: { get: () => undefined },
+					workspaceRegistry: { list: () => [{ path: workspace, updatedAt: 'a' }] },
+					workingDirectory: () => workspace,
+					tools: undefined,
+					systemPrompt: undefined,
+					agentDefaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+					llm: {
+						stream: (options) => {
+							seen.push(options)
+							const text = answers.shift() || next
+							return (async function* () {
+								if (text) yield { type: 'text-delta', text }
+								yield { type: 'finish', reason: { kind: 'stop' } }
+							})()
+						},
+					},
+				})[name],
+				effect: (fn) => { fn() },
+				systemPrompt: { section: () => () => {} },
+			}),
+		}
+		const { apply } = await import('../lib/index.js')
+		apply(ctx)
+		const call = (name, { method = 'POST', body } = {}) => new Promise((resolve) => {
+			const chunks = body === undefined ? [] : [Buffer.from(JSON.stringify(body))]
+			const req = { method, url: `/api/dsh-icon-studio/${name}`, async *[Symbol.asyncIterator]() { yield* chunks } }
+			const res = { statusCode: 0, setHeader() {}, end(p) { resolve({ status: this.statusCode, data: JSON.parse(p) }) } }
+			routes.get(`/api/dsh-icon-studio/${name}`)(req, res)
+		})
+
+		next = [
+			'name: calendar-lock',
+			'rule: A calendar with a lock; use it for locked schedules.',
+			'svg: <svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="17" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M8 2v4M16 2v4" stroke="currentColor" stroke-width="1.5"/></svg>',
+		].join('\n')
+		const good = await call('ai-create', { body: { workspace, prompt: 'calendar with a lock' } })
+		assert.equal(good.status, 200)
+		assert.equal(good.data.name, 'calendar-lock', 'the model names the draft')
+		assert.ok(good.data.svg.includes('currentColor'), 'the drawing comes back single-colour')
+		assert.equal(good.data.profile.canvas, '24x24', 'the library canvas is read')
+		assert.equal(good.data.profile.icons, 1)
+		assert.ok(seen[0].system.includes('viewBox="0 0 24 24"'), 'the prompt carries the house canvas')
+		assert.ok(seen[0].system.includes('stroke width 1.5'), 'and the measured stroke width')
+		assert.ok(seen[0].system.includes('close:'), 'and a real example from the library')
+
+		assert.ok(Array.isArray(good.data.references) && good.data.references.length > 0, 'the answer says which icons were studied')
+		assert.ok(good.data.references.some((item) => item.source === 'iconmcp'))
+		assert.ok(seen[0].system.includes('from other libraries'), 'the references reach the drawing prompt')
+		assert.ok(seen[0].system.includes('do not copy their path data'), 'and are marked as study material, not source')
+		globalThis.fetch = originalFetch
+
+		next = 'name: wrong\nrule: no\nsvg: <svg viewBox="0 0 24 24"><path d="M4 4H20" stroke="#ff0000"/></svg>'
+		const bad = await call('ai-create', { body: { workspace, prompt: 'something red' } })
+		assert.equal(bad.data.error, 'rejected')
+		assert.ok(bad.data.issues.includes('baked-colour'), 'a baked colour is refused, not imported')
+
+		const empty = await call('ai-create', { body: { workspace, prompt: '   ' } })
+		assert.equal(empty.status, 400, 'an empty prompt is a client error')
+	})
+
+	console.log('supply routes')
+
+	await test('the host mounts one supply library and imports from either source', async () => {
+		const workspace = '/w/project'
+		const files = new Map()
+		const dirs = new Set(['/', workspace])
+		const remember = (abs) => {
+			let dir = path.dirname(abs)
+			while (dir !== '/' && !dirs.has(dir)) { dirs.add(dir); dir = path.dirname(dir) }
+		}
+		const fsPort = {
+			async resolve(rel, options = {}) { return path.isAbsolute(rel) ? rel : path.resolve(options.cwd || '/', rel) },
+			async stat(abs) {
+				if (files.has(abs)) return { type: 'file', size: files.get(abs).length }
+				if (dirs.has(abs)) return { type: 'directory' }
+				return null
+			},
+			async readText(abs) { return files.get(abs) ?? null },
+			async writeText(abs, text) { files.set(abs, text); remember(abs) },
+			async listDir(abs) {
+				const out = []
+				for (const key of files.keys()) if (path.dirname(key) === abs) out.push({ name: path.basename(key), type: 'file', size: files.get(key).length })
+				for (const dir of dirs) if (dir !== abs && path.dirname(dir) === abs) out.push({ name: path.basename(dir), type: 'directory' })
+				return out
+			},
+		}
+		// Canned answers in the exact shapes both upstreams return (captured live).
+		const stubFetch = async (url, init) => {
+			const target = String(url)
+			const reply = (body) => ({ ok: true, status: 200, json: async () => body })
+			if (target.startsWith('https://iconmcp.com/mcp')) {
+				const { params } = JSON.parse(init.body)
+				const json = (value) => [{ type: 'text', text: JSON.stringify(value) }]
+				const answers = {
+					list_sets: json({ sets: [{ id: 'generic', label: 'Generic', group: 'Essentials', count: 141 }] }),
+					search_icons: json({ weak: false, results: [{ name: 'trash', label: 'Trash', set: 'generic', tags: ['delete', 'bin'] }] }),
+					get_set: (args) => json({
+						total: 141,
+						icons: args.format === 'svg'
+							? [{ name: 'trash', label: 'Trash', svg: ICONMCP_ICON }]
+							: [{ name: 'trash', label: 'Trash' }],
+					}),
+					get_icon: (args) => [
+						{ type: 'text', text: args.style === 'solid' ? ICONMCP_SOLID : ICONMCP_ICON },
+						{ type: 'text', text: JSON.stringify({ name: 'trash', label: 'Trash', set: 'generic', tags: ['delete', 'bin'] }) },
+					],
+				}
+				const answer = answers[params.name]
+				if (answer === undefined) return { ok: false, status: 404, json: async () => ({}) }
+				const content = typeof answer === 'function' ? answer(params.arguments) : answer
+				return reply({ jsonrpc: '2.0', id: 1, result: { content } })
+			}
+			if (target.startsWith('https://api.iconify.design')) {
+				if (target.includes('/collections')) return reply({ lucide: { name: 'Lucide', total: 100, license: { spdx: 'ISC' }, samples: ['trash'] } })
+				if (target.includes('/search')) return reply({ icons: ['lucide:trash', 'lucide:settings'] })
+				if (target.includes('/lucide.json')) return reply({ width: 24, height: 24, icons: { trash: { body: '<path d="M4 4H20L18 21H6Z" stroke="currentColor"/>' } } })
+				if (target.includes('/collection')) return reply({ uncategorized: ['trash'], categories: { actions: ['settings'] } })
+			}
+			return { ok: false, status: 404, json: async () => ({}) }
+		}
+		const original = globalThis.fetch
+		globalThis.fetch = stubFetch
+		try {
+			const routes = new Map()
+			const ctx = {
+				effect: (fn) => { fn() },
+				inject: (_deps, run) => run({
+					get: (name) => ({
+						webServer: { register: (spec) => { routes.set(spec.path, spec.handler); return () => {} } },
+						fs: fsPort,
+						sessions: { get: () => undefined },
+						workspaceRegistry: { list: () => [{ path: workspace, updatedAt: 'a' }] },
+						workingDirectory: () => workspace,
+						tools: undefined,
+						systemPrompt: undefined,
+					})[name],
+					effect: (fn) => { fn() },
+					systemPrompt: { section: () => () => {} },
+				}),
+			}
+			const { apply } = await import('../lib/index.js')
+			apply(ctx)
+			const call = (name, { method = 'GET', search = '', body } = {}) => new Promise((resolve) => {
+				const handler = routes.get(`/api/dsh-icon-studio/${name}`)
+				assert.ok(handler, `route ${name} is not mounted`)
+				const chunks = body === undefined ? [] : [Buffer.from(JSON.stringify(body))]
+				const req = { method, url: `/api/dsh-icon-studio/${name}${search}`, async *[Symbol.asyncIterator]() { yield* chunks } }
+				const res = {
+					statusCode: 0,
+					headersSent: false,
+					setHeader() {},
+					end(payload) { this.headersSent = true; resolve({ status: this.statusCode, data: JSON.parse(payload) }) },
+				}
+				handler(req, res)
+			})
+
+			const collections = await call('library-collections')
+			assert.equal(collections.status, 200)
+			assert.deepEqual(collections.data.collections.map((set) => set.prefix), ['iconmcp-generic', 'lucide'], 'both suppliers land in one list, IconMCP first')
+			assert.equal(collections.data.collections[0].license, 'MIT')
+
+			const found = await call('library-search', { search: '?query=delete&limit=8' })
+			assert.deepEqual(found.data.icons, ['iconmcp-generic:trash', 'lucide:settings'], 'one search asks both; a shared slug is not repeated')
+			assert.equal(found.data.meta['iconmcp-generic:trash'].label, 'Trash')
+
+			const previews = await call('library-samples', { method: 'POST', body: { prefixes: ['iconmcp-generic', 'lucide'] } })
+			assert.deepEqual(previews.data.samples['iconmcp-generic'].map((icon) => icon.name), ['trash'], 'one request per set brings its previews')
+			assert.ok(previews.data.samples['iconmcp-generic'][0].svg.startsWith('<svg'))
+			assert.equal(previews.data.samples.lucide, undefined, 'Iconify already ships samples with its list')
+
+			// A set page answers with bare names, exactly like an Iconify set: the
+			// client owns the `prefix:` part, so it is added in one place only.
+			const page = await call('library-set', { search: '?prefix=iconmcp-generic&limit=8' })
+			assert.deepEqual(page.data.names, ['trash'], 'a set page returns bare names')
+			assert.equal(page.data.total, 141)
+
+			const art = await call('library-set', { search: '?prefix=iconmcp-generic&limit=8&format=svg' })
+			assert.ok(String(art.data.icons['iconmcp-generic:trash']).startsWith('<svg'), 'format=svg draws the page in one call')
+
+			const resolved = await call('library-fetch', {
+				method: 'POST',
+				body: { workspace, names: page.data.names.map((name) => `iconmcp-generic:${name}`) },
+			})
+			assert.ok(resolved.data.icons['iconmcp-generic:trash'].startsWith('<svg'), 'the ref the client builds from a bare name resolves')
+
+			const peek = await call('library-peek', { method: 'POST', body: { workspace, ref: 'iconmcp-generic:trash' } })
+			assert.equal(peek.status, 200)
+			assert.equal(peek.data.name, 'trash', 'the panel suggests the icon\'s own name')
+			assert.equal(peek.data.rule, 'Trash — delete, bin', 'and the rule the supplier knows')
+			assert.deepEqual(peek.data.styles, ['outline', 'solid'], 'a second style is offered only when it draws differently')
+			assert.ok(peek.data.previews.outline && peek.data.previews.solid)
+
+			const plain = await call('library-peek', { method: 'POST', body: { workspace, ref: 'lucide:trash' } })
+			assert.deepEqual(plain.data.styles, ['outline'], 'a supplier without styles offers none')
+			assert.equal(plain.data.rule, '', 'and no rule is invented for it')
+
+			const imported = await call('library-import', { method: 'POST', body: { workspace, names: ['iconmcp-generic:trash'] } })
+			assert.equal(imported.data.results[0].status, 'saved', JSON.stringify(imported.data.results))
+			const manifest = JSON.parse(files.get(path.join(workspace, '.icons.json')))
+			const body = manifest.icons['iconmcp-generic:trash']
+			assert.equal(body.width, 16, 'the 16-unit canvas is stored, not rescaled')
+			assert.equal(manifest.metadata['iconmcp-generic:trash'].rule, 'Trash — delete, bin', 'tags seed the first rule')
+			assert.equal(manifest.metadata['iconmcp-generic:trash'].source, 'iconmcp:generic')
+			assert.equal(manifest.metadata['iconmcp-generic:trash'].license, 'MIT')
+
+			const explicit = await call('library-import', {
+				method: 'POST',
+				body: { workspace, items: [{ ref: 'iconmcp-generic:trash', name: 'trash-strong', rule: '列表里的删除', style: 'solid' }] },
+			})
+			assert.equal(explicit.data.results[0].local, 'trash-strong', 'the name is the one the user confirmed')
+			const named = JSON.parse(files.get(path.join(workspace, '.icons.json')))
+			assert.equal(named.metadata['trash-strong'].rule, '列表里的删除', 'and so is the rule')
+			assert.equal(named.metadata['trash-strong'].origin, 'iconmcp-generic:trash', 'provenance keeps the upstream ref')
+
+			const derivations = await call('derivations', { method: 'POST', body: { workspace, name: 'iconmcp-generic:trash' } })
+			assert.equal(derivations.status, 200)
+			assert.deepEqual(derivations.data.derivations, [], 'an import has no derivative sites yet')
+
+			const again = await call('library-import', { method: 'POST', body: { workspace, names: ['iconmcp-generic:trash'] } })
+			assert.equal(again.data.results[0].status, 'same', 'a repeat import is not a name conflict')
+
+			const preview = await call('library-fetch', { method: 'POST', body: { workspace, names: ['iconmcp-generic:trash'] } })
+			assert.ok(preview.data.icons['iconmcp-generic:trash'].startsWith('<svg'))
+			assert.equal(preview.data.matches['iconmcp-generic:trash'], 'iconmcp-generic:trash', 'a preview knows the shape is already local')
+
+			const iconify = await call('library-import', { method: 'POST', body: { workspace, names: ['lucide:trash'] } })
+			assert.equal(iconify.data.results[0].status, 'saved', JSON.stringify(iconify.data.results))
+			const after = JSON.parse(files.get(path.join(workspace, '.icons.json')))
+			assert.equal(after.metadata['lucide:trash'].source, 'iconify:lucide', 'Iconify keeps its own provenance')
+			assert.ok(!after.metadata['lucide:trash'].rule, 'Iconify brings no tags, so no rule is invented')
+		} finally {
+			globalThis.fetch = original
+		}
 	})
 
 	console.log('@asset index')
@@ -1155,7 +1719,7 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 			useMemo: (fn) => fn(),
 		}
 		const module = factory((name) => (name === 'react' ? fakeReact : undefined))
-		const { Panel, Detail, ListView, ImportDialog } = module._test
+		const { Panel, Detail, ListView, SupplyView, AddIconDialog, DerivationRow, shouldRetryLibrary } = module._test
 		const t = (key) => key
 		const say = () => {}
 		const treeOf = (node) => {
@@ -1190,7 +1754,29 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 		const filled = ListView({ t, library: { libraryExists: true, root: '/w', graphics: [{ name: 'close', note: 'n', keywords: [], svg: '' }] }, loading: false, error: '', onOpen: say, onCreate: say, onImport: say, onRefresh: say, say })
 		assert.ok(classesOf(filled).includes('gs-head'), 'a filled library keeps its chrome')
 		assert.ok(!classesOf(filled).includes('gs-filter'), 'search now lives in the title bar')
-		assert.ok(treeOf(ImportDialog({ t, onClose: say, onSubmit: say })) > 5)
+		// One dialog, four sources: every mode renders its first frame.
+		for (const mode of ['paste', 'supply', 'ai']) {
+			const add = AddIconDialog({ t, sessionId: 's', workspace: '/w', library: { graphics: [] }, mode, text: '', name: '', ref: '', onClose: say, onImported: async () => {} })
+			assert.ok(treeOf(add) > 5, `the add dialog renders in ${mode} mode`)
+			assert.ok(classesOf(add).includes('gs-ai-preview') === (mode !== 'paste') || treeOf(add) > 5, `and keeps a frame in ${mode} mode`)
+		}
+		const supply = SupplyView({ t, sessionId: 's', workspace: '/w', library: { graphics: [] }, onBack: say, onImported: async () => {}, say })
+		assert.ok(treeOf(supply) > 5, 'the supply browser rendered too little')
+		assert.ok(classesOf(supply).includes('gs-supply'), 'the supply browser keeps its own frame')
+		const row = DerivationRow({
+			t,
+			item: {
+				file: 'src/a.tsx',
+				kind: 'inline',
+				index: 0,
+				line: 3,
+				svg: '<svg viewBox="0 0 24 24"><path d="M4 4H20" stroke="#ff00ff"/></svg>',
+				paint: { color: '#ff00ff', colors: ['#ff00ff'], strokeWidth: '4', currentColor: false, multi: false },
+			},
+		})
+		assert.ok(treeOf(row) > 3, 'a derivation row renders')
+		assert.ok(classesOf(row).includes('gs-deriv'), 'and keeps its own frame')
+		assert.ok(!classesOf(row).includes('gs-deriv-dot'), 'the preview speaks for itself: no paint badges')
 	})
 
 	await test('apply registers a tab body the host can render', () => {
@@ -1233,6 +1819,70 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 		}
 		module.apply(ctx)
 		assert.ok(registered >= 2, 'the tab body and title must both register a component')
+	})
+
+	await test('the panel browses one supply library, not one per supplier', () => {
+		const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+		for (const route of ['library-collections', 'library-search', 'library-set', 'library-fetch', 'library-import']) {
+			assert.ok(source.includes(`'${route}'`), `the client does not call ${route}`)
+		}
+		assert.ok(!/iconify-(?:collections|search|set|fetch|import)/u.test(source), 'the per-supplier routes are gone')
+		assert.ok(source.includes("entry.source.startsWith('iconmcp:')"), 'IconMCP imports count as already in the library')
+		assert.ok(source.includes("'library-samples'"), 'the client asks for IconMCP set previews')
+		assert.ok(source.includes("api.post('library-peek'"), 'a card opens a suggestion panel before importing')
+		assert.ok(source.includes('items: [{ ref: props.iconRef'), 'the import carries the confirmed name, rule and style')
+		assert.ok(source.includes("api.post('derivations'"), 'the panel reads every derivation from the code')
+		assert.ok(source.includes("listAi: 'AI 生成图标'"), 'the menu offers AI create')
+		assert.ok(source.includes("api.post('ai-create'"), 'and the dialog asks the host for a drawing')
+		assert.ok(source.includes("mode: add.mode"), 'one dialog is opened for every source')
+		// The supply browser is the one that opens the dialog from a card's "+";
+		// a missing prop there fails silently, so pin it.
+		assert.match(source, /h\(SupplyView, \{[\s\S]*?onAdd:/, 'the supply browser can open the add dialog')
+		// The scan entry left the ⋯ menu, but the bar at the bottom still needs it.
+		assert.match(source, /h\(ListView, \{[\s\S]*?onScan:/, 'the bottom scan bar can still open the scan')
+		// React reserves `ref`: a string there is a legacy string ref (#290).
+		assert.ok(source.includes('iconRef: add.ref'), 'the icon ref is passed under a non-reserved prop')
+		assert.ok(!source.includes('ref: add.ref'), 'never as `ref`, which React treats specially')
+		for (const retired of ['function ImportDialog', 'function SupplyAddDialog', 'function AiCreateDialog']) {
+			assert.ok(!source.includes(retired), `${retired} is gone: there is one add dialog`)
+		}
+		assert.ok(source.includes("t('aiRefs'"), 'the preview says which icons were studied')
+		assert.ok(source.includes('function AiPromptDialog'), 'AI create asks for a prompt first')
+		assert.ok(source.includes('onDraft(result)'), 'the prompt dialog hands the draft to the save dialog')
+		assert.ok(source.includes("t('aiPromptHint'"), 'the prompt step explains the two-step flow')
+		assert.ok(source.includes("detailPointers: '{n} 处派生'"), 'the panel is called 派生 in the UI')
+		assert.ok(source.includes("detailPointersOne: '{n} derivation'"), 'and the English count is not "1 derivations"')
+		// Regression: sample art went into the module cache only, so every card
+		// stayed blank. The drawings must reach component state as well.
+		assert.ok(source.includes('setPreviews((current) => ({ ...current, ...svgs }))'), 'set previews reach component state')
+		assert.ok(source.includes("format: 'svg'"), 'an IconMCP set page is drawn in one call')
+		assert.ok(source.includes("map((name) => `${prefix}:${name}`)"), 'the client adds the prefix to bare set names')
+		assert.ok(source.includes("set.source === 'iconmcp' ? 'IconMCP'"), 'the facts line names the supplier next to the licence')
+		assert.ok(!source.includes('gs-supply-badge'), 'the supplier is not a separate badge any more')
+	})
+
+	await test('a boot-time "no library" answer is probed again instead of believed', async () => {
+		let factory = null
+		globalThis.window = { __ModuleLoader__: { load: (entry) => { factory = entry.factory } } }
+		new Function('window', readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8'))(globalThis.window)
+		const module = factory((name) => (name === 'react' ? { createElement: () => null } : undefined))
+		const probe = module._test.shouldRetryLibrary
+		assert.equal(probe({ libraryExists: false }, 3), true, 'a fresh host may answer before the project is mounted')
+		assert.equal(probe({ libraryExists: false }, 0), false, 'but not forever')
+		assert.equal(probe({ libraryExists: true }, 3), false, 'a real library settles it')
+		assert.equal(probe(null, 3), false, 'an error is not a "no library" answer')
+	})
+
+	await test('a standalone SVG file is named without a line number', async () => {
+		const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+		let factory = null
+		globalThis.window = { __ModuleLoader__: { load: (entry) => { factory = entry.factory } } }
+		new Function('window', source)(globalThis.window)
+		const module = factory((name) => (name === 'react' ? { createElement: () => null, Fragment: 'f' } : undefined))
+		const { siteLabel } = module._test
+		assert.equal(siteLabel({ file: 'icons/trash.svg', kind: 'file', line: 1 }), 'icons/trash.svg', 'a whole file has no line inside it')
+		assert.equal(siteLabel({ file: 'src/a.tsx', kind: 'inline', line: 42 }), 'src/a.tsx:42')
+		assert.equal(siteLabel({ file: 'src/a.tsx', kind: 'inline' }), 'src/a.tsx:1', 'a missing line reads as the first one')
 	})
 
 	await test('layout classes keep their display rule', async () => {
