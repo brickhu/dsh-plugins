@@ -101,6 +101,9 @@ window.__ModuleLoader__.load({
       listScan: '扫描代码中的图标',
       listIconify: '从 Iconify 导入',
       scanTitle: '工作区里的所有 SVG',
+      scanBar: '{workspace} 中有 {n} 个未命名的 SVG',
+      scanBarTitle: '查看并命名工作区里的 SVG',
+      scanBarWorkspace: '当前工作区',
       scanUnnamed: '未命名 SVG',
       scanAdd: '添加这个图标',
       scanAddTitle: '为这个图标命名',
@@ -389,6 +392,9 @@ window.__ModuleLoader__.load({
       listScan: 'Scan code for icons',
       listIconify: 'Import from Iconify',
       scanTitle: 'All svgs in the workspace',
+      scanBar: '{n} unnamed SVGs in {workspace}',
+      scanBarTitle: 'Review and name the workspace SVGs',
+      scanBarWorkspace: 'this workspace',
       scanUnnamed: 'Unnamed SVG',
       scanAdd: 'Add this icon',
       scanAddTitle: 'Name this icon',
@@ -909,6 +915,13 @@ window.__ModuleLoader__.load({
 .gs-iconify-thumb{display:flex;align-items:center;justify-content:center;width:28px;height:28px}
 .gs-iconify-thumb svg{width:24px;height:24px}
 .gs-iconify-name{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:var(--dsw-alias-label-secondary)}
+.gs-scanbar{display:flex;align-items:center;gap:8px;margin:0 16px 6px;padding:8px 10px;border:0;border-radius:10px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 5%,var(--dsw-alias-bg-base));color:var(--dsw-alias-label-secondary);font:inherit;cursor:pointer;text-align:left;flex:none}
+.gs-scanbar:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary) 9%,var(--dsw-alias-bg-base))}
+.gs-scanbar-text{flex:1;min-width:0;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gs-scanbar-right{display:flex;align-items:center;gap:4px;flex:none}
+.gs-scanbar-thumb{display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 6%,transparent)}
+.gs-scanbar-thumb .gs-svg-art,.gs-scanbar-thumb svg{width:15px;height:15px}
+.gs-scanbar-chev{display:flex;align-items:center;justify-content:center;transform:rotate(180deg);opacity:.65}
 .gs-scanpage{display:flex;flex-direction:column;height:100%;min-height:0}
 .gs-scan-body{flex:1;min-height:0;overflow:auto;padding:8px 10px 14px}
 .gs-scan-item{display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:.5px solid var(--dsw-alias-border-l1)}
@@ -1916,6 +1929,7 @@ window.__ModuleLoader__.load({
         : h(ListView, {
           t,
           sessionId,
+          workspace,
           library,
           version: library && library.version ? String(library.version) : '',
           loading,
@@ -2026,6 +2040,21 @@ window.__ModuleLoader__.load({
       const [flashName, setFlashName] = useState('')
       const flashTimer = useRef(null)
       const fileRef = useRef(null)
+      const [scanGroups, setScanGroups] = useState(null)
+      const scanTarget = props.workspace ? { sessionId: props.sessionId, workspace: props.workspace } : { sessionId: props.sessionId }
+      const workspaceName = (() => {
+        const root = props.library && props.library.root ? String(props.library.root) : ''
+        const parts = root.split(/[\\/]/u).filter(Boolean)
+        return parts.length > 0 ? parts[parts.length - 1] : t('scanBarWorkspace')
+      })()
+      useEffect(() => {
+        let alive = true
+        api.post('scan', scanTarget).then((result) => {
+          if (!alive) return
+          setScanGroups((Array.isArray(result.groups) ? result.groups : []).filter((group) => !group.existing))
+        }).catch(() => { if (alive) setScanGroups([]) })
+        return () => { alive = false }
+      }, [])
       const pickSvgFile = () => { if (fileRef.current) fileRef.current.click() }
       const onSvgFile = async (event) => {
         const file = event.target.files && event.target.files[0]
@@ -2347,6 +2376,18 @@ window.__ModuleLoader__.load({
             h('div', { style: { padding: '0 12px' } }, h(Btn, { variant: 'outline', onClick: props.onRefresh }, t('commonRetry'))))
           : null,
 
+        !props.loading && !props.error && Array.isArray(scanGroups) && scanGroups.length > 0
+          ? h('button', {
+            type: 'button',
+            className: 'gs-scanbar',
+            onClick: props.onScan,
+            title: t('scanBarTitle'),
+          },
+            h('span', { className: 'gs-scanbar-text' }, t('scanBar', { n: scanGroups.length, workspace: workspaceName })),
+            h('span', { className: 'gs-scanbar-right' },
+              scanGroups.slice(0, 3).map((group) => h('span', { key: group.signature, className: 'gs-scanbar-thumb' }, svgArt(group.svg, group.signature))),
+              h('span', { className: 'gs-scanbar-chev' }, h(I.arrowLeft))))
+          : null,
         props.loading
           ? h('div', { className: 'gs-empty' }, h('div', null, t('commonLoading')))
           : !props.error && graphics.length === 0
