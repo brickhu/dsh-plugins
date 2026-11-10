@@ -8,7 +8,7 @@
 import { scanUsage, applyAsset, walkProject, scanPathCopies } from './assets.js'
 import { LIB_DIR } from './store.js'
 import { parsePath, round } from './svg.js'
-import { signature, bodySignature, svgBlocks, jsxSvgBlocks, markupBlocks, pathLiterals, quotedRanges, splitSvg, canonSubpaths, canonicalD } from './shape.js'
+import { signature, bodySignature, isIconCandidate, svgBlocks, jsxSvgBlocks, markupBlocks, pathLiterals, quotedRanges, splitSvg, canonSubpaths, canonicalD } from './shape.js'
 
 export { signature, bodySignature, svgBlocks, splitSvg } from './shape.js'
 
@@ -276,6 +276,7 @@ export async function scanCodeShapes(io, { exclude = [] } = {}) {
 		]
 		for (let index = 0; index < blocks.length; index += 1) {
 			const block = blocks[index]
+			if (!isIconCandidate(block.text)) continue
 			const sig = bodySignature(block.text)
 			if (sig === '') continue
 			let group = groups.get(sig)

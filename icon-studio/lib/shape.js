@@ -66,6 +66,25 @@ export const bodySignature = (svg) => {
 	return `${aspectRatio(text)}::${parts.join(';')}`
 }
 
+/**
+ * Narrow scan boundary: only simple, static, single-colour glyph art is
+ * offered as an icon candidate. Illustrations, multi-colour marks, masked or
+ * raster-backed art are left out — they are not things this library should own.
+ */
+export function isIconCandidate(svg) {
+	const text = String(svg || '')
+	if (text.trim() === '') return false
+	if (/<(?:image|foreignObject|text|linearGradient|radialGradient|filter|mask|pattern|clipPath)\b/iu.test(text)) return false
+	if (/url\(\s*[#'"][^)]*\)/u.test(text)) return false
+	const elements = [...text.matchAll(/<(path|circle|rect|line|polygon|polyline|ellipse)\b/gu)].length
+	if (elements === 0 || elements > 10) return false
+	const paths = [...text.matchAll(/\bd="([^"]*)"/gu)].map((match) => match[1])
+	if (paths.reduce((total, d) => total + d.length, 0) > 2000) return false
+	const paints = new Set([...text.matchAll(/\b(?:fill|stroke)="(?!none")[^"]*"/gu)].map((match) => match[0]))
+	if (paints.size > 2) return false
+	return true
+}
+
 /** Signature including the canvas — only used where the canvas matters. */
 export const signature = (svg) => {
 	const text = String(svg || '')

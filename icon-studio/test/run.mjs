@@ -412,6 +412,23 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 		assert.ok(out.includes('M2 2h20v20H2z'), 'only the inner code is replaced')
 	})
 
+	await test('the workspace scan only offers simple glyph art', async () => {
+		const icon = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 4h16v16H4z" fill="currentColor"/></svg>'
+		const gradient = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><defs><linearGradient id="g"><stop offset="0"/></linearGradient></defs><path d="M4 4h16v16H4z" fill="url(#g)"/></svg>'
+		const colorful = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 4h8v8H4z" fill="#f00"/><path d="M12 12h8v8h-8z" fill="#0f0"/><path d="M4 16h8v4H4z" fill="#00f"/></svg>'
+		const many = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">${'<path d="M1 1h2v2H1z" fill="currentColor"/>'.repeat(12)}</svg>`
+		const io = memIo({
+			'package.json': '{}',
+			'src/A.tsx': `export const A = () => (${icon})`,
+			'src/B.tsx': `export const B = () => (${gradient})`,
+			'src/C.tsx': `export const C = () => (${colorful})`,
+			'src/D.tsx': `export const D = () => (${many})`,
+		})
+		const groups = await scanCodeShapes(io)
+		assert.equal(groups.length, 1, 'only the simple glyph is a candidate')
+		assert.equal(groups[0].sites[0].file, 'src/A.tsx')
+	})
+
 	await test('the workspace scan ignores packages and build output', async () => {
 		const box = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 4h16v16H4z" fill="currentColor"/></svg>'
 		const io = memIo({
