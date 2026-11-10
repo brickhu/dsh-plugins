@@ -66,6 +66,9 @@ jobs:
     name: Publish dsh-icon-library
     if: startsWith(github.ref, 'refs/tags/icon-studio-v')
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     defaults:
       run:
         working-directory: icon-studio
