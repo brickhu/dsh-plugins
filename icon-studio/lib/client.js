@@ -103,6 +103,8 @@ window.__ModuleLoader__.load({
       scanTitle: '工作区里的所有 SVG',
       scanBar: '{workspace} 中有 {n} 个未命名的 SVG',
       scanBarTitle: '查看并命名工作区里的 SVG',
+      scanBarRescan: '重新扫描工作区',
+      scanBarScanning: '正在扫描 {workspace} 中的 SVG …',
       scanBarWorkspace: '当前工作区',
       scanUnnamed: '未命名 SVG',
       scanAdd: '添加这个图标',
@@ -394,6 +396,8 @@ window.__ModuleLoader__.load({
       scanTitle: 'All svgs in the workspace',
       scanBar: '{n} unnamed SVGs in {workspace}',
       scanBarTitle: 'Review and name the workspace SVGs',
+      scanBarRescan: 'Re-scan the workspace',
+      scanBarScanning: 'Scanning SVGs in {workspace} …',
       scanBarWorkspace: 'this workspace',
       scanUnnamed: 'Unnamed SVG',
       scanAdd: 'Add this icon',
@@ -915,10 +919,14 @@ window.__ModuleLoader__.load({
 .gs-iconify-thumb{display:flex;align-items:center;justify-content:center;width:28px;height:28px}
 .gs-iconify-thumb svg{width:24px;height:24px}
 .gs-iconify-name{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:var(--dsw-alias-label-secondary)}
-.gs-scanbar{display:flex;align-items:center;gap:8px;margin:0;padding:8px 12px;border:0;border-top:.5px solid var(--dsw-alias-border-l1,rgba(127,127,127,.25));border-radius:0;background:rgba(255,255,255,.1);-webkit-backdrop-filter:blur(12px) saturate(1.2);backdrop-filter:blur(12px) saturate(1.2);color:var(--dsw-alias-label-secondary);font:inherit;cursor:pointer;text-align:left;flex:none}
-.gs-scanbar:hover{background:rgba(255,255,255,.16)}
+.gs-scanbar{display:flex;align-items:center;gap:6px;margin:0;padding:7px 10px 7px 6px;border:0;border-top:.5px solid var(--dsw-alias-border-l1,rgba(127,127,127,.25));border-radius:0;background:rgba(255,255,255,.1);-webkit-backdrop-filter:blur(12px) saturate(1.2);backdrop-filter:blur(12px) saturate(1.2);color:var(--dsw-alias-label-secondary);text-align:left;flex:none}
+.gs-scanbar-scan{display:flex;align-items:center;justify-content:center;width:24px;height:24px;flex:none;padding:0;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer}
+.gs-scanbar-scan:hover{background:rgba(255,255,255,.16);color:var(--dsw-alias-label-primary)}
+.gs-scanbar-scan:disabled{opacity:.45;cursor:default;pointer-events:none}
 .gs-scanbar-text{flex:1;min-width:0;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.gs-scanbar-right{display:flex;align-items:center;gap:4px;flex:none}
+.gs-scanbar-open{display:flex;align-items:center;gap:4px;flex:none;padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;border-radius:6px}
+.gs-scanbar-open:hover{color:var(--dsw-alias-label-primary)}
+.gs-scanbar-open:disabled{opacity:.4;cursor:default;pointer-events:none}
 .gs-scanbar-thumb{display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 6%,transparent)}
 .gs-scanbar-thumb .gs-svg-art,.gs-scanbar-thumb svg{width:15px;height:15px}
 .gs-scanbar-chev{display:flex;align-items:center;justify-content:center;transform:rotate(180deg);opacity:.65}
@@ -2041,20 +2049,25 @@ window.__ModuleLoader__.load({
       const flashTimer = useRef(null)
       const fileRef = useRef(null)
       const [scanGroups, setScanGroups] = useState(null)
+      const [scanBusy, setScanBusy] = useState(false)
       const scanTarget = props.workspace ? { sessionId: props.sessionId, workspace: props.workspace } : { sessionId: props.sessionId }
       const workspaceName = (() => {
         const root = props.library && props.library.root ? String(props.library.root) : ''
         const parts = root.split(/[\\/]/u).filter(Boolean)
         return parts.length > 0 ? parts[parts.length - 1] : t('scanBarWorkspace')
       })()
-      useEffect(() => {
-        let alive = true
-        api.post('scan', scanTarget).then((result) => {
-          if (!alive) return
+      const runScan = async () => {
+        setScanBusy(true)
+        try {
+          const result = await api.post('scan', scanTarget)
           setScanGroups((Array.isArray(result.groups) ? result.groups : []).filter((group) => !group.existing))
-        }).catch(() => { if (alive) setScanGroups([]) })
-        return () => { alive = false }
-      }, [])
+        } catch (_error) {
+          setScanGroups((current) => (Array.isArray(current) ? current : []))
+        } finally {
+          setScanBusy(false)
+        }
+      }
+      useEffect(() => { runScan() }, [])
       const pickSvgFile = () => { if (fileRef.current) fileRef.current.click() }
       const onSvgFile = async (event) => {
         const file = event.target.files && event.target.files[0]
@@ -2466,16 +2479,30 @@ window.__ModuleLoader__.load({
                   h('span', { className: 'gs-foot-spacer' }),
                   props.version ? h('span', { className: 'gs-foot-version' }, `v${props.version}`) : null)),
         !props.loading && !props.error && Array.isArray(scanGroups) && scanGroups.length > 0
-          ? h('button', {
-            type: 'button',
-            className: 'gs-scanbar',
-            onClick: props.onScan,
-            title: t('scanBarTitle'),
-          },
-            h('span', { className: 'gs-scanbar-text' }, t('scanBar', { n: scanGroups.length, workspace: workspaceName })),
-            h('span', { className: 'gs-scanbar-right' },
-              scanGroups.slice(0, 3).map((group) => h('span', { key: group.signature, className: 'gs-scanbar-thumb' }, svgArt(group.svg, group.signature))),
-              h('span', { className: 'gs-scanbar-chev' }, h(I.arrowLeft))))
+          ? h('div', { className: 'gs-scanbar' },
+            h('button', {
+              type: 'button',
+              className: 'gs-scanbar-scan',
+              title: t('scanBarRescan'),
+              disabled: scanBusy,
+              onClick: runScan,
+            }, h(ScanSearchMark, { size: 14 })),
+            h('span', { className: 'gs-scanbar-text' },
+              scanBusy
+                ? t('scanBarScanning', { workspace: workspaceName })
+                : t('scanBar', { n: scanGroups.length, workspace: workspaceName })),
+            h('button', {
+              type: 'button',
+              className: 'gs-scanbar-open',
+              title: t('scanBarTitle'),
+              disabled: scanBusy,
+              onClick: props.onScan,
+            },
+              scanBusy
+                ? null
+                : h(react.Fragment, null,
+                  scanGroups.slice(0, 3).map((group) => h('span', { key: group.signature, className: 'gs-scanbar-thumb' }, svgArt(group.svg, group.signature))),
+                  h('span', { className: 'gs-scanbar-chev' }, h(I.arrowLeft)))))
           : null,
         syncOpen && sync && sync.total > 0
           ? h(Modal, {
@@ -3800,6 +3827,21 @@ window.__ModuleLoader__.load({
       viewBox: '0 0 16 16',
       markup: '<defs><linearGradient id="paint0_linear_49_45" x1="8" y1="2" x2="8" y2="14" gradientUnits="userSpaceOnUse"><stop stop-color="#F4C64F"/><stop offset="1" stop-color="#72E0FF"/></linearGradient></defs><path d="M8 2C7.25 2 6.62 2.48 6.38 3.09C6.29 3.31 6.25 3.55 6.26 3.79C6.09 3.61 5.9 3.47 5.67 3.38C5.44 3.28 5.19 3.24 4.94 3.25C4.5 3.26 4.07 3.44 3.76 3.76C3.23 4.29 3.13 5.07 3.38 5.67C3.47 5.89 3.61 6.08 3.79 6.25C3.55 6.24 3.31 6.29 3.09 6.38C2.48 6.63 2 7.25 2 8C2 8.75 2.48 9.38 3.09 9.62C3.3 9.72 3.55 9.75 3.79 9.74C3.61 9.91 3.47 10.11 3.38 10.33C3.13 10.93 3.23 11.71 3.76 12.24C4.29 12.77 5.07 12.87 5.67 12.62C5.89 12.53 6.09 12.39 6.26 12.21C6.25 12.45 6.29 12.7 6.38 12.91C6.62 13.52 7.25 14 8 14C8.75 14 9.38 13.52 9.62 12.91C9.71 12.69 9.75 12.45 9.74 12.21C9.91 12.39 10.11 12.53 10.33 12.62C10.93 12.87 11.71 12.77 12.24 12.24C12.77 11.71 12.87 10.93 12.62 10.33C12.53 10.1 12.39 9.91 12.21 9.74C12.45 9.75 12.69 9.71 12.91 9.62C13.52 9.38 14 8.75 14 8C14 7.25 13.52 6.63 12.91 6.38C12.69 6.29 12.45 6.25 12.21 6.26C12.39 6.09 12.53 5.89 12.62 5.67C12.87 5.07 12.77 4.29 12.24 3.76C11.93 3.44 11.5 3.26 11.06 3.25C10.81 3.24 10.56 3.28 10.33 3.38C10.11 3.47 9.91 3.61 9.74 3.79C9.75 3.55 9.71 3.31 9.62 3.09C9.38 2.48 8.75 2 8 2L8 2ZM7.98 2.81C8.84 2.79 9.28 3.82 8.67 4.43L8.67 6.38L10.05 5C10.05 4.15 11.07 3.73 11.67 4.33C12.27 4.93 11.85 5.95 11 5.95L9.62 7.33L11.57 7.33C12.17 6.73 13.19 7.15 13.19 8C13.19 8.85 12.17 9.27 11.57 8.67L9.62 8.67L11 10.05C11.85 10.05 12.27 11.07 11.67 11.67C11.07 12.27 10.05 11.85 10.05 11L8.67 9.62L8.67 11.57C9.27 12.17 8.85 13.19 8 13.19C7.15 13.19 6.73 12.17 7.33 11.57L7.33 9.62L5.95 11C5.95 11.85 4.93 12.27 4.33 11.67C3.73 11.07 4.15 10.05 5 10.05L6.38 8.67L4.43 8.67C3.83 9.27 2.81 8.85 2.81 8C2.81 7.15 3.83 6.73 4.43 7.33L6.38 7.33L5 5.95C4.15 5.95 3.73 4.93 4.33 4.33C4.93 3.73 5.95 4.15 5.95 5L7.33 6.38L7.33 4.43C6.73 3.84 7.14 2.82 7.98 2.81Z" fill="url(#paint0_linear_49_45)"/>',
       document: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" fill="none"><defs><linearGradient id="paint0_linear_49_45" x1="8" y1="2" x2="8" y2="14" gradientUnits="userSpaceOnUse"><stop stop-color="#F4C64F"/><stop offset="1" stop-color="#72E0FF"/></linearGradient></defs><path d="M8 2C7.25 2 6.62 2.48 6.38 3.09C6.29 3.31 6.25 3.55 6.26 3.79C6.09 3.61 5.9 3.47 5.67 3.38C5.44 3.28 5.19 3.24 4.94 3.25C4.5 3.26 4.07 3.44 3.76 3.76C3.23 4.29 3.13 5.07 3.38 5.67C3.47 5.89 3.61 6.08 3.79 6.25C3.55 6.24 3.31 6.29 3.09 6.38C2.48 6.63 2 7.25 2 8C2 8.75 2.48 9.38 3.09 9.62C3.3 9.72 3.55 9.75 3.79 9.74C3.61 9.91 3.47 10.11 3.38 10.33C3.13 10.93 3.23 11.71 3.76 12.24C4.29 12.77 5.07 12.87 5.67 12.62C5.89 12.53 6.09 12.39 6.26 12.21C6.25 12.45 6.29 12.7 6.38 12.91C6.62 13.52 7.25 14 8 14C8.75 14 9.38 13.52 9.62 12.91C9.71 12.69 9.75 12.45 9.74 12.21C9.91 12.39 10.11 12.53 10.33 12.62C10.93 12.87 11.71 12.77 12.24 12.24C12.77 11.71 12.87 10.93 12.62 10.33C12.53 10.1 12.39 9.91 12.21 9.74C12.45 9.75 12.69 9.71 12.91 9.62C13.52 9.38 14 8.75 14 8C14 7.25 13.52 6.63 12.91 6.38C12.69 6.29 12.45 6.25 12.21 6.26C12.39 6.09 12.53 5.89 12.62 5.67C12.87 5.07 12.77 4.29 12.24 3.76C11.93 3.44 11.5 3.26 11.06 3.25C10.81 3.24 10.56 3.28 10.33 3.38C10.11 3.47 9.91 3.61 9.74 3.79C9.75 3.55 9.71 3.31 9.62 3.09C9.38 2.48 8.75 2 8 2L8 2ZM7.98 2.81C8.84 2.79 9.28 3.82 8.67 4.43L8.67 6.38L10.05 5C10.05 4.15 11.07 3.73 11.67 4.33C12.27 4.93 11.85 5.95 11 5.95L9.62 7.33L11.57 7.33C12.17 6.73 13.19 7.15 13.19 8C13.19 8.85 12.17 9.27 11.57 8.67L9.62 8.67L11 10.05C11.85 10.05 12.27 11.07 11.67 11.67C11.07 12.27 10.05 11.85 10.05 11L8.67 9.62L8.67 11.57C9.27 12.17 8.85 13.19 8 13.19C7.15 13.19 6.73 12.17 7.33 11.57L7.33 9.62L5.95 11C5.95 11.85 4.93 12.27 4.33 11.67C3.73 11.07 4.15 10.05 5 10.05L6.38 8.67L4.43 8.67C3.83 9.27 2.81 8.85 2.81 8C2.81 7.15 3.83 6.73 4.43 7.33L6.38 7.33L5 5.95C4.15 5.95 3.73 4.93 4.33 4.33C4.93 3.73 5.95 4.15 5.95 5L7.33 6.38L7.33 4.43C6.73 3.84 7.14 2.82 7.98 2.81Z" fill="url(#paint0_linear_49_45)"/></svg>',
+    }
+
+    /** The workspace scan mark (library icon `scan-search`). */
+    const SCAN_SEARCH = {
+      viewBox: '0 0 24 24',
+      markup: '<path fill="none" d="M0 0h24v24H0z"/><path fill="currentColor" d="M7 11.5c0 2.48 2.02 4.5 4.5 4.5c.88 0 1.69-.26 2.39-.7l1.91 1.91l1.41-1.41l-1.91-1.91c.44-.69.7-1.51.7-2.39C16 9.02 13.98 7 11.5 7S7 9.02 7 11.5M11.5 9a2.5 2.5 0 0 1 0 5a2.5 2.5 0 0 1 0-5M5 5h4V3H5c-1.1 0-2 .9-2 2v4h2zm0 16h4v-2H5v-4H3v4c0 1.1.9 2 2 2m16-6h-2v4h-4v2h4c1.1 0 2-.9 2-2zm0-10c0-1.1-.9-2-2-2h-4v2h4v4h2z"/>',
+    }
+
+    function ScanSearchMark(props) {
+      const size = props && typeof props.size === 'number' ? props.size : 14
+      return h('svg', {
+        viewBox: SCAN_SEARCH.viewBox, width: size, height: size, fill: 'none',
+        'aria-hidden': true,
+        dangerouslySetInnerHTML: { __html: SCAN_SEARCH.markup },
+      })
     }
 
     function TabMark(props) {
