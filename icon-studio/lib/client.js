@@ -3278,9 +3278,8 @@ window.__ModuleLoader__.load({
         h('div', { className: 'gs-scanpage' },
           h('header', { className: 'gs-detail-head' },
             h('button', { type: 'button', className: 'gs-iconbtn', onClick: props.onBack, title: t('editorBack') }, h(I.arrowLeft)),
-            h('strong', { className: 'gs-detail-title' }, t('scanTitle')),
+            h('strong', { className: 'gs-detail-title' }, rows ? t('scanDesc', { n: rows.length }) : t('scanTitle')),
             h('div', { className: 'gs-spacer' }),
-            rows && rows.length > 0 ? h('span', { className: 'gs-hint' }, t('scanDesc', { n: rows.length })) : null,
             h(Btn, { onClick: scan, disabled: busy }, busy ? t('commonLoading') : t('scanAgain'))),
           h('div', { className: 'gs-scan-body' }, body)),
         modal)
