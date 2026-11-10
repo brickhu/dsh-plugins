@@ -3096,7 +3096,7 @@ window.__ModuleLoader__.load({
     function aiErrorText(t, result) {
       if (result.error === 'rejected') return t('aiRejected', { issues: (result.issues || []).join(', ') })
       if (result.error === 'no-llm' || result.error === 'no-model') return t('aiNoModel')
-      if (result.error === 'max-tokens') return t('aiTooLong')
+      if (result.error === 'max-tokens' || result.error === 'truncated' || result.error === 'empty-answer') return t('aiTooLong')
       return t('aiFailed')
     }
 

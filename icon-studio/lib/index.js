@@ -323,10 +323,10 @@ export function apply(ctx, config = {}) {
 	}
 
 	/** One model round-trip that draws a new icon in the library's own style. */
-	async function streamIcon(scope, route, sessionId, prompt, profile, retry = null, references = []) {
+	async function streamIcon(scope, route, sessionId, prompt, profile, retry = null, references = [], budget = 8000) {
 		const llm = scope.get('llm')
 		const controller = new AbortController()
-		const timer = setTimeout(() => controller.abort(), 45000)
+		const timer = setTimeout(() => controller.abort(), 60000)
 		const [width, height] = profile.canvas.split('x')
 		const system = [
 			'You draw icons as SVG for an existing icon library and must match its style.',
@@ -340,6 +340,7 @@ export function apply(ctx, config = {}) {
 			references.length > 0
 				? `Icons for the same subject from other libraries. Study how they arrange it, then draw it yourself in our house style — do not copy their path data:\n${references.map((item) => `- ${item.label} (${item.source}): ${item.svg}`).join('\n')}`
 				: '',
+			'Do not think out loud and do not explain: answer immediately with the three lines below and nothing else.',
 			'Answer with exactly three lines and nothing else:',
 			'name: <short kebab-case English name>',
 			'rule: <one sentence: what it is, when to use it, when NOT to, and what a user might call it>',
@@ -360,7 +361,7 @@ export function apply(ctx, config = {}) {
 							: `Draw this icon: ${prompt}`,
 					}],
 				}],
-				maxTokens: 4000,
+				maxTokens: budget,
 				signal: controller.signal,
 				...(typeof sessionId === 'string' && sessionId !== '' ? { sessionId } : {}),
 			})
@@ -389,12 +390,18 @@ export function apply(ctx, config = {}) {
 		if (!llm || typeof llm.stream !== 'function') return { error: 'no-llm' }
 		const route = resolveModelRoute(scope, sessionId)
 		if (!route) return { error: 'no-model' }
-		const answer = await streamIcon(scope, route, sessionId, prompt, profile, retry, references)
+		// Reasoning models spend completion budget before the answer starts: retry
+		// once with more room instead of failing the whole draft on the first cap.
+		let answer = ''
+		for (const budget of [8000, 12000]) {
+			answer = await streamIcon(scope, route, sessionId, prompt, profile, retry, references, budget)
+			if (answer !== '!max-tokens' && answer !== '') break
+		}
 		if (answer === '!error') return { error: 'model-error' }
 		if (answer === '!max-tokens') return { error: 'max-tokens' }
 		if (answer === '') return { error: 'empty-answer' }
 		const raw = /<svg\b[\s\S]*?<\/svg>/iu.exec(answer)?.[0] ?? ''
-		if (raw === '') return { error: 'unreadable' }
+		if (raw === '') return /<svg\b/iu.test(answer) ? { error: 'truncated' } : { error: 'unreadable' }
 		const issues = generatedIconIssues(raw)
 		if (issues.length > 0) return { error: 'rejected', issues }
 		let normalized
