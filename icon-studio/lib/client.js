@@ -915,8 +915,8 @@ window.__ModuleLoader__.load({
 .gs-iconify-thumb{display:flex;align-items:center;justify-content:center;width:28px;height:28px}
 .gs-iconify-thumb svg{width:24px;height:24px}
 .gs-iconify-name{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:var(--dsw-alias-label-secondary)}
-.gs-scanbar{display:flex;align-items:center;gap:8px;margin:0;padding:8px 12px;border:0;border-top:.5px solid var(--dsw-alias-border-l1,rgba(127,127,127,.25));border-radius:0;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;cursor:pointer;text-align:left;flex:none}
-.gs-scanbar:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary) 4%,transparent)}
+.gs-scanbar{display:flex;align-items:center;gap:8px;margin:0;padding:8px 12px;border:0;border-top:.5px solid var(--dsw-alias-border-l1,rgba(127,127,127,.25));border-radius:0;background:rgba(255,255,255,.1);-webkit-backdrop-filter:blur(12px) saturate(1.2);backdrop-filter:blur(12px) saturate(1.2);color:var(--dsw-alias-label-secondary);font:inherit;cursor:pointer;text-align:left;flex:none}
+.gs-scanbar:hover{background:rgba(255,255,255,.16)}
 .gs-scanbar-text{flex:1;min-width:0;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .gs-scanbar-right{display:flex;align-items:center;gap:4px;flex:none}
 .gs-scanbar-thumb{display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 6%,transparent)}
