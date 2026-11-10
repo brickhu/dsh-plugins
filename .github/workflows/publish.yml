@@ -48,6 +48,19 @@ jobs:
       - name: Show the package that will be published
         run: npm pack --dry-run
 
+      - name: Verify OIDC availability
+        run: |
+          node --version
+          npm --version
+          if [ -z "$ACTIONS_ID_TOKEN_REQUEST_URL" ]; then
+            echo "OIDC endpoint: missing (id-token permission not granted)"
+            exit 1
+          fi
+          echo "OIDC endpoint: present"
+          code=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=npm:registry.npmjs.org")
+          echo "OIDC token mint status: $code"
+          test "$code" = "200"
+
       - name: Publish via OIDC trusted publishing
         run: npm publish --access public --provenance --registry https://registry.npmjs.org/
 
