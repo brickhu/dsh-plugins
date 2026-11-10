@@ -100,8 +100,14 @@ window.__ModuleLoader__.load({
       listImport: '粘贴 SVG',
       listScan: '扫描代码中的图标',
       listIconify: '从 Iconify 导入',
-      scanTitle: '扫描代码中的图标',
-      scanDesc: 'UI 代码里有 {n} 个未入库的形状；为要添加的填唯一名称，留空即跳过。',
+      scanTitle: '工作区里的所有 SVG',
+      scanUnnamed: '未命名 SVG',
+      scanAdd: '添加这个图标',
+      scanAddTitle: '为这个图标命名',
+      scanAddHint: '这个图形已经在工作区代码里出现，给它一个名称即可加入图标库并自动关联这些引用。',
+      scanAddConfirm: '添加',
+      scanImported: '已添加：{name}',
+      scanDesc: '{n} 个不同的 SVG 图形',
       scanSites: '{n} 处',
       scanExisting: '已在库中：{name}',
       scanNameHint: '唯一名称',
@@ -382,8 +388,14 @@ window.__ModuleLoader__.load({
       listImport: 'Paste SVG',
       listScan: 'Scan code for icons',
       listIconify: 'Import from Iconify',
-      scanTitle: 'Scan code for icons',
-      scanDesc: '{n} shapes in UI code are not in the library yet. Name the ones to add; leave blank to skip.',
+      scanTitle: 'All svgs in the workspace',
+      scanUnnamed: 'Unnamed SVG',
+      scanAdd: 'Add this icon',
+      scanAddTitle: 'Name this icon',
+      scanAddHint: 'This artwork already appears in the workspace; give it a name to add it to the library and link these references.',
+      scanAddConfirm: 'Add',
+      scanImported: 'Added: {name}',
+      scanDesc: '{n} distinct SVG shapes',
       scanSites: '{n} sites',
       scanExisting: 'Already in the library: {name}',
       scanNameHint: 'Unique name',
@@ -897,12 +909,21 @@ window.__ModuleLoader__.load({
 .gs-iconify-thumb{display:flex;align-items:center;justify-content:center;width:28px;height:28px}
 .gs-iconify-thumb svg{width:24px;height:24px}
 .gs-iconify-name{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:var(--dsw-alias-label-secondary)}
-.gs-scanlist{display:flex;flex-direction:column;gap:8px;max-height:52vh;overflow:auto;margin-top:8px}
-.gs-scanrow{display:flex;align-items:center;gap:10px;padding:8px;border:.5px solid var(--dsw-alias-border-l1);border-radius:8px}
-.gs-scanthumb{width:34px;height:34px;flex:none;display:flex;align-items:center;justify-content:center;border-radius:6px;background:var(--dsw-alias-bg-layer-2)}
-.gs-scanthumb svg{width:22px;height:22px}
-.gs-scanmeta{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
-.gs-scanwhere{font-size:11px;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gs-scanpage{display:flex;flex-direction:column;height:100%;min-height:0}
+.gs-scan-body{flex:1;min-height:0;overflow:auto;padding:8px 10px 14px}
+.gs-scan-item{display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:.5px solid var(--dsw-alias-border-l1)}
+.gs-scan-item:last-child{border-bottom:0}
+.gs-scan-thumb{display:flex;align-items:center;justify-content:center;width:34px;height:34px;flex:none;border-radius:8px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 5%,var(--dsw-alias-bg-base))}
+.gs-scan-thumb .gs-svg-art{width:24px;height:24px}
+.gs-scan-main{display:flex;flex-direction:column;gap:4px;flex:1;min-width:0}
+.gs-scan-title{font-size:12px;font-weight:600;color:var(--dsw-alias-label-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gs-scan-refs{display:flex;flex-wrap:wrap;gap:4px;max-height:34px;overflow:hidden}
+.gs-scan-ref{font-size:10px;line-height:1.4;color:var(--dsw-alias-label-secondary);background:color-mix(in srgb,var(--dsw-alias-label-primary) 6%,transparent);border-radius:4px;padding:1px 5px;white-space:nowrap;max-width:190px;overflow:hidden;text-overflow:ellipsis}
+.gs-scan-ref.more{color:var(--dsw-alias-label-tertiary)}
+.gs-scan-add{display:flex;align-items:center;justify-content:center;width:22px;height:22px;flex:none;padding:0;border:0;border-radius:50%;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:15px;line-height:1;cursor:pointer}
+.gs-scan-add:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary) 10%,transparent);color:var(--dsw-alias-label-primary)}
+.gs-scan-done{display:flex;align-items:center;justify-content:center;width:22px;height:22px;flex:none;color:var(--dsw-alias-label-tertiary)}
+.gs-scanthumb{display:flex;align-items:center;justify-content:center;width:28px;height:28px;flex:none;border-radius:6px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 5%,var(--dsw-alias-bg-base))}
 .gs-confirm-list{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:3px}
 .gs-confirm-list li{display:flex;align-items:center;gap:5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--dsw-alias-label-secondary);min-width:0}
 .gs-confirm-list li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1639,7 +1660,6 @@ window.__ModuleLoader__.load({
       const [view, setView] = useState('list')
       const [opened, setOpened] = useState(null)
       const [opening, setOpening] = useState(false)
-      const [scanOpen, setScanOpen] = useState(false)
       const [importOpen, setImportOpen] = useState(false)
       const [importSeed, setImportSeed] = useState('')
       const [importName, setImportName] = useState('')
@@ -1852,6 +1872,15 @@ window.__ModuleLoader__.load({
       /** Push: record this icon as the mark and write it into the plugin source. */
       const body = library && library.libraryExists === false
         ? h(InitView, { t, busy: initializing, onInit: initialize })
+        : view === 'scan'
+        ? h(ScanView, {
+          t,
+          sessionId,
+          workspace,
+          say,
+          onBack: () => setView('list'),
+          onImported: () => load({ silent: true }),
+        })
         : view === 'iconify'
         ? h(IconifyView, {
           t,
@@ -1895,7 +1924,7 @@ window.__ModuleLoader__.load({
           opening,
           onCreate: createGraphic,
           onDelete: deleteGraphic,
-          onScan: () => setScanOpen(true),
+          onScan: () => setView('scan'),
           onIconify: () => setView('iconify'),
           onRefresh: load,
           say,
@@ -1904,14 +1933,6 @@ window.__ModuleLoader__.load({
       return h('div', { className: 'gs-root' },
         h('style', null, CSS),
         body,
-        scanOpen ? h(ScanDialog, {
-          t,
-          sessionId,
-          workspace,
-          library,
-          onClose: () => setScanOpen(false),
-          onDone: async () => { setScanOpen(false); await load(); say(t('scanDone')) },
-        }) : null,
         importOpen ? h(ImportDialog, {
           t,
           sessionId,
@@ -3078,98 +3099,123 @@ window.__ModuleLoader__.load({
      * one row each. Naming a row imports that shape and links all of its sites;
      * shapes already in the library are shown as such and skipped.
      */
-    function ScanDialog(props) {
-      const { t, sessionId } = props
+    /** Second-level page: every distinct SVG shape already drawn in the workspace. */
+    function ScanView(props) {
+      const { t, sessionId, say } = props
       const target = props.workspace ? { sessionId, workspace: props.workspace } : { sessionId }
       const [groups, setGroups] = useState(null)
-      const [names, setNames] = useState({})
       const [error, setError] = useState('')
       const [busy, setBusy] = useState(false)
+      const [naming, setNaming] = useState(null)
+      const [name, setName] = useState('')
 
       const scan = async () => {
         setBusy(true)
         setError('')
         try {
-          const result = await api.post('scan', { ...target })
+          const result = await api.post('scan', target)
           setGroups(Array.isArray(result.groups) ? result.groups : [])
         } catch (err) {
           setGroups([])
-          setError(err.message || String(err))
+          setError(err && err.message ? err.message : String(err))
         } finally {
           setBusy(false)
         }
       }
+
       useEffect(() => { scan() }, [])
 
-      const libraryNames = new Set(
-        (props.library && Array.isArray(props.library.graphics) ? props.library.graphics : []).map((entry) => entry.name),
-      )
-      const rows = (groups || []).filter((group) => !group.existing)
-      const chosen = rows.filter((group) => (names[group.signature] || '').trim() !== '')
-      const taken = (name, signature) => libraryNames.has(name) || rows.some(
-        (group) => group.signature !== signature && (names[group.signature] || '').trim() === name,
-      )
-      const bad = chosen.find((group) => taken((names[group.signature] || '').trim(), group.signature))
+      const openNaming = (group) => {
+        setNaming(group)
+        setName('')
+        setError('')
+      }
 
-      const run = async () => {
-        if (chosen.length === 0) { setError(t('scanNeedName')); return }
-        if (bad) { setError(t('scanDup', { name: (names[bad.signature] || '').trim() })); return }
+      const add = async () => {
+        const value = name.trim()
+        if (!naming) return
+        if (value === '') {
+          setError(t('importNeedName'))
+          return
+        }
         setBusy(true)
         setError('')
         try {
-          for (const group of chosen) {
-            await api.post('save', {
-              sessionId,
-              name: (names[group.signature] || '').trim(),
-              svg: group.svg,
-              viewBox: group.viewBox,
-              preserveViewBox: true,
-              source: 'workspace',
-            })
-          }
-          props.onDone()
+          await api.post('save', {
+            ...target,
+            name: value,
+            svg: naming.svg,
+            viewBox: naming.viewBox,
+            preserveViewBox: true,
+            source: 'workspace',
+          })
+          setNaming(null)
+          setName('')
+          await scan()
+          if (props.onImported) await props.onImported()
+          say(t('scanImported', { name: value }))
         } catch (err) {
-          setError(err.message || String(err))
+          setError(err && err.message ? err.message : String(err))
         } finally {
           setBusy(false)
         }
       }
 
-      return h(Modal, {
-        title: t('scanTitle'),
-        wide: true,
-        onClose: props.onClose,
-        footer: h(react.Fragment, null,
-          h('div', { className: 'gs-spacer' }),
-          h(Btn, { onClick: scan, disabled: busy }, busy ? t('commonLoading') : t('scanAgain')),
-          h(Btn, { variant: 'primary', onClick: run, disabled: busy || chosen.length === 0 }, t('scanImport', { n: chosen.length }))),
-      },
-        groups === null
-          ? h('p', { className: 'gs-hint' }, t('scanScanning'))
-          : groups.length === 0
-            ? h('p', { className: 'gs-hint' }, t('scanNone'))
-            : h(react.Fragment, null,
-              h('p', { className: 'gs-hint' }, t('scanDesc', { n: rows.length })),
-              h('div', { className: 'gs-scanlist' },
-                groups.map((group) => {
-                  const name = names[group.signature] || ''
-                  const clash = group.existing ? false : (name.trim() !== '' && taken(name.trim(), group.signature))
-                  return h('div', { key: group.signature, className: 'gs-scanrow' },
-                    h('div', { className: 'gs-scanthumb' }, svgArt(group.svg, group.signature)),
-                    h('div', { className: 'gs-scanmeta' },
-                      h('span', { className: 'gs-scanwhere' }, `${t('scanSites', { n: group.sites.length })} · ${group.sites[0] ? group.sites[0].file : ''}`),
-                      group.existing
-                        ? h('span', { className: 'gs-hint' }, t('scanExisting', { name: group.existing }))
-                        : h('input', {
-                          className: 'gs-input',
-                          value: name,
-                          spellCheck: false,
-                          placeholder: t('scanNameHint'),
-                          onChange: (event) => { setNames((current) => ({ ...current, [group.signature]: event.target.value })); setError('') },
-                        })),
-                    clash ? h('span', { className: 'gs-hint', style: { color: 'var(--dsw-alias-state-error-primary, #e5484d)' } }, t('scanDup', { name: name.trim() })) : null)
-                }))),
-        error ? h('p', { className: 'gs-hint', style: { color: 'var(--dsw-alias-state-error-primary, #e5484d)' } }, error) : null)
+      const rows = Array.isArray(groups) ? groups.map((group) => {
+        const refs = group.sites.slice(0, 8).map((site, index) => h('span', {
+          key: `${site.file}:${site.line}:${index}`,
+          className: 'gs-scan-ref',
+          title: `${site.file}:${site.line || 1}`,
+        }, `${site.file}:${site.line || 1}`))
+        if (group.sites.length > 8) refs.push(h('span', { key: 'more', className: 'gs-scan-ref more' }, `+${group.sites.length - 8}`))
+        const action = group.existing
+          ? h('span', { className: 'gs-scan-done', title: t('scanExisting', { name: group.existing }) }, h(CheckMark, { size: 12 }))
+          : h('button', { type: 'button', className: 'gs-scan-add', title: t('scanAdd'), onClick: () => openNaming(group) }, '+')
+        return h('div', { key: group.signature, className: 'gs-scan-item' },
+          h('div', { className: 'gs-scan-thumb' }, svgArt(group.svg, group.signature)),
+          h('div', { className: 'gs-scan-main' },
+            h('b', { className: 'gs-scan-title' }, group.existing || t('scanUnnamed')),
+            h('div', { className: 'gs-scan-refs' }, refs)),
+          action)
+      }) : null
+
+      let body = null
+      if (rows === null) body = h(Loading, { t })
+      else if (rows.length === 0) body = h('p', { className: 'gs-hint' }, t('scanNone'))
+      else body = rows
+
+      const modal = naming
+        ? h(Modal, {
+          title: t('scanAddTitle'),
+          onClose: () => { setNaming(null); setError('') },
+          footer: h(react.Fragment, null,
+            h('div', { className: 'gs-spacer' }),
+            h(Btn, { onClick: () => { setNaming(null); setError('') } }, t('saveConfirmCancel')),
+            h(Btn, { variant: 'primary', onClick: add, disabled: busy || name.trim() === '' }, t('scanAddConfirm'))),
+        },
+          h('p', { className: 'gs-hint' }, t('scanAddHint')),
+          h('input', {
+            className: 'gs-input',
+            value: name,
+            spellCheck: false,
+            autoFocus: true,
+            placeholder: t('scanNameHint'),
+            onChange: (event) => { setName(event.target.value); setError('') },
+            onKeyDown: (event) => { if (event.key === 'Enter') add() },
+          }),
+          error ? h('p', { className: 'gs-hint', style: { color: 'var(--dsw-alias-state-error-primary, #e5484d)' } }, error) : null)
+        : null
+
+      return h(react.Fragment, null,
+        h('div', { className: 'gs-scanpage' },
+          h('header', { className: 'gs-detail-head' },
+            h('button', { type: 'button', className: 'gs-iconbtn', onClick: props.onBack, title: t('editorBack') }, h(I.arrowLeft)),
+            h('strong', { className: 'gs-detail-title' }, t('scanTitle')),
+            h('div', { className: 'gs-spacer' }),
+            rows && rows.length > 0 ? h('span', { className: 'gs-hint' }, t('scanDesc', { n: rows.length })) : null,
+            h(Btn, { onClick: scan, disabled: busy }, busy ? t('commonLoading') : t('scanAgain'))),
+          h('div', { className: 'gs-scan-body' }, body)),
+        modal)
     }
 
     /**
@@ -3802,7 +3848,7 @@ window.__ModuleLoader__.load({
 
     exports.apply = apply
     exports.inject = INJECT
-    exports._test = { parsePath, segmentsToD, isClosedPath, kindOf, pathBBox, transformD, penD, ellipseD, rectD, matrixInvert, ICON_CANVAS, Panel, Detail, ListView, IconifyView, InitView, ImportDialog, GuideIcon, PanelTitle, TabMark, GuideMark, makeT }
+    exports._test = { parsePath, segmentsToD, isClosedPath, kindOf, pathBBox, transformD, penD, ellipseD, rectD, matrixInvert, ICON_CANVAS, Panel, Detail, ListView, IconifyView, InitView, ScanView, ImportDialog, GuideIcon, PanelTitle, TabMark, GuideMark, makeT }
     return module.exports
   },
 })
