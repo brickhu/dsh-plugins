@@ -1,7 +1,7 @@
 {
   "name": "dsh-icon-library",
   "version": "0.17.0",
-  "description": "Icon Library for DeepSeek Harness: create a workspace icon library that agents can consume \u2014 scan icons from workspace, paste or import SVGs, and keep every copy in sync. Agents use icon_list / icon_get / icon_save / icon_annotate. \u9879\u76ee\u7ea7\u56fe\u6807\u5e93\u3002",
+  "description": "A workspace icon library for DeepSeek Harness: drag icons into the chat as <name>, let agents pick icons by meaning, and edit an SVG once to update every place it is used. 项目级图标库。",
   "license": "MIT",
   "type": "module",
   "main": "lib/index.js",

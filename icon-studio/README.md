@@ -1,113 +1,78 @@
 # dsh-icon-library
 
-A workspace-level icon library for DeepSeek Harness: every icon lives in a single `.icons.json` at the project root, so **agents can pick icons by name and description**, and every SVG copy in your code stays in sync.
-
-> One library per workspace. The data is plain, diffable JSON that can be committed to Git.
+你的项目自己的图标库：把图标从"散落在代码里的 SVG"变成一个可浏览、可引用、可自动同步的集合。
 
 [中文说明 →](README.zh.md)
 
-## Why
+## 你会得到什么
 
-- Agents should not guess icon names or redraw SVGs: `icon_list` finds by meaning, `icon_get` returns markup ready to inline.
-- Identical `<svg>` blocks scattered through the codebase are painful to update. The plugin indexes every copy **by shape** and rewrites them all on save.
-- Icons need a stable name and a "when to use / when not to" description that travels with the data.
+- **在对话里直接指代图标**：从 Icons 面板把图标拖进对话窗口，消息里会出现 `<delete>` 这样的引用。Agent 知道它指的是哪个图标，不会再问你"你说的是哪个删除图标"。
+- **让 Agent 从你的库里挑图标**：说"给这个按钮加个设置图标"，Agent 会先在你工作区的图标库里按名称和描述找到合适的那个，而不是随手画一个风格不一致的 SVG。
+- **改一次，N 处同步**：同一个图标通常在很多地方被内联使用。你在面板里替换它的图形并保存，工作区里所有引用会一起更新，不需要逐个文件去找。
+- **随时把图标加进来**：选择本地 SVG 文件、直接粘贴，或从 Iconify 浏览导入。
 
-## Features
+## 适合谁
 
-- **Right-sidebar panel**: browse, search, rename, edit descriptions, delete; one-click initialisation for empty workspaces.
-- **Three ways in**: paste an SVG (`⌘V`), pick a local file (**+ Add**), or browse and import from Iconify.
-- **Shape-based references**: scans existing SVGs in workspace UI code (inline, JSX, constants, standalone files) and records each site.
-- **Automatic sync**: saving or replacing artwork updates every reference in place; deleting warns how many references will break.
-- **Agent tools**: `icon_list` / `icon_get` / `icon_save` / `icon_annotate`.
-- **IconifyJSON aligned**: `icons` holds standard IconData (body + canvas), `metadata` keeps rules, pointers, hashes and other extensions.
+- 项目里图标很多、而且以 SVG 形式散落在组件里的前端项目；
+- 经常和 Agent 一起改 UI，希望"我说的图标"和"Agent 用的图标"是同一个；
+- 希望图标数据可读、可 diff、能跟着仓库一起走。
 
-## Install
+## 安装
 
-Requires DSH `>=0.2.1-rc.5 <0.3.0`.
+要求 DSH `>=0.2.1-rc.5 <0.3.0`。
 
-### Option 1 — DSH plugin manager (recommended)
+### 方式一：DSH 插件管理器（推荐）
 
-1. Open DSH → right sidebar → **Plugins**.
-2. Click **Add plugin** and enter:
+1. 打开 DSH → 右侧栏 **Plugins**（插件）；
+2. 点 **Add plugin / 添加插件**，输入：
 
    ```
    dsh-icon-library
    ```
 
-3. Install it and make sure the bundle is enabled.
-4. **Quit DSH completely** (`Cmd+Q` on macOS) and start it again.
-5. In a conversation, expand the right sidebar, click **+** and choose **Icons**.
+3. 安装并确认 bundle 已启用；
+4. **完全退出 DSH**（macOS `Cmd+Q`）后重新打开；
+5. 在会话里展开右侧栏，点 **+**，选择 **Icons / 图标**。
 
-### Option 2 — command line
+### 方式二：命令行
 
 ```bash
 npx --yes --package dsh-icon-library dsh-icon-library-install
 ```
 
-Options:
+可选参数：
 
 ```bash
-# a specific version
 npx --yes --package dsh-icon-library dsh-icon-library-install --version 0.17.0
-
-# a specific profile (default: desktop)
 npx --yes --package dsh-icon-library dsh-icon-library-install --profile desktop
-
-# show what would change without installing
 npx --yes --package dsh-icon-library dsh-icon-library-install --dry-run
 ```
 
-Quit DSH completely and reopen it afterwards — a page reload is not enough.
+安装完成后同样需要完全退出并重开 DSH。
 
-## Quick start
+## 使用
 
-1. Open the Icons panel; on first run click **Initialise icon library** (creates `.icons.json` at the project root).
-2. Add your first icon: **+ Add** for a local SVG, paste with `⌘V`, or `⋯` → **Import from Iconify**.
-3. Fill in the name and description on the detail page (the wand can generate them), then save.
-4. Inline the SVG returned by `icon_get` into your code.
-
-Later edits propagate to every same-shaped reference in the workspace automatically — no markers needed in code.
-
-## What the data looks like
-
-```jsonc
-{
-  "width": 24,
-  "height": 24,
-  "icons": {
-    "delete": { "body": "<path …/>" }
-  },
-  "metadata": {
-    "delete": {
-      "rule": "Deletes a row, file or resource; not for closing overlays",
-      "pointers": [{ "file": "src/App.tsx", "kind": "inline", "index": 3, "line": 42 }],
-      "hash": "sha256:…"
-    }
-  },
-  "lastModified": 1793700000,
-  "formatVersion": 11
-}
-```
-
-- `icons`: IconifyJSON-style icon data (`body` plus optional `left/top/width/height`; omitted means the 24×24 default);
-- `metadata`: extensions keyed by icon name — application rule, reference sites, hash, timestamps;
-- List order is the key order of the `icons` object.
-
-## Agent tools
-
-| Tool | Purpose |
+| 我想…… | 怎么做 |
 |---|---|
-| `icon_list` | Search this workspace's icons by name or description |
-| `icon_get` | Fetch the full SVG and application rule for one icon |
-| `icon_save` | Create or update an icon (names are required and unique) |
-| `icon_annotate` | Improve an icon's description |
+| 在对话里指一个图标 | 从 Icons 面板把图标拖进对话输入框，会出现 `<图标名>` |
+| 加一个新图标 | **+ Add** 选本地 SVG、`⌘V` 粘贴，或 `⋯` → **Import from Iconify** |
+| 找图标 | 面板顶部搜索（匹配名称和描述） |
+| 改图标 | 点开图标 → 在详情页替换 SVG、改名称/描述 → Save，所有引用一起更新 |
+| 看哪些地方用了它 | 详情页 Meta 里的 **References**，点开是文件与行号 |
+| 删图标 | 卡片 `⋯` → Delete；有引用时会提示会破坏几处 |
 
-## Development
+第一次使用某个工作区时，面板会显示初始化页——点 **初始化图标库**，它只会在项目根目录创建 `.icons.json`，不会改你的业务代码。
+
+## 图标数据在哪
+
+一个 workspace 一个文件：项目根目录的 `.icons.json`。它是可读的 JSON（IconifyJSON 结构），可以 diff、可以提交进 Git；业务代码里不需要 import 它。
+
+## 开发
 
 ```bash
 cd icon-studio
-node test/run.mjs                    # offline test suite
-node scripts/install.mjs --dry-run   # preview what the CLI install changes
+node test/run.mjs                    # 离线测试
+node scripts/install.mjs --dry-run   # 查看 CLI 安装会改什么
 ```
 
 ## License

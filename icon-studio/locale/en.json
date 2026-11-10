@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Icon Library",
-    "description": "Create a workspace icon library that agents can consume: scan icons from workspace, paste or import SVGs, and keep every copy in sync."
+    "description": "A workspace icon library for your project: drag icons into the chat as <name>, let the agent pick the right icon by meaning, and edit an SVG once to update every place it is used."
   }
 }
