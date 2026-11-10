@@ -16,7 +16,7 @@
  * All filesystem work happens in the host half over /api/dsh-icon-studio/*.
  */
 window.__ModuleLoader__.load({
-  id: 'dsh-icon-studio',
+  id: 'dsh-icon-library',
   factory: (require) => {
     var module = { exports: {} }
     var exports = module.exports
@@ -32,9 +32,9 @@ window.__ModuleLoader__.load({
     const h = react.createElement
     const { useState, useEffect, useRef, useCallback, useMemo } = react
 
-    const NS = 'dsh-icon-studio'
-    const TAB_ID = 'dsh-icon-studio'
-    const KIND = 'icon-studio'
+    const NS = 'dsh-icon-library'
+    const TAB_ID = 'dsh-icon-library'
+    const KIND = 'icon-library'
     const API = '/api/dsh-icon-studio/'
 
     /** Replaced by makeT(ctx) in apply(); components fall back to it. */
