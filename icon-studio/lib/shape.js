@@ -173,7 +173,9 @@ function collectStringVars(source) {
 	const re = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:'([^']*)'|"([^"]*)"|`([^`]*)`)/gu
 	let match
 	while ((match = re.exec(source)) !== null) {
-		vars.set(match[1], match[2] ?? match[3] ?? match[4] ?? '')
+		const value = match[2] ?? match[3] ?? match[4] ?? ''
+		const start = match.index + match[0].length - value.length - 1
+		vars.set(match[1], { value, start, end: start + value.length })
 	}
 	return vars
 }
@@ -187,7 +189,20 @@ function attrValueFrom(attrs, name, vars) {
 	if (match[3] !== undefined) return match[3]
 	if (match[4] !== undefined) return match[4]
 	const ident = match[5]
-	return ident !== undefined && vars.has(ident) ? vars.get(ident) : ''
+	return ident !== undefined && vars.has(ident) ? vars.get(ident).value : ''
+}
+
+/** Like attrValueFrom, but reports which identifier (if any) supplied the value. */
+function attrResolve(attrs, name, vars) {
+	const match = new RegExp(`\\b${name}\\s*:\\s*(?:'([^']*)'|"([^"]*)"|\`([^\`]*)\`|(-?[\\d.]+)|([A-Za-z_$][\\w$]*))`, 'u').exec(attrs)
+	if (!match) return { value: '', from: null }
+	if (match[1] !== undefined) return { value: match[1], from: null }
+	if (match[2] !== undefined) return { value: match[2], from: null }
+	if (match[3] !== undefined) return { value: match[3], from: null }
+	if (match[4] !== undefined) return { value: match[4], from: null }
+	const ident = match[5]
+	if (ident !== undefined && vars.has(ident)) return { value: vars.get(ident).value, from: ident }
+	return { value: '', from: null }
 }
 
 export function jsxSvgBlocks(text) {
@@ -217,7 +232,8 @@ export function jsxSvgBlocks(text) {
 			if (close === -1) continue
 			const attrs = call.slice(brace + 1, close - 1)
 			const tag = element[1]
-			const d = attrValueFrom(attrs, 'd', vars)
+			const resolvedD = attrResolve(attrs, 'd', vars)
+			const d = resolvedD.value
 			const attrsOut = []
 			for (const [key, name] of Object.entries(REACT_ATTR)) {
 				const value = attrValueFrom(attrs, key, vars)
@@ -232,10 +248,16 @@ export function jsxSvgBlocks(text) {
 			const stroke = attrValueFrom(attrs, 'stroke', vars)
 			if (stroke !== '') attrsOut.push(`stroke="${stroke}"`)
 			if (d !== '') {
-				const at = call.indexOf(d, brace)
-				if (at !== -1) {
-					const dStart = match.index + at
-					sites.push({ start: dStart, end: dStart + d.length, literal: d })
+				if (resolvedD.from !== null) {
+					// Shared constant: one rewrite site, no matter how many SVGs use it.
+					const constant = vars.get(resolvedD.from)
+					sites.push({ start: constant.start, end: constant.end, literal: d, shared: true })
+				} else {
+					const at = call.indexOf(d, brace)
+					if (at !== -1) {
+						const dStart = match.index + at
+						sites.push({ start: dStart, end: dStart + d.length, literal: d, shared: false })
+					}
 				}
 				elements.push(`<path d="${d}" ${attrsOut.join(' ')}/>`)
 			} else {

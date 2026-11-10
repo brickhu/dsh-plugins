@@ -348,6 +348,28 @@ async function main() {
 		assert.ok(io.files.get('src/icons.ts').includes("'M2 2L22 2L22 22L2 22Z'"), 'the constant is rewritten')
 	})
 
+	await test('a shared path constant counts once across several SVGs', async () => {
+		const io = memIo({
+			'package.json': '{}',
+			'src/icons.ts': `const P = 'M4 4L20 4L20 20L4 20Z'
+export const A = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path', { d: P, fill: 'currentColor' }))
+export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path', { d: P, fill: 'currentColor' }))`,
+		})
+		const library = '<svg viewBox="0 0 24 24" fill="none"><path d="M4 4L20 4L20 20L4 20Z" fill="currentColor"/></svg>'
+		const pointers = await findShapePointers(io, library)
+		assert.equal(pointers.length, 1, 'the constant is one rewrite site, not one per SVG')
+		assert.equal(pointers[0].kind, 'path')
+		const groups = await scanCodeShapes(io)
+		const shared = groups.find((group) => group.signature === bodySignature(library))
+		assert.ok(shared, 'the shape is listed')
+		assert.equal(shared.sites.length, 2, 'both SVGs are usage sites')
+		const next = library.replace('M4 4L20 4L20 20L4 20Z', 'M2 2L22 2L22 22L2 22Z')
+		await pushShapePointers(io, next, pointers)
+		const out = io.files.get('src/icons.ts')
+		assert.equal((out.match(/M2 2L22 2L22 22L2 22Z/g) || []).length, 1, 'the constant is rewritten once')
+		assert.ok(!out.includes('M4 4L20 4L20 20L4 20Z'), 'the old path is gone')
+	})
+
 	await test('markup constants are found and rewritten in place', async () => {
 		const source = `const LOGO = { viewBox: '0 0 16 16', markup: '<path d="M2 2h12v12H2z" fill="currentColor"/>' }`
 		const io = memIo({ 'package.json': '{}', 'src/marks.ts': source })

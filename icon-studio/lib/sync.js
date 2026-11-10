@@ -75,6 +75,9 @@ export async function findShapePointers(io, svg, { exclude = [], stats = null } 
 		const jsxCalls = jsxSvgBlocks(text)
 		for (let index = 0; index < jsxCalls.length; index += 1) {
 			if (bodySignature(jsxCalls[index].text) !== wanted) continue
+			// A shape whose path is a shared constant is rewritten once at the
+			// constant (kind 'path' below), not once per component using it.
+			if (jsxCalls[index].dSites.length > 0 && jsxCalls[index].dSites.every((site) => site.shared)) continue
 			const line = text.slice(0, jsxCalls[index].start).split('\n').length
 			pointers.push({ file, kind: 'jsx', index, line })
 		}
@@ -152,12 +155,25 @@ export async function pushShapePointers(io, svg, pointers = []) {
 			// Right to left, so every earlier offset stays valid while rewriting.
 			for (const pointer of [...jsxTargets].sort((left, right) => (calls[right.index]?.start ?? -1) - (calls[left.index]?.start ?? -1))) {
 				const block = calls[pointer.index]
-				if (!block || block.dSites.length !== sourceDs.length) continue
-				for (let index = block.dSites.length - 1; index >= 0; index -= 1) {
-					const site = block.dSites[index]
-					next = `${next.slice(0, site.start)}${sourceDs[index]}${next.slice(site.end)}`
+				if (!block) continue
+				const edits = block.dSites
+					.map((site, index) => ({ site, index }))
+					.filter(({ site }) => !site.shared)
+					.sort((left, right) => right.site.start - left.site.start)
+				for (const { site, index } of edits) {
+					const replacement = sourceDs[index]
+					if (typeof replacement !== 'string') continue
+					next = `${next.slice(0, site.start)}${replacement}${next.slice(site.end)}`
 					rewritten += 1
 				}
+			}
+			// Shared path constants live outside the JSX call: one literal, one edit.
+			for (const pointer of list.filter((item) => item.kind === 'path')) {
+				const replacement = sourceDs[pointer.index]
+				if (typeof replacement !== 'string' || replacement === '') continue
+				if (typeof pointer.literal !== 'string' || !next.includes(pointer.literal)) continue
+				next = next.split(pointer.literal).join(replacement)
+				rewritten += 1
 			}
 			if (next !== text) {
 				await io.writeText(file, next)
