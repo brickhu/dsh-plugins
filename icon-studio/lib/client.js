@@ -471,7 +471,7 @@ window.__ModuleLoader__.load({
       supplyAdded: 'Added',
       supplySame: 'Already in the library: {name}',
       listMore: 'More',
-      listAi: 'AI create',
+      listAi: 'AI generate',
       aiPromptLabel: 'Describe it',
       aiPromptPlaceholder: 'Describe the icon, e.g. a calendar with a lock',
       aiHint: 'Drawn in this library\'s canvas, stroke width and style; the draft then opens the add dialog so name and rule can be edited. ⌘↵ to generate.',
