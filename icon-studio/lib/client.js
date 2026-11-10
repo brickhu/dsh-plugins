@@ -915,7 +915,7 @@ window.__ModuleLoader__.load({
 .gs-iconify-thumb{display:flex;align-items:center;justify-content:center;width:28px;height:28px}
 .gs-iconify-thumb svg{width:24px;height:24px}
 .gs-iconify-name{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:var(--dsw-alias-label-secondary)}
-.gs-scanbar{display:flex;align-items:center;gap:8px;margin:0 16px 6px;padding:8px 10px;border:0;border-radius:10px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 5%,var(--dsw-alias-bg-base));color:var(--dsw-alias-label-secondary);font:inherit;cursor:pointer;text-align:left;flex:none}
+.gs-scanbar{display:flex;align-items:center;gap:8px;margin:8px 12px 10px;padding:8px 10px;border:0;border-radius:10px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 5%,var(--dsw-alias-bg-base));color:var(--dsw-alias-label-secondary);font:inherit;cursor:pointer;text-align:left;flex:none}
 .gs-scanbar:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary) 9%,var(--dsw-alias-bg-base))}
 .gs-scanbar-text{flex:1;min-width:0;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .gs-scanbar-right{display:flex;align-items:center;gap:4px;flex:none}
@@ -2376,18 +2376,6 @@ window.__ModuleLoader__.load({
             h('div', { style: { padding: '0 12px' } }, h(Btn, { variant: 'outline', onClick: props.onRefresh }, t('commonRetry'))))
           : null,
 
-        !props.loading && !props.error && Array.isArray(scanGroups) && scanGroups.length > 0
-          ? h('button', {
-            type: 'button',
-            className: 'gs-scanbar',
-            onClick: props.onScan,
-            title: t('scanBarTitle'),
-          },
-            h('span', { className: 'gs-scanbar-text' }, t('scanBar', { n: scanGroups.length, workspace: workspaceName })),
-            h('span', { className: 'gs-scanbar-right' },
-              scanGroups.slice(0, 3).map((group) => h('span', { key: group.signature, className: 'gs-scanbar-thumb' }, svgArt(group.svg, group.signature))),
-              h('span', { className: 'gs-scanbar-chev' }, h(I.arrowLeft))))
-          : null,
         props.loading
           ? h('div', { className: 'gs-empty' }, h('div', null, t('commonLoading')))
           : !props.error && graphics.length === 0
@@ -2477,6 +2465,18 @@ window.__ModuleLoader__.load({
                   h('span', { className: 'gs-foot-count' }, t('listCount', { n: filtered.length })),
                   h('span', { className: 'gs-foot-spacer' }),
                   props.version ? h('span', { className: 'gs-foot-version' }, `v${props.version}`) : null)),
+        !props.loading && !props.error && Array.isArray(scanGroups) && scanGroups.length > 0
+          ? h('button', {
+            type: 'button',
+            className: 'gs-scanbar',
+            onClick: props.onScan,
+            title: t('scanBarTitle'),
+          },
+            h('span', { className: 'gs-scanbar-text' }, t('scanBar', { n: scanGroups.length, workspace: workspaceName })),
+            h('span', { className: 'gs-scanbar-right' },
+              scanGroups.slice(0, 3).map((group) => h('span', { key: group.signature, className: 'gs-scanbar-thumb' }, svgArt(group.svg, group.signature))),
+              h('span', { className: 'gs-scanbar-chev' }, h(I.arrowLeft))))
+          : null,
         syncOpen && sync && sync.total > 0
           ? h(Modal, {
             title: t('syncTitle'),
