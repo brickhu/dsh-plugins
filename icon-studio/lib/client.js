@@ -3080,6 +3080,7 @@ window.__ModuleLoader__.load({
      */
     function ScanDialog(props) {
       const { t, sessionId } = props
+      const target = props.workspace ? { sessionId, workspace: props.workspace } : { sessionId }
       const [groups, setGroups] = useState(null)
       const [names, setNames] = useState({})
       const [error, setError] = useState('')
