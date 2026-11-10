@@ -63,7 +63,9 @@ if (!plugin) {
 		icon: `https://raw.githubusercontent.com/brickhu/dsh-plugins/main/${pluginDir}/icon.svg`,
 		author: 'brickhu',
 		...(manifest.homepage ? { homepage: manifest.homepage } : {}),
-		...(manifest.repository ? { repository: manifest.repository } : {}),
+		...(manifest.repository
+			? { repository: { ...manifest.repository, url: String(manifest.repository.url || '').replace(/^git\+/, '') } }
+			: {}),
 		metadata: { category: 'tools' },
 		versions: [],
 	}
