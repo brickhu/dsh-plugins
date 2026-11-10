@@ -919,7 +919,7 @@ window.__ModuleLoader__.load({
 .gs-iconify-thumb{display:flex;align-items:center;justify-content:center;width:28px;height:28px}
 .gs-iconify-thumb svg{width:24px;height:24px}
 .gs-iconify-name{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:var(--dsw-alias-label-secondary)}
-.gs-scanbar{display:flex;align-items:center;gap:6px;margin:0;padding:7px 10px 7px 6px;border:0;border-top:.5px solid var(--dsw-alias-border-l1,rgba(127,127,127,.25));border-radius:0;background:rgba(255,255,255,.1);-webkit-backdrop-filter:blur(12px) saturate(1.2);backdrop-filter:blur(12px) saturate(1.2);color:var(--dsw-alias-label-secondary);text-align:left;flex:none}
+.gs-scanbar{display:flex;align-items:center;gap:6px;margin:0;padding:7px 10px 7px 6px;border:0;border-top:1px solid color-mix(in srgb,var(--dsw-alias-label-primary) 22%,transparent);border-radius:0;background:rgba(255,255,255,.1);-webkit-backdrop-filter:blur(12px) saturate(1.2);backdrop-filter:blur(12px) saturate(1.2);color:var(--dsw-alias-label-secondary);text-align:left;flex:none}
 .gs-scanbar-scan{display:flex;align-items:center;justify-content:center;width:24px;height:24px;flex:none;padding:0;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer}
 .gs-scanbar-scan:hover{background:rgba(255,255,255,.16);color:var(--dsw-alias-label-primary)}
 .gs-scanbar-scan:disabled{opacity:.45;cursor:default;pointer-events:none}
