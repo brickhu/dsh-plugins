@@ -12,6 +12,8 @@
 const SKIP_DIRS = new Set([
 	'node_modules', '.git', '.hg', '.svn', 'dist', 'build', 'out', '.next', '.nuxt',
 	'.svelte-kit', '.turbo', '.cache', 'coverage', 'vendor', '.dsh',
+	'storybook-static', 'bower_components', 'jspm_packages', 'Pods', 'target',
+	'tmp', 'temp', 'logs', '__pypackages__',
 ])
 
 // Only compiled code carries inline copies worth rewriting; docs, JSON and

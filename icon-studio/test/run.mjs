@@ -412,6 +412,20 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 		assert.ok(out.includes('M2 2h20v20H2z'), 'only the inner code is replaced')
 	})
 
+	await test('the workspace scan ignores packages and build output', async () => {
+		const box = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 4h16v16H4z" fill="currentColor"/></svg>'
+		const io = memIo({
+			'package.json': '{}',
+			'src/A.tsx': `export const A = () => (${box})`,
+			'node_modules/pkg/index.tsx': `export const X = () => (${box})`,
+			'dist/assets/app.js': `export const Y = () => (${box})`,
+			'storybook-static/app.js': `export const Z = () => (${box})`,
+		})
+		const groups = await scanCodeShapes(io)
+		assert.equal(groups.length, 1, 'only source code is scanned')
+		assert.deepEqual(groups[0].sites.map((site) => site.file), ['src/A.tsx'])
+	})
+
 	await test('the workspace scan groups one shape once', async () => {
 		const box = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 4h16v16H4z" fill="currentColor"/></svg>'
 		const dot = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="currentColor"/></svg>'
