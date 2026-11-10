@@ -215,10 +215,18 @@ export function jsxSvgBlocks(text) {
 			}
 		}
 		if (elements.length === 0) continue
+		// Root paint attributes must survive: stroke icons carry fill="none" plus a
+		// root stroke, and dropping it makes every scanned shape invisible.
+		const rootAttrs = []
+		if (rootFill !== '') rootAttrs.push(`fill="${rootFill}"`)
+		for (const [key, name] of [['stroke', 'stroke'], ...Object.entries(REACT_ATTR)]) {
+			const value = attrValue(props, key)
+			if (value !== '') rootAttrs.push(`${name}="${value}"`)
+		}
 		blocks.push({
 			start: match.index,
 			end,
-			text: `<svg viewBox="${viewBox}" fill="${rootFill}">${elements.join('')}</svg>`,
+			text: `<svg viewBox="${viewBox}"${rootAttrs.length > 0 ? ` ${rootAttrs.join(' ')}` : ''}>${elements.join('')}</svg>`,
 			dSites: sites,
 		})
 	}
