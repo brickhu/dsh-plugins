@@ -226,6 +226,9 @@ function cleanEntry(raw, defaults = { width: 24, height: 24 }) {
 		pointers: cleanPointers(raw.pointers),
 		hash: typeof raw.hash === 'string' ? raw.hash : '',
 		source: typeof raw.source === 'string' ? raw.source : '',
+		// The upstream ref this entry was imported from, e.g. `iconmcp-generic:trash`.
+		// The local name is the user's to choose, so provenance needs its own field.
+		origin: typeof raw.origin === 'string' ? raw.origin : '',
 		license: typeof raw.license === 'string' ? raw.license : 'unknown',
 		palette: Array.isArray(raw.palette) ? raw.palette.filter((value) => typeof value === 'string').slice(0, 24) : [],
 		createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : new Date().toISOString(),
@@ -353,6 +356,7 @@ export function createStore(io) {
 			if (Array.isArray(entry.pointers) && entry.pointers.length > 0) extra.pointers = entry.pointers
 			if (entry.hash) extra.hash = entry.hash
 			if (entry.source) extra.source = entry.source
+			if (entry.origin) extra.origin = entry.origin
 			if (entry.license) extra.license = entry.license
 			if (Array.isArray(entry.palette) && entry.palette.length > 0) extra.palette = entry.palette
 			if (entry.createdAt) extra.createdAt = entry.createdAt
@@ -482,9 +486,11 @@ export function createStore(io) {
 			const previousName = previous !== '' ? previous : name
 			// 应用规则 is optional metadata: a missing one only makes the icon harder
 			// for an agent to pick, it does not invalidate the artwork.
+			// `undefined` means "leave it alone" (replacing artwork must not wipe a
+			// rule a human wrote); an explicit '' clears it on purpose.
 			const rule = typeof input?.rule === 'string'
 				? input.rule.trim()
-				: (typeof input?.note === 'string' ? input.note.trim() : '')
+				: (typeof input?.note === 'string' ? input.note.trim() : undefined)
 
 			// A save from the editor pins the canvas it was drawn on; an import that
 			// brings no viewBox is trimmed to its content.
@@ -562,10 +568,11 @@ export function createStore(io) {
 				body: storedBody,
 				file: '',
 				viewBox: stored.viewBox,
-				rule,
+				rule: rule === undefined ? (target.rule ?? '') : rule,
 				pointers: cleanPointers(target.pointers),
 				hash: stored.hash,
 				source: typeof input?.source === 'string' && input.source !== '' ? input.source : (target.source ?? ''),
+				origin: typeof input?.origin === 'string' && input.origin !== '' ? input.origin : (target.origin ?? ''),
 				license: typeof input?.license === 'string' && input.license !== '' ? input.license : (target.license ?? 'unknown'),
 				palette: normalized.palette,
 				updatedAt: now,

@@ -14,8 +14,10 @@ import path from 'node:path'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { cascadeRename, applyAsset, scanUsage } from './assets.js'
-import { findShapePointers, pushShapePointers, signature, bodySignature, scanCodeShapes } from './sync.js'
-import { expandMask, normalizeSvg, pathBBox, bakeIconifyTransform } from './svg.js'
+import { findShapePointers, pushShapePointers, readDerivations, signature, bodySignature, scanCodeShapes } from './sync.js'
+import { expandMask, normalizeSvg, pathBBox, bakeIconifyTransform, strokeCrossings } from './svg.js'
+import { parseSupplyRef, seedRule, svgCanvasSize, createIconmcpClient } from './supply.js'
+import { generatedIconIssues } from './shape.js'
 import { readFileSync as readJsonFile } from 'node:fs'
 
 /** The 16-hex blob name, used as the marker's cache hint. */
@@ -40,11 +42,11 @@ const API = '/api/dsh-icon-studio'
 /** This package's own directory, so scans never rewrite its docs or fixtures. */
 const PACKAGE_DIR = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 const RULE = [
-	'This workspace has its own icon library in a hidden file `.icons.json` at the project root: names, descriptions and inline SVG bodies. Icons the user added there are the first-class choice: prefer them over any generic library.',
+	'This workspace has its own icon library in a hidden file `.icons.json` at the project root: names, application rules (应用规则) and inline SVG bodies. Icons the user added there are the first-class choice: prefer them over any generic library.',
 	'Whenever a task needs an icon or glyph — close, chevron, search, trash, empty-state mark — call `icon_list` first and consume a matching icon with `icon_get` instead of writing SVG paths by hand.',
 	'Each icon has an 应用规则 (application rule) instead of a note: when to use it and when NOT to. `icon_list` returns truncated rules and `icon_get` returns the full one, so pick by meaning, not just by name.',
-	'If nothing matches, say so explicitly and list the closest candidates; never silently substitute a generic icon library or an invented path.',
-	'In conversation a name is written in angle brackets — `<删除>` means the icon named 删除 (names may be Chinese or English). Strip the brackets, then resolve that name with `icon_get`; never treat the brackets as part of the name. Business code consumes an icon by inlining the SVG that `icon_get` returns (single-colour, so it inherits `currentColor`; never `<img src="*.svg">`). Do not add markers to code: the library indexes shapes and rewrites every occurrence when the icon changes.',
+	'If nothing matches, say so explicitly and list the closest candidates. The user can widen the pool from the Icons panel (it imports from Iconify and IconMCP into this same library) — ask for that instead of substituting a generic icon or an invented path.',
+	'In conversation a name is written in angle brackets — `<删除>` means the icon named 删除 (names may be Chinese or English). Strip the brackets, then resolve that name with `icon_get`; never treat the brackets as part of the name.  Business code consumes an icon by inlining the SVG that `icon_get` returns (single-colour, so it inherits `currentColor`; never `<img src="*.svg">`). Do not add markers to code: the library indexes shapes and rewrites every occurrence when the icon changes.',
 	'When a used icon taught you something durable (a better name for its job, a case to avoid), call `icon_annotate` to improve its 应用规则.',
 	'Pasting SVG markup into the chat is just text: do not import it unless the user explicitly asks. Importing belongs to the Icons panel.',
 ].join(' ')
@@ -277,7 +279,146 @@ export function apply(ctx, config = {}) {
 		return text
 	}
 
-	/** Best-effort auto naming + rule. The user can always edit both. */
+	/**
+	 * The look of the library, in the terms a drawing model needs: canvas, stroke
+	 * width, filled or outlined, which primitives, and a few real examples.
+	 */
+	async function styleProfile(io, store, limit = 60) {
+		const { entries } = await store.list()
+		const canvas = new Map()
+		const stroke = new Map()
+		const tags = new Map()
+		let filled = 0
+		let stroked = 0
+		const examples = []
+		for (const entry of entries.slice(0, limit)) {
+			let svg = ''
+			try {
+				svg = (await readEntrySvg(io, entry)) ?? ''
+			} catch (_error) {
+				svg = ''
+			}
+			if (svg === '') continue
+			const viewBox = /viewBox="([^"]+)"/u.exec(svg)?.[1] ?? ''
+			const parts = viewBox.trim().split(/[\s,]+/u).map(Number)
+			const box = parts.length === 4 && parts[2] > 0 ? `${parts[2]}x${parts[3]}` : entry.viewBox
+			canvas.set(box, (canvas.get(box) ?? 0) + 1)
+			for (const match of svg.matchAll(/\bstroke-width="([^"]+)"/gu)) stroke.set(match[1], (stroke.get(match[1]) ?? 0) + 1)
+			if (/fill="currentColor"/u.test(svg)) filled += 1
+			if (/stroke="currentColor"/u.test(svg)) stroked += 1
+			for (const match of svg.matchAll(/<(path|circle|rect|line|polygon|polyline|ellipse)\b/gu)) {
+				tags.set(match[1], (tags.get(match[1]) ?? 0) + 1)
+			}
+			if (examples.length < 3) examples.push({ name: entry.name, svg: svg.slice(0, 700) })
+		}
+		const top = (map, fallback) => [...map.entries()].sort((left, right) => right[1] - left[1])[0]?.[0] ?? fallback
+		return {
+			total: entries.length,
+			canvas: top(canvas, '24x24'),
+			strokeWidth: top(stroke, '1.5'),
+			painted: filled > stroked ? 'fill' : 'stroke',
+			elements: [...tags.entries()].sort((left, right) => right[1] - left[1]).map(([tag]) => tag),
+			examples,
+		}
+	}
+
+	/** One model round-trip that draws a new icon in the library's own style. */
+	async function streamIcon(scope, route, sessionId, prompt, profile, retry = null, references = []) {
+		const llm = scope.get('llm')
+		const controller = new AbortController()
+		const timer = setTimeout(() => controller.abort(), 45000)
+		const [width, height] = profile.canvas.split('x')
+		const system = [
+			'You draw icons as SVG for an existing icon library and must match its style.',
+			`Rules: one square canvas viewBox="0 0 ${width} ${height}"; a single colour only (paint with stroke="currentColor", and fill="none" unless the house style is filled); no <style>, ids, <text>, <image>, gradients, filters or masks; only path, line, circle, rect, polygon, polyline and ellipse; at most 12 elements; coordinates on whole or half units, with about one unit of padding; stroke-linecap="round" stroke-linejoin="round".`,
+			'Composition: draw ONE subject. When the subject is two things together (a calendar with a lock, a folder with a star), draw their union as one outline and put the detail inside — never draw two complete objects and lay them on top of each other.',
+			'Strokes must never cross: where a form is hidden behind another, break the hidden line and leave at least 1 unit of clearance. Keep at least 1.5 units of empty space between strokes that are not meant to touch. Fewer, larger shapes beat many small ones.',
+			`House style: stroke width ${profile.strokeWidth}; mostly ${profile.painted === 'fill' ? 'filled shapes' : 'outlined strokes'}; usual elements: ${profile.elements.slice(0, 6).join(', ') || 'path'}.`,
+			profile.examples.length > 0
+				? `Examples from this library:\n${profile.examples.map((item) => `- ${item.name}: ${item.svg}`).join('\n')}`
+				: '',
+			references.length > 0
+				? `Icons for the same subject from other libraries. Study how they arrange it, then draw it yourself in our house style — do not copy their path data:\n${references.map((item) => `- ${item.label} (${item.source}): ${item.svg}`).join('\n')}`
+				: '',
+			'Answer with exactly three lines and nothing else:',
+			'name: <short kebab-case English name>',
+			'rule: <one sentence: what it is, when to use it, when NOT to, and what a user might call it>',
+			'svg: <the complete <svg>…</svg> on one line>',
+		].filter(Boolean).join('\n')
+		let text = ''
+		try {
+			const stream = llm.stream({
+				provider: route.provider,
+				model: route.model,
+				system,
+				messages: [{
+					role: 'user',
+					content: [{
+						type: 'text',
+						text: retry && retry.previous
+							? `Draw this icon: ${prompt}\n\nThe previous attempt was wrong: ${retry.problem || 'it does not read as one clean shape'}. Here it is:\n${retry.previous}\n\nDraw a better version that fixes exactly that problem.`
+							: `Draw this icon: ${prompt}`,
+					}],
+				}],
+				maxTokens: 4000,
+				signal: controller.signal,
+				...(typeof sessionId === 'string' && sessionId !== '' ? { sessionId } : {}),
+			})
+			for await (const chunk of stream) {
+				if (!chunk) continue
+				if (chunk.type === 'text-delta' && typeof chunk.text === 'string') text += chunk.text
+				if (chunk.type === 'block-end' && text === '' && chunk.block && chunk.block.type === 'text' && typeof chunk.block.text === 'string') text = chunk.block.text
+				if (chunk.type === 'finish' && chunk.reason && chunk.reason.kind === 'error') return '!error'
+				if (chunk.type === 'finish' && chunk.reason && chunk.reason.kind === 'max-tokens' && text === '') return '!max-tokens'
+			}
+		} catch (_error) {
+			return ''
+		} finally {
+			clearTimeout(timer)
+		}
+		return text
+	}
+
+	/**
+	 * Draw one icon from a prompt. The answer is checked against the same rules
+	 * every library icon already meets; a drawing that breaks them is refused
+	 * here rather than saved and discovered later.
+	 */
+	async function sketchIcon(scope, sessionId, prompt, profile, retry = null, references = []) {
+		const llm = scope.get('llm')
+		if (!llm || typeof llm.stream !== 'function') return { error: 'no-llm' }
+		const route = resolveModelRoute(scope, sessionId)
+		if (!route) return { error: 'no-model' }
+		const answer = await streamIcon(scope, route, sessionId, prompt, profile, retry, references)
+		if (answer === '!error') return { error: 'model-error' }
+		if (answer === '!max-tokens') return { error: 'max-tokens' }
+		if (answer === '') return { error: 'empty-answer' }
+		const raw = /<svg\b[\s\S]*?<\/svg>/iu.exec(answer)?.[0] ?? ''
+		if (raw === '') return { error: 'unreadable' }
+		const issues = generatedIconIssues(raw)
+		if (issues.length > 0) return { error: 'rejected', issues }
+		let normalized
+		try {
+			const viewBox = /viewBox="([^"]+)"/u.exec(raw)?.[1]
+			normalized = normalizeSvg(raw, viewBox ? { viewBox } : undefined)
+		} catch (_error) {
+			return { error: 'bad-svg' }
+		}
+		const name = cleanName(/^\s*name\s*:\s*(.+)$/mi.exec(answer)?.[1] ?? '')
+		const rule = (/^\s*rule\s*:\s*(.+)$/mi.exec(answer)?.[1] ?? '').trim().slice(0, 280)
+		return {
+			svg: normalized.svg,
+			viewBox: normalized.viewBox,
+			name: name === '' ? 'icon' : name,
+			rule,
+			elements: normalized.elements ? normalized.elements.length : 0,
+			// Pairs of shapes laid through each other: the usual reason a generated
+			// composite looks broken. A warning, not a refusal — some designs join.
+			crossings: strokeCrossings(normalized.svg),
+		}
+	}
+
+/** Best-effort auto naming + rule. The user can always edit both. */
 	async function inferSuggestion(scope, sessionId, svg) {
 		const llm = scope.get('llm')
 		if (!llm || typeof llm.stream !== 'function') return { error: 'no-llm' }
@@ -454,8 +595,19 @@ export function apply(ctx, config = {}) {
 	 * behaviour of one unusual layout: it made the library pretend a real project
 	 * in the workspace did not exist. A workspace is a workspace.
 	 */
-	function excludeFor(_root) {
-		return []
+	function excludeFor(root) {
+		// This package's own directory is never project code, even when the plugin
+		// lives inside the workspace (it does in this repo). Scanning it would list
+		// the plugin's own bundle as a derivation of the user's icons, and a save
+		// would then rewrite the plugin itself.
+		const out = []
+		try {
+			const relative = path.relative(path.resolve(root), PACKAGE_DIR)
+			if (relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative)) {
+				out.push(relative.split(path.sep).join('/'))
+			}
+		} catch (_error) { /* nothing to exclude */ }
+		return out
 	}
 
 	/**
@@ -554,8 +706,8 @@ export function apply(ctx, config = {}) {
 			description: [
 				"List this workspace's own icon library (`.icons.json`) as a compact index.",
 				'Call it FIRST for any icon or glyph need — close, chevron, search, trash, empty-state mark — before writing SVG paths by hand.',
-				'Returns name, viewBox and a truncated description (the application rule); never SVG bodies.',
-				'Search matches name and description, so `关闭` and `close` can both hit the same graphic when the description says so.',
+				'Returns name, viewBox and a truncated rule (应用规则); never SVG bodies.',
+				'Search matches name and rule, so `关闭` and `close` can both hit the same graphic when the rule says so.',
 				'If nothing matches, say so explicitly and list the closest candidates; never silently substitute a generic icon library.',
 				'Then call `icon_get` with the chosen name to receive the SVG and the full rule.',
 			].join(' '),
@@ -563,7 +715,7 @@ export function apply(ctx, config = {}) {
 				type: 'object',
 				additionalProperties: false,
 				properties: {
-					query: { type: 'string', description: 'Free text matched against name and description (case-insensitive; Chinese or English).' },
+					query: { type: 'string', description: 'Free text matched against name and rule (case-insensitive; Chinese or English).' },
 					limit: { type: 'integer', minimum: 1, maximum: 200, description: 'Maximum rows to return (default 40).' },
 				},
 			},
@@ -635,7 +787,7 @@ export function apply(ctx, config = {}) {
 			name: 'icon_get',
 			description: [
 				"Fetch one icon from this workspace's `.icons.json` library by name (English or Chinese).",
-				'Returns the clean SVG source, the full description (when to use / when not to) and palette.',
+				'Returns the clean SVG source, the full rule (何时用 / 何时别用) and palette.',
 				'Call `icon_list` first to find the name. Icons must be inlined so they inherit currentColor; never consume an icon through `<img src="*.svg">`.',
 				'`format`: svg (default) returns markup; inline returns markup ready to paste; file returns the repo path; datauri returns a data: URL for large artwork; module returns an ESM export.',
 			].join(' '),
@@ -665,6 +817,8 @@ export function apply(ctx, config = {}) {
 			async execute(args, exec) {
 				const root = await resolveRoot(scope, { sessionId: sessionIdOf(exec) })
 				const store = storeFor(scope, root)
+				// `<name:modifier>` addresses a variant of an icon: a style that must
+				// exist as its own drawing, or a stroke weight this drawing can take.
 				const name = normalizeName(refName(args && args.name))
 				let graphic
 				try {
@@ -810,8 +964,8 @@ export function apply(ctx, config = {}) {
 		const annotateTool = {
 			name: 'icon_annotate',
 			description: [
-				'Rewrite only the description of an existing icon; the SVG is not touched.',
-				'Use it after consuming an icon when you learned something durable: a better description of its job, an alias someone will search for, or a case where it must NOT be used.',
+				'Rewrite only the 应用规则 of an existing icon; the SVG is not touched.',
+				'Use it after consuming an icon when you learned something durable: a better name for its job, an alias someone will search for, or a case where it must NOT be used.',
 				'This is the mechanism that makes the library get better as it is used — prefer it over leaving the 应用规则 stale.',
 			].join(' '),
 			parameters: {
@@ -1147,6 +1301,7 @@ export function apply(ctx, config = {}) {
 			const io = makeIo(scope, root)
 			const store = createStore(io)
 			const groups = await scanCodeShapes(io, { exclude: excludeFor(root) })
+			const excluded = typeof groups.excluded === 'number' ? groups.excluded : 0
 			const { entries } = await store.list()
 			const known = new Map()
 			for (const entry of entries) {
@@ -1162,28 +1317,52 @@ export function apply(ctx, config = {}) {
 			}
 			ok(res, {
 				root,
+				excluded,
 				groups: groups.map((group) => ({ ...group, existing: known.get(group.signature) ?? null })),
 			})
 		})
 
-		/* ── Iconify import ─────────────────────────────────────────── */
+		/* ── supply: one browser over Iconify and IconMCP ───────────── */
 
 		const ICONIFY_API = 'https://api.iconify.design'
-		let iconifySets = null
-		// Remote answers are immutable enough for a session: cache them so re-opening
-		// the browser does not hit the network again.
-		const iconifyCache = new Map()
-		const ICONIFY_TTL = 30 * 60 * 1000
+		// IconMCP is an original MIT icon library served over MCP (streamable
+		// HTTP, no auth). Its search is semantic, which ours cannot be before
+		// rules exist — so it is a supply source here, never a second identity:
+		// `.icons.json` stays the single source of truth, and nothing is fetched
+		// at build time.
+		const SUPPLY_TTL = 30 * 60 * 1000
+		const iconmcp = createIconmcpClient()
 
-		async function iconifyJson(pathname) {
-			const cached = iconifyCache.get(pathname)
-			if (cached && Date.now() - cached.at < ICONIFY_TTL) return cached.data
-			const response = await fetch(`${ICONIFY_API}${pathname}`)
-			if (!response.ok) throw new Error(`iconify ${response.status}`)
-			const data = await response.json()
-			iconifyCache.set(pathname, { data, at: Date.now() })
+		/**
+		 * Shape identity for a remote/local pair. A remote answer carries paint on
+		 * the root; the stored body keeps the authored markup (a wrapping <g>).
+		 * Normalising both sides is what lets "already in the library" work at all.
+		 */
+		const shapeSignatureOf = (text) => {
+			if (typeof text !== 'string' || text.trim() === '') return ''
+			const viewBox = /viewBox="([^"]+)"/u.exec(text)?.[1]
+			try {
+				return bodySignature(normalizeSvg(text, viewBox ? { viewBox } : undefined).svg)
+			} catch (_error) {
+				return bodySignature(text)
+			}
+		}
+
+		/** Remote answers are immutable enough for a session. */
+		const supplyCache = new Map()
+		const cachedSupply = async (key, load) => {
+			const hit = supplyCache.get(key)
+			if (hit && Date.now() - hit.at < SUPPLY_TTL) return hit.data
+			const data = await load()
+			supplyCache.set(key, { data, at: Date.now() })
 			return data
 		}
+
+		const iconifyJson = (pathname) => cachedSupply(`iconify:${pathname}`, async () => {
+			const response = await fetch(`${ICONIFY_API}${pathname}`)
+			if (!response.ok) throw new Error(`iconify ${response.status}`)
+			return response.json()
+		})
 
 		/**
 		 * Some sets declare a smaller grid than their artwork actually uses (e.g.
@@ -1224,11 +1403,18 @@ export function apply(ctx, config = {}) {
 			return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}">${body}</svg>`
 		}
 
-		route('iconify-collections', async (req, res) => {
+		route('library-collections', async (req, res) => {
 			if (req.method !== 'GET') return json(res, 405, { status: 'error', error: { code: 'method-not-allowed' } })
-			if (iconifySets === null) {
-				const all = await iconifyJson('/collections')
-				iconifySets = Object.entries(all)
+			// `iconmcp.sets()` must not be shadowed by the settled result: naming
+			// them *Result also keeps the TDZ out of the initialiser.
+			const [iconifyResult, iconmcpResult] = await Promise.allSettled([
+				iconifyJson('/collections'),
+				iconmcp.sets(),
+			])
+			const warnings = []
+			let iconifyList = []
+			if (iconifyResult.status === 'fulfilled' && iconifyResult.value) {
+				iconifyList = Object.entries(iconifyResult.value)
 					.map(([prefix, info]) => ({
 						prefix,
 						name: info && info.name ? info.name : prefix,
@@ -1236,31 +1422,101 @@ export function apply(ctx, config = {}) {
 						category: info && info.category ? info.category : '',
 						license: info && info.license && info.license.spdx ? info.license.spdx : '',
 						samples: info && Array.isArray(info.samples) ? info.samples.slice(0, 6) : [],
+						source: 'iconify',
 					}))
 					.sort((left, right) => right.total - left.total)
+			} else {
+				warnings.push('iconify unavailable')
 			}
-			ok(res, { collections: iconifySets })
+			const iconmcpList = iconmcpResult.status === 'fulfilled' ? iconmcpResult.value : []
+			if (iconmcpResult.status !== 'fulfilled') warnings.push('iconmcp unavailable')
+			// IconMCP first: a curated 58-set house library; Iconify's long tail follows.
+			ok(res, {
+				collections: [...iconmcpList, ...iconifyList],
+				sources: [
+					{ id: 'iconmcp', label: 'IconMCP', license: 'MIT' },
+					{ id: 'iconify', label: 'Iconify', license: '' },
+				],
+				warnings,
+			})
 		})
 
-		route('iconify-search', async (req, res) => {
+		route('library-search', async (req, res) => {
 			if (req.method !== 'GET') return json(res, 405, { status: 'error', error: { code: 'method-not-allowed' } })
 			const params = query(req)
 			const q = String(params.get('query') || '').trim()
-			if (q === '') return ok(res, { icons: [] })
+			if (q === '') return ok(res, { icons: [], meta: {} })
 			const prefix = String(params.get('prefix') || '').trim()
 			const limit = Math.min(96, Math.max(1, Number(params.get('limit')) || 48))
-			const search = `/search?query=${encodeURIComponent(q)}&limit=${limit}${prefix ? `&prefix=${encodeURIComponent(prefix)}` : ''}`
-			const data = await iconifyJson(search)
-			ok(res, { icons: Array.isArray(data.icons) ? data.icons : [] })
+			const scope = prefix === '' ? null : parseSupplyRef(`${prefix}:x`)
+			const icons = []
+			const meta = {}
+			const seen = new Set()
+			const push = (item) => {
+				if (seen.has(item.icon)) return
+				seen.add(item.icon)
+				icons.push(item.ref)
+				meta[item.ref] = { label: item.label || '', tags: item.tags || [], source: item.source }
+			}
+			const tasks = []
+			if (!scope || scope.source === 'iconmcp') {
+				// Semantic first: these hits tolerate typos and rank the base icon
+				// above its variants, which a substring match cannot do.
+				tasks.push(iconmcp.search(q, scope ? scope.set : '', limit)
+					.then((rows) => rows.forEach((row) => push({ ...row, source: 'iconmcp' })))
+					.catch(() => {}))
+			}
+			if (!scope || scope.source === 'iconify') {
+				const iconifyPrefix = scope ? scope.set : ''
+				const search = `/search?query=${encodeURIComponent(q)}&limit=${limit}${iconifyPrefix ? `&prefix=${encodeURIComponent(iconifyPrefix)}` : ''}`
+				tasks.push(iconifyJson(search).then((data) => {
+					for (const full of Array.isArray(data.icons) ? data.icons : []) {
+						const at = full.indexOf(':')
+						if (at < 1) continue
+						push({ ref: full, icon: full.slice(at + 1), label: '', tags: [], source: 'iconify' })
+					}
+				}).catch(() => {}))
+			}
+			await Promise.all(tasks)
+			ok(res, { icons: icons.slice(0, limit), meta })
 		})
 
-		route('iconify-set', async (req, res) => {
+		route('library-set', async (req, res) => {
 			if (req.method !== 'GET') return json(res, 405, { status: 'error', error: { code: 'method-not-allowed' } })
 			const params = query(req)
 			const prefix = String(params.get('prefix') || '').trim()
 			if (prefix === '') return json(res, 400, { status: 'error', error: { code: 'missing-prefix' } })
 			const offset = Math.max(0, Number(params.get('offset')) || 0)
 			const limit = Math.min(96, Math.max(1, Number(params.get('limit')) || 48))
+			const ref = parseSupplyRef(`${prefix}:x`)
+			if (ref.source === 'iconmcp') {
+				// `format=svg` is the fast path: one get_set draws the whole page,
+				// where one get_icon per card would take eight seconds.
+				const wantSvg = params.get('format') === 'svg'
+				const data = await iconmcp.json('get_set', {
+					id: ref.set || 'generic',
+					format: wantSvg ? 'svg' : 'list',
+					offset,
+					limit,
+				})
+				const list = Array.isArray(data.icons) ? data.icons : []
+				// Names stay bare, exactly like an Iconify set: the client owns the
+				// `prefix:` part, so it is added in one place only.
+				const payload = {
+					prefix,
+					total: Number(data.total) || list.length,
+					offset,
+					names: list.map((item) => item.name),
+				}
+				if (wantSvg) {
+					payload.icons = Object.fromEntries(
+						list
+							.filter((item) => item && typeof item.name === 'string' && typeof item.svg === 'string')
+							.map((item) => [`${prefix}:${item.name}`, item.svg]),
+					)
+				}
+				return ok(res, payload)
+			}
 			const data = await iconifyJson(`/collection?prefix=${encodeURIComponent(prefix)}`)
 			const names = []
 			if (Array.isArray(data.uncategorized)) names.push(...data.uncategorized)
@@ -1270,33 +1526,84 @@ export function apply(ctx, config = {}) {
 			ok(res, { prefix, total: names.length, offset, names: names.slice(offset, offset + limit) })
 		})
 
-		route('iconify-fetch', async (req, res) => {
+		/**
+		 * Preview art for a page of sets. Iconify ships `samples` with its
+		 * collection list; IconMCP does not, so one `get_set` (format svg) is the
+		 * cheapest way to draw three cards — one request per set, not one per icon.
+		 */
+		route('library-samples', async (req, res) => {
+			if (req.method !== 'POST') return json(res, 405, { status: 'error', error: { code: 'method-not-allowed' } })
+			const body = await readBody(req)
+			const prefixes = Array.isArray(body.prefixes)
+				? body.prefixes.filter((item) => typeof item === 'string').slice(0, 32)
+				: []
+			const samples = {}
+			const queue = prefixes.map((prefix) => parseSupplyRef(`${prefix}:x`)).filter((ref) => ref && ref.source === 'iconmcp')
+			const workers = Array.from({ length: Math.min(6, queue.length) }, async () => {
+				for (;;) {
+					const ref = queue.shift()
+					if (ref === undefined) return
+					try {
+						const data = await iconmcp.json('get_set', {
+							id: ref.set || 'generic',
+							format: 'svg',
+							limit: 3,
+						})
+						const icons = Array.isArray(data.icons) ? data.icons : []
+						samples[ref.prefix] = icons
+							.filter((item) => item && typeof item.name === 'string' && typeof item.svg === 'string')
+							.map((item) => ({ name: item.name, svg: item.svg }))
+					} catch (_error) {
+						// A set without previews still opens; only the card is plainer.
+					}
+				}
+			})
+			await Promise.all(workers)
+			ok(res, { samples })
+		})
+
+		route('library-fetch', async (req, res) => {
 			if (req.method !== 'POST') return json(res, 405, { status: 'error', error: { code: 'method-not-allowed' } })
 			const body = await readBody(req)
 			const root = await resolveRoot(scope, { workspace: body.workspace, sessionId: body.sessionId })
 			const io = makeIo(scope, root)
 			const store = createStore(io)
 			const names = Array.isArray(body.names) ? body.names.filter((item) => typeof item === 'string') : []
-			const byPrefix = new Map()
+			const iconifyByPrefix = new Map()
+			const iconmcpIcons = []
 			for (const full of names.slice(0, 48)) {
-				const at = full.indexOf(':')
-				if (at < 1) continue
-				const prefix = full.slice(0, at)
-				const icon = full.slice(at + 1)
-				if (!byPrefix.has(prefix)) byPrefix.set(prefix, [])
-				byPrefix.get(prefix).push(icon)
+				const ref = parseSupplyRef(full)
+				if (!ref) continue
+				if (ref.source === 'iconmcp') {
+					iconmcpIcons.push(ref)
+					continue
+				}
+				if (!iconifyByPrefix.has(ref.prefix)) iconifyByPrefix.set(ref.prefix, [])
+				iconifyByPrefix.get(ref.prefix).push(ref.icon)
 			}
 			const icons = {}
-			await Promise.all([...byPrefix].map(async ([prefix, list]) => {
-				const data = await iconifyJson(`/${encodeURIComponent(prefix)}.json?icons=${encodeURIComponent(list.join(','))}`)
-				const width = data.width || 24
-				const height = data.height || 24
-				for (const icon of list) {
-					const item = data.icons && data.icons[icon]
-					if (!item || typeof item.body !== 'string') continue
-					icons[`${prefix}:${icon}`] = iconifySvg(prefix, item, width, height)
-				}
-			}))
+			await Promise.all([
+				(async () => {
+					for (const [prefix, list] of iconifyByPrefix) {
+						const data = await iconifyJson(`/${encodeURIComponent(prefix)}.json?icons=${encodeURIComponent(list.join(','))}`)
+						const width = data.width || 24
+						const height = data.height || 24
+						for (const icon of list) {
+							const item = data.icons && data.icons[icon]
+							if (!item || typeof item.body !== 'string') continue
+							icons[`${prefix}:${icon}`] = iconifySvg(prefix, item, width, height)
+						}
+					}
+				})().catch(() => {}),
+				(async () => {
+					if (iconmcpIcons.length === 0) return
+					const svgs = await iconmcp.svgs(iconmcpIcons.map((ref) => ref.icon))
+					for (const ref of iconmcpIcons) {
+						const svg = svgs.get(ref.icon)
+						if (typeof svg === 'string' && svg !== '') icons[`${ref.prefix}:${ref.icon}`] = svg
+					}
+				})().catch(() => {}),
+			])
 			// Which of these remote drawings already exist locally? Compare shapes,
 			// not names: an icon may have been imported under another name or pasted
 			// in from somewhere else.
@@ -1311,7 +1618,7 @@ export function apply(ctx, config = {}) {
 						continue
 					}
 					if (text === null) continue
-					const sig = bodySignature(text)
+					const sig = shapeSignatureOf(text)
 					if (sig !== '' && !localByShape.has(sig)) localByShape.set(sig, entry.name)
 				}
 			} catch (_error) { /* a missing library just means no matches */ }
@@ -1320,47 +1627,128 @@ export function apply(ctx, config = {}) {
 				// Normalise the remote copy exactly like a saved icon before comparing:
 				// remote bodies often inherit paint from a <g>, which the local blob
 				// has already flattened onto its elements.
-				let normalized = svg
-				try {
-					const viewBox = /viewBox="([^"]+)"/u.exec(svg)?.[1]
-					normalized = normalizeSvg(svg, viewBox ? { viewBox } : undefined).svg
-				} catch (_error) { /* keep the raw copy */ }
-				const hit = localByShape.get(bodySignature(normalized))
+				const hit = localByShape.get(shapeSignatureOf(svg))
 				if (hit) matches[full] = hit
 			}
 			ok(res, { icons, matches })
 		})
 
-		route('iconify-import', async (req, res) => {
+		/**
+		 * One remote drawing, ready to store: the authored SVG plus the canvas it
+		 * was drawn on, and — from IconMCP only — a first rule and provenance.
+		 * Nothing here renames or reshapes the artwork beyond normalisation.
+		 */
+		async function supplyIcon(ref, style = 'outline') {
+			if (ref.source === 'iconmcp') {
+				const { svg, meta } = await iconmcp.icon(ref.icon, style)
+				if (svg === '') return null
+				const canvas = svgCanvasSize(svg, 16)
+				return {
+					svg,
+					width: canvas.width,
+					height: canvas.height,
+					rule: seedRule(meta.label, meta.tags),
+					source: `iconmcp:${meta.set || ref.set || ''}`,
+					license: 'MIT',
+				}
+			}
+			const data = await iconifyJson(`/${encodeURIComponent(ref.prefix)}.json?icons=${encodeURIComponent(ref.icon)}`)
+			const item = data.icons && data.icons[ref.icon]
+			if (!item || typeof item.body !== 'string') return null
+			const width = data.width || 24
+			const height = data.height || 24
+			return {
+				svg: iconifySvg(ref.prefix, item, width, height),
+				width,
+				height,
+				rule: '',
+				source: `iconify:${ref.prefix}`,
+				license: '',
+			}
+		}
+
+		/**
+		 * What the add panel needs before anything is written: the drawing, the
+		 * name and rule to suggest, and whether this supplier can draw a second
+		 * style. A style that renders identical artwork is not offered.
+		 */
+		route('library-peek', async (req, res) => {
+			if (req.method !== 'POST') return json(res, 405, { status: 'error', error: { code: 'method-not-allowed' } })
+			const body = await readBody(req)
+			const root = await resolveRoot(scope, { workspace: body.workspace, sessionId: body.sessionId })
+			const io = makeIo(scope, root)
+			const store = createStore(io)
+			const ref = parseSupplyRef(body.ref)
+			if (!ref) return json(res, 400, { status: 'error', error: { code: 'missing-ref' } })
+			const outline = await supplyIcon(ref, 'outline')
+			if (!outline) return json(res, 404, { status: 'error', error: { code: 'not-found' } })
+			let solid = null
+			if (ref.source === 'iconmcp') {
+				try {
+					const alt = await supplyIcon(ref, 'solid')
+					// Same artwork means the supplier has no solid drawing; offering it
+					// would import an outline under a solid label.
+					if (alt && alt.svg !== outline.svg) solid = alt
+				} catch (_error) { solid = null }
+			}
+			const suggested = (outline.rule || '').trim()
+			const { entries } = await store.list()
+			const taken = entries.find((entry) => entry.name === ref.icon)
+			ok(res, {
+				ref: `${ref.prefix}:${ref.icon}`,
+				source: outline.source,
+				license: outline.license,
+				supplier: ref.source,
+				name: ref.icon,
+				rule: suggested,
+				hasRule: suggested !== '',
+				styles: solid ? ['outline', 'solid'] : ['outline'],
+				previews: solid ? { outline: outline.svg, solid: solid.svg } : { outline: outline.svg },
+				taken: taken ? taken.name : '',
+			})
+		})
+
+		route('library-import', async (req, res) => {
 			if (req.method !== 'POST') return json(res, 405, { status: 'error', error: { code: 'method-not-allowed' } })
 			const body = await readBody(req)
 			const root = await resolveRoot(scope, { workspace: body.workspace, sessionId: body.sessionId })
 			const io = makeIo(scope, root)
 			const store = createStore(io)
 			const action = body.action === 'replace' || body.action === 'rename' ? body.action : ''
-			const names = Array.isArray(body.names) ? body.names.filter((item) => typeof item === 'string').slice(0, 50) : []
+			// The add panel decides the name, the rule and the style; a bare `names`
+			// list keeps the old automatic behaviour for callers that have no panel.
+			const wanted = Array.isArray(body.items) && body.items.length > 0
+				? body.items.filter((item) => item && typeof item.ref === 'string').slice(0, 50)
+				: (Array.isArray(body.names) ? body.names.filter((item) => typeof item === 'string') : [])
+					.map((full) => ({ ref: full }))
 			const results = []
-			for (const full of names) {
-				const at = full.indexOf(':')
-				if (at < 1) continue
-				const prefix = full.slice(0, at)
-				const icon = full.slice(at + 1)
-				const base = `${prefix}:${icon}`
+			for (const item of wanted) {
+				const full = item.ref
+				const ref = parseSupplyRef(full)
+				if (!ref) continue
+				const base = typeof item.name === 'string' && item.name.trim() !== ''
+					? normalizeName(item.name)
+					: `${ref.prefix}:${ref.icon}`
+				const style = item.style === 'solid' ? 'solid' : 'outline'
 				try {
-					const data = await iconifyJson(`/${encodeURIComponent(prefix)}.json?icons=${encodeURIComponent(icon)}`)
-					const item = data.icons && data.icons[icon]
-					if (!item || typeof item.body !== 'string') {
+					const remote = await supplyIcon(ref, ref.source === 'iconmcp' ? style : 'outline')
+					if (!remote) {
 						results.push({ name: full, status: 'missing' })
 						continue
 					}
-					const width = data.width || 24
-					const height = data.height || 24
-					const remote = iconifySvg(prefix, item, width, height)
-					const viewBox = iconifyLayout(item.body, width, height, Number(item.left) || 0, Number(item.top) || 0).viewBox
-					let pinnedRemote = remote
-					try {
-						pinnedRemote = normalizeSvg(remote, { viewBox }).svg
-					} catch (_error) { /* keep the raw copy */ }
+					const viewBox = `0 0 ${remote.width} ${remote.height}`
+					// Provenance travels with the artwork; the rule does not. Replacing a
+					// drawing must never overwrite a rule a human (or an agent) wrote.
+					const provenance = {
+						...(remote.source ? { source: remote.source } : {}),
+						...(remote.license ? { license: remote.license } : {}),
+						origin: full,
+					}
+					const rule = typeof item.rule === 'string' ? item.rule.trim() : remote.rule
+					const extra = {
+						...(rule ? { rule } : {}),
+						...provenance,
+					}
 					const { entries } = await store.list()
 					const sameName = entries.find((entry) => entry.name === base)
 					if (sameName) {
@@ -1368,7 +1756,7 @@ export function apply(ctx, config = {}) {
 						try {
 							local = (await readEntrySvg(io, sameName)) || ''
 						} catch (_error) { local = '' }
-						if (local !== '' && bodySignature(local) === bodySignature(pinnedRemote)) {
+						if (local !== '' && shapeSignatureOf(local) === shapeSignatureOf(remote.svg)) {
 							results.push({ name: full, status: 'same', local: base })
 							continue
 						}
@@ -1376,9 +1764,10 @@ export function apply(ctx, config = {}) {
 							await store.save({
 								name: base,
 								previousName: base,
-								svg: remote,
-								viewBox: `0 0 ${width} ${height}`,
+								svg: remote.svg,
+								viewBox,
 								allowDuplicate: true,
+								...provenance,
 							})
 							results.push({ name: full, status: 'saved', local: base, replaced: true })
 							continue
@@ -1386,7 +1775,7 @@ export function apply(ctx, config = {}) {
 						results.push({ name: full, status: 'name-conflict', of: base })
 						continue
 					}
-					const inspected = await store.inspect({ svg: remote, preserveViewBox: true })
+					const inspected = await store.inspect({ svg: remote.svg, preserveViewBox: true })
 					if (inspected.duplicate) {
 						if (action === 'rename') {
 							const target = entries.find((entry) => entry.name === inspected.duplicate)
@@ -1413,9 +1802,9 @@ export function apply(ctx, config = {}) {
 					}
 					const saved = await store.save({
 						name: base,
-						svg: remote,
-						viewBox: `0 0 ${width} ${height}`,
-						source: `iconify:${prefix}`,
+						svg: remote.svg,
+						viewBox,
+						...extra,
 					})
 					// Never report success without checking what actually happened.
 					if (saved.status === 'duplicate') {
@@ -1451,6 +1840,80 @@ export function apply(ctx, config = {}) {
 			})
 		})
 
+		/**
+		 * Icons of the same subject from the supply library. They are references
+		 * for the model, never output: the answer is still drawn in this project's
+		 * own style with its own path data.
+		 */
+		async function findReferences(query, limit = 3) {
+			const out = []
+			const push = (item) => {
+				if (out.length >= limit) return
+				if (out.some((existing) => existing.label === item.label && existing.source === item.source)) return
+				out.push(item)
+			}
+			try {
+				const hits = await iconmcp.search(query, '', limit)
+				for (const hit of hits.slice(0, 2)) {
+					try {
+						const { svg } = await iconmcp.icon(hit.icon)
+						if (svg !== '') push({ label: hit.label || hit.icon, source: 'iconmcp', svg: svg.slice(0, 1400) })
+					} catch (_error) { /* one unreadable reference is fine */ }
+				}
+			} catch (_error) { /* offline: draw from the prompt alone */ }
+			if (out.length < limit) {
+				try {
+					const data = await iconifyJson(`/search?query=${encodeURIComponent(query)}&limit=${limit}`)
+					for (const full of (Array.isArray(data.icons) ? data.icons : []).slice(0, limit - out.length)) {
+						const ref = parseSupplyRef(full)
+						if (!ref) continue
+						try {
+							const art = await supplyIcon(ref)
+							if (art && typeof art.svg === 'string' && art.svg !== '') {
+								push({ label: ref.icon, source: 'iconify', svg: art.svg.slice(0, 1400) })
+							}
+						} catch (_error) { /* skip this one */ }
+					}
+				} catch (_error) { /* offline */ }
+			}
+			return out
+		}
+
+		/**
+		 * AI create: draw one icon in this library's own style.
+		 *
+		 * Nothing is written here. The draft goes back to the paste dialog, where
+		 * the user confirms name, rule and artwork — the same door every other
+		 * icon comes through.
+		 */
+		route('ai-create', async (req, res) => {
+			if (req.method !== 'POST') return json(res, 405, { status: 'error', error: { code: 'method-not-allowed' } })
+			const body = await readBody(req)
+			const root = await resolveRoot(scope, { workspace: body.workspace, sessionId: body.sessionId })
+			const io = makeIo(scope, root)
+			const store = createStore(io)
+			const prompt = String(body.prompt || '').trim().slice(0, 500)
+			if (prompt === '') {
+				return json(res, 400, { status: 'error', error: { code: 'prompt-required', message: 'describe the icon first' } })
+			}
+			const previous = typeof body.previous === 'string' ? body.previous.slice(0, 8000) : ''
+			const problem = typeof body.problem === 'string' ? body.problem.trim().slice(0, 200) : ''
+			const profile = await styleProfile(io, store)
+			const references = await findReferences(prompt)
+			const draft = await sketchIcon(scope, body.sessionId, prompt, profile, previous === '' ? null : { previous, problem }, references)
+			ok(res, {
+				root,
+				references: references.map((item) => ({ label: item.label, source: item.source })),
+				profile: {
+					canvas: profile.canvas,
+					strokeWidth: profile.strokeWidth,
+					painted: profile.painted,
+					icons: profile.total,
+				},
+				...draft,
+			})
+		})
+
 		route('delete', async (req, res) => {
 			if (req.method !== 'POST') return json(res, 405, { status: 'error', error: { code: 'method-not-allowed' } })
 			const body = await readBody(req)
@@ -1467,6 +1930,30 @@ export function apply(ctx, config = {}) {
 				name: result.entry.name,
 				file: `${MANIFEST_FILE}`,
 				fileRemoved,
+			})
+		})
+
+		route('derivations', async (req, res) => {
+			if (req.method !== 'POST') return json(res, 405, { status: 'error', error: { code: 'method-not-allowed' } })
+			const body = await readBody(req)
+			const root = await resolveRoot(scope, { workspace: body.workspace, sessionId: body.sessionId })
+			const io = makeIo(scope, root)
+			const store = createStore(io)
+			const graphic = await store.get(normalizeName(refName(body.name)))
+			const excluded = excludeFor(root)
+			const stored = Array.isArray(graphic.entry.pointers) ? graphic.entry.pointers : []
+			// Pointers recorded before the plugin's own directory was excluded still
+			// point into it; drop them here and persist the cleanup so the panel
+			// never offers the plugin's own bundle as a derivative.
+			const pointers = stored.filter((pointer) => !excluded.some((prefix) => pointer.file === prefix || pointer.file.startsWith(`${prefix}/`)))
+			if (pointers.length !== stored.length) {
+				try { await store.setPointers(graphic.entry.name, pointers) } catch (_error) { /* keep the cleaned view */ }
+			}
+			const all = await readDerivations(io, pointers, graphic.svg)
+			ok(res, {
+				name: graphic.entry.name,
+				derivations: all.filter((item) => item.stale !== true),
+				stale: all.filter((item) => item.stale === true).length,
 			})
 		})
 

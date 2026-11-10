@@ -8,9 +8,9 @@
 import { scanUsage, applyAsset, walkProject, scanPathCopies } from './assets.js'
 import { LIB_DIR } from './store.js'
 import { parsePath, round } from './svg.js'
-import { signature, bodySignature, isIconCandidate, svgBlocks, jsxSvgBlocks, markupBlocks, pathLiterals, quotedRanges, splitSvg, canonSubpaths, canonicalD } from './shape.js'
+import { signature, bodySignature, shapeSignature, mergeInner, isIconCandidate, isSquareCanvas, svgBlocks, jsxSvgBlocks, markupBlocks, pathLiterals, quotedRanges, splitSvg, canonSubpaths, canonicalD } from './shape.js'
 
-export { signature, bodySignature, svgBlocks, splitSvg } from './shape.js'
+export { signature, bodySignature, shapeSignature, svgBlocks, splitSvg } from './shape.js'
 
 /**
  * A copy can be written as JSX (`h('svg', {…}, h('path', { d: '…' }))`) instead of
@@ -40,7 +40,7 @@ export function isUiSource(file) {
  * back without asking the user to tag anything.
  */
 export async function findShapePointers(io, svg, { exclude = [], stats = null } = {}) {
-	const wanted = bodySignature(svg)
+	const wanted = shapeSignature(svg)
 	if (wanted === '') return []
 	const files = []
 	try {
@@ -61,20 +61,20 @@ export async function findShapePointers(io, svg, { exclude = [], stats = null } 
 		if (text === null) continue
 		if (!text.includes('<svg') && !/h\(\s*['"]svg['"]/u.test(text) && !/\bmarkup\s*:/u.test(text) && !/['"`][Mm][^'"`\n]{12,}Z['"`]/u.test(text)) continue
 		if (file.toLowerCase().endsWith('.svg')) {
-			if (bodySignature(text) === wanted) pointers.push({ file, kind: 'file', index: 0, line: 1 })
+			if (shapeSignature(text) === wanted) pointers.push({ file, kind: 'file', index: 0, line: 1 })
 			continue
 		}
 		const strings = quotedRanges(text)
 		const blocks = svgBlocks(text).filter((block) => !strings.some((range) => block.start >= range.start && block.start < range.end))
 		for (let index = 0; index < blocks.length; index += 1) {
-			if (bodySignature(blocks[index].text) !== wanted) continue
+			if (shapeSignature(blocks[index].text) !== wanted) continue
 			const line = text.slice(0, blocks[index].start).split('\n').length
 			pointers.push({ file, kind: 'inline', index, line })
 		}
 		// React code writes h('svg', …), not raw markup. Same icon, other syntax.
 		const jsxCalls = jsxSvgBlocks(text)
 		for (let index = 0; index < jsxCalls.length; index += 1) {
-			if (bodySignature(jsxCalls[index].text) !== wanted) continue
+			if (shapeSignature(jsxCalls[index].text) !== wanted) continue
 			// A shape whose path is a shared constant is rewritten once at the
 			// constant (kind 'path' below), not once per component using it.
 			if (jsxCalls[index].dSites.length > 0 && jsxCalls[index].dSites.every((site) => site.shared)) continue
@@ -84,7 +84,7 @@ export async function findShapePointers(io, svg, { exclude = [], stats = null } 
 		// `{ viewBox, markup }` constants (this plugin's own marks).
 		const marks = markupBlocks(text)
 		for (let index = 0; index < marks.length; index += 1) {
-			if (bodySignature(marks[index].text) !== wanted) continue
+			if (shapeSignature(marks[index].text) !== wanted) continue
 			const line = text.slice(0, marks[index].start).split('\n').length
 			pointers.push({ file, kind: 'markup', index, line })
 		}
@@ -135,7 +135,11 @@ export async function pushShapePointers(io, svg, pointers = []) {
 		// wrote them, so replacing a drawing never resizes anybody's canvas.
 		const rewrite = (target) => {
 			const parts = splitSvg(target)
-			return parts ? `${parts.open}${inner}${parts.close}` : target
+			if (!parts) return target
+			// Derivation stays: only geometry moves. A copy recoloured to #f00 or
+			// thickened to 4px keeps both when the drawing is redrawn.
+			const merged = mergeInner(parts.inner, inner)
+			return `${parts.open}${merged === null ? inner : merged}${parts.close}`
 		}
 		if (list.some((pointer) => pointer.kind === 'file')) {
 			const target = splitSvg(text)
@@ -250,6 +254,62 @@ export async function pushShapePointers(io, svg, pointers = []) {
  * inline before the library exists. One group = one distinct shape; the sites
  * are where it appears, so importing a group immediately links its copies.
  */
+/**
+ * What each derivation actually draws.
+ *
+ * A derivation has no record of its own: it is the SVG sitting in the source
+ * file. This reads those blocks back, so the panel can show every site with
+ * its own colour and weight — the same shape rendered differently.
+ */
+export async function readDerivations(io, pointers = [], iconSvg = '') {
+	// A recorded pointer can go stale: the file was edited, the block moved, the
+	// icon was redrawn. Reading each site back lets the panel show only the ones
+	// that still draw this shape instead of an empty frame.
+	const wanted = iconSvg === '' ? '' : shapeSignature(iconSvg)
+	const byFile = new Map()
+	for (const pointer of pointers) {
+		if (!pointer || typeof pointer.file !== 'string' || pointer.file === '') continue
+		if (!byFile.has(pointer.file)) byFile.set(pointer.file, [])
+		byFile.get(pointer.file).push(pointer)
+	}
+	const out = []
+	for (const [file, list] of byFile) {
+		let text = null
+		try {
+			text = await io.readText(file)
+		} catch (_error) {
+			text = null
+		}
+		const isFile = file.toLowerCase().endsWith('.svg')
+		const blocks = text === null || isFile ? null : svgBlocks(text)
+		const calls = text === null ? [] : jsxSvgBlocks(text)
+		const marks = text === null ? [] : markupBlocks(text)
+		for (const pointer of list) {
+			let svg = ''
+			if (text !== null) {
+				if (pointer.kind === 'file') svg = text
+				else if (pointer.kind === 'inline') svg = blocks && blocks[pointer.index] ? blocks[pointer.index].text : ''
+				else if (pointer.kind === 'jsx') svg = calls[pointer.index] ? calls[pointer.index].text : ''
+				else if (pointer.kind === 'markup') svg = marks[pointer.index] ? marks[pointer.index].text : ''
+			}
+			// A shared path constant has no drawing of its own to read; it stays a
+			// site even though this call cannot resolve its surroundings.
+			const stale = pointer.kind === 'path'
+				? false
+				: svg === '' || (wanted !== '' && shapeSignature(svg) !== wanted)
+			out.push({
+				file: pointer.file,
+				kind: pointer.kind || 'inline',
+				index: Number(pointer.index) || 0,
+				line: Number(pointer.line) || 0,
+				svg,
+				stale,
+			})
+		}
+	}
+	return out.sort((left, right) => left.file.localeCompare(right.file) || left.line - right.line)
+}
+
 export async function scanCodeShapes(io, { exclude = [] } = {}) {
 	const files = []
 	try {
@@ -258,6 +318,9 @@ export async function scanCodeShapes(io, { exclude = [] } = {}) {
 		return []
 	}
 	const groups = new Map()
+	// Non-square art is out of scope, and the count is reported so a disappearing
+	// shape can be explained instead of silently swallowed.
+	let excluded = 0
 	for (const file of files) {
 		if (!isUiSource(file)) continue
 		let text = null
@@ -277,6 +340,10 @@ export async function scanCodeShapes(io, { exclude = [] } = {}) {
 		for (let index = 0; index < blocks.length; index += 1) {
 			const block = blocks[index]
 			if (!isIconCandidate(block.text)) continue
+			if (!isSquareCanvas(block.text)) {
+				excluded += 1
+				continue
+			}
 			const sig = bodySignature(block.text)
 			if (sig === '') continue
 			let group = groups.get(sig)
@@ -297,5 +364,9 @@ export async function scanCodeShapes(io, { exclude = [] } = {}) {
 			})
 		}
 	}
-	return [...groups.values()].sort((left, right) => right.sites.length - left.sites.length)
+	const list = [...groups.values()].sort((left, right) => right.sites.length - left.sites.length)
+	// The count rides along so the panel can say why an SVG it used to offer is
+	// gone, without changing the shape of the answer for every existing caller.
+	Object.defineProperty(list, 'excluded', { value: excluded, enumerable: false })
+	return list
 }

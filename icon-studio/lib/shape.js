@@ -85,6 +85,167 @@ export function isIconCandidate(svg) {
 	return true
 }
 
+/**
+ * Why a model-written SVG cannot join this library. Empty list = it fits.
+ *
+ * The rules are the ones every icon in `.icons.json` already follows: one
+ * square canvas, single-colour art that inherits `currentColor`, nothing but
+ * geometry elements, and few enough shapes to stay a glyph rather than an
+ * illustration.
+ */
+export function generatedIconIssues(svg) {
+	const text = String(svg || '')
+	const issues = []
+	if (!/<svg\b/iu.test(text)) issues.push('no-svg')
+	if (/<(?:text|image|foreignObject|style|script|filter|mask|pattern|clipPath|linearGradient|radialGradient)\b/iu.test(text)) {
+		issues.push('forbidden-element')
+	}
+	if (/url\(\s*#/u.test(text)) issues.push('paint-server')
+	const elements = [...text.matchAll(/<(path|circle|rect|line|polygon|polyline|ellipse)\b/gu)].length
+	if (elements === 0) issues.push('no-geometry')
+	if (elements > 12) issues.push('too-many-elements')
+	if (!isSquareCanvas(text)) issues.push('not-square')
+	const painted = [...text.matchAll(/\b(?:fill|stroke)="([^"]*)"/gu)]
+		.map((match) => match[1].trim().toLowerCase())
+		.filter((value) => value !== '' && value !== 'none')
+	if (painted.some((value) => value !== 'currentcolor')) issues.push('baked-colour')
+	return issues
+}
+
+/* ───────────────── geometry identity ───────────────── */
+
+const ELEMENT_TAGS = new Set(['path', 'circle', 'rect', 'line', 'polygon', 'polyline', 'ellipse'])
+const GEOMETRY_ATTRS = new Set(['d', 'cx', 'cy', 'r', 'rx', 'ry', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'width', 'height', 'points'])
+const GEOMETRY_FIELDS = ['cx', 'cy', 'r', 'rx', 'ry', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'width', 'height', 'points']
+
+/**
+ * Geometry only: what the shape *is*, with no paint at all.
+ *
+ * Two copies of one icon that differ only in `fill`/`stroke`/`stroke-width` are
+ * the same shape — one raw drawing, two derivations. The paint-aware
+ * `bodySignature` stays for library identity (dedupe, same-name reporting);
+ * pointer discovery uses this one, or recolouring a site would silently unlink
+ * it from its icon.
+ */
+export function shapeSignature(svg) {
+	const text = String(svg || '')
+	if (text.trim() === '') return ''
+	const parts = [...text.matchAll(/<(path|circle|rect|line|polygon|polyline|ellipse)\b([^>]*)>/gu)].map((match) => {
+		const attrs = match[2]
+		// A bare `\b` would read `stroke-width="4"` as `width="4"`; an attribute
+		// name starts at the beginning or after whitespace, never after a hyphen.
+		const pick = (name) => new RegExp(`(?:^|\\s)${name}="([^"]*)"`, 'u').exec(attrs)?.[1] ?? ''
+		return [match[1], canonicalD(pick('d')), ...GEOMETRY_FIELDS.map(pick)].join('|')
+	})
+	return `${aspectRatio(text)}::${parts.join(';')}`
+}
+
+/** Element tokens of an inner markup string, with attribute offsets. */
+function geometryTokens(inner) {
+	const tokens = []
+	const re = /<([a-z][\w-]*)\b([^>]*?)(\/?)>/giu
+	let match
+	while ((match = re.exec(inner)) !== null) {
+		const tag = match[1].toLowerCase()
+		if (!ELEMENT_TAGS.has(tag)) continue
+		const attrsStart = match.index + 1 + match[1].length
+		const attrsText = match[2]
+		const attrs = []
+		const attrRe = /([:\w-]+)\s*=\s*("([^"]*)"|'([^']*)')/gu
+		let attr
+		while ((attr = attrRe.exec(attrsText)) !== null) {
+			attrs.push({
+				name: attr[1].toLowerCase(),
+				value: attr[3] !== undefined ? attr[3] : attr[4],
+				start: attrsStart + attr.index,
+				end: attrsStart + attr.index + attr[0].length,
+			})
+		}
+		tokens.push({
+			tag,
+			end: match.index + match[0].length,
+			selfClosing: match[3] === '/',
+			attrs,
+		})
+	}
+	return tokens
+}
+
+/**
+ * Copy the icon's geometry onto an existing copy, leaving every byte of that
+ * copy's own paint alone.
+ *
+ * This is the whole reason derivations survive a raw edit: `stroke="#f00"` and
+ * `stroke-width="4"` in the code are never written by us, so a redrawn shape
+ * lands on the same colour and weight. Returns `null` when the two drawings do
+ * not line up (different elements), and the caller falls back to replacing the
+ * inner markup wholesale.
+ */
+export function mergeInner(siteInner, iconInner) {
+	const site = geometryTokens(siteInner)
+	const icon = geometryTokens(iconInner)
+	if (site.length === 0 || site.length !== icon.length) return null
+	for (let index = 0; index < site.length; index += 1) {
+		if (site[index].tag !== icon[index].tag) return null
+	}
+	const edits = []
+	for (let index = 0; index < site.length; index += 1) {
+		const current = site[index]
+		const wanted = icon[index]
+		const own = new Map(current.attrs.map((attr) => [attr.name, attr]))
+		const theirs = new Map(wanted.attrs.map((attr) => [attr.name, attr]))
+		for (const [name, attr] of theirs) {
+			if (!GEOMETRY_ATTRS.has(name)) continue
+			const existing = own.get(name)
+			if (!existing) {
+				const at = current.end - (current.selfClosing ? 2 : 1)
+				edits.push({ start: at, end: at, text: ` ${name}="${attr.value}"` })
+			} else if (existing.value !== attr.value) {
+				edits.push({ start: existing.start, end: existing.end, text: `${name}="${attr.value}"` })
+			}
+		}
+		for (const [name, attr] of own) {
+			if (!GEOMETRY_ATTRS.has(name) || theirs.has(name)) continue
+			let start = attr.start
+			if (siteInner[start - 1] === ' ') start -= 1
+			edits.push({ start, end: attr.end, text: '' })
+		}
+	}
+	edits.sort((left, right) => right.start - left.start)
+	let out = siteInner
+	for (const edit of edits) out = `${out.slice(0, edit.start)}${edit.text}${out.slice(edit.end)}`
+	return out
+}
+
+/**
+ * A standard square canvas: the drawing area is as wide as it is high.
+ *
+ * This library owns square glyphs only. Wide art (wordmarks, arrows drawn to
+ * fill a 32×24 box, banners, illustrations) is not an icon in the sense the
+ * panel can manage, so the workspace scan never offers it.
+ *
+ * No canvas at all is not a square canvas: an undeclared SVG falls back to the
+ * 300×150 default, which is exactly the case this filter is here to drop.
+ */
+export function isSquareCanvas(svg) {
+	const text = String(svg || '')
+	const viewBox = /viewBox="([^"]+)"/u.exec(text)?.[1]
+	if (viewBox) {
+		const parts = viewBox.trim().split(/[\s,]+/u).map(Number)
+		if (parts.length === 4 && Number.isFinite(parts[2]) && Number.isFinite(parts[3])) {
+			return parts[2] > 0 && parts[3] > 0 && Math.abs(parts[2] - parts[3]) < 0.01
+		}
+	}
+	const width = /<svg\b[^>]*\bwidth="([\d.]+)"/u.exec(text)?.[1]
+	const height = /<svg\b[^>]*\bheight="([\d.]+)"/u.exec(text)?.[1]
+	if (width && height) {
+		const w = Number(width)
+		const h = Number(height)
+		return Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0 && Math.abs(w - h) < 0.01
+	}
+	return false
+}
+
 /** Signature including the canvas — only used where the canvas matters. */
 export const signature = (svg) => {
 	const text = String(svg || '')

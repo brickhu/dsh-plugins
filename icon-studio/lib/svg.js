@@ -778,6 +778,174 @@ export function pathBBox(d) {
 	return { x: round(minX), y: round(minY), width: round(maxX - minX), height: round(maxY - minY) }
 }
 
+/* ───────────────── stroke crossings ───────────────── */
+
+const CROSS_EPS = 1e-9
+
+/** Flatten one `d` into polylines, sampling curves; arcs become their chord. */
+function pathPolylines(d) {
+	const segments = parsePath(d)
+	const lines = []
+	let current = null
+	let cx = 0
+	let cy = 0
+	let sx = 0
+	let sy = 0
+	const push = (x, y) => {
+		if (!current || !Number.isFinite(x) || !Number.isFinite(y)) return
+		current.push([x, y])
+	}
+	for (const segment of segments) {
+		if (segment.c === 'M') {
+			cx = segment.p[0][0]
+			cy = segment.p[0][1]
+			sx = cx
+			sy = cy
+			current = [[cx, cy]]
+			lines.push(current)
+			continue
+		}
+		if (segment.c === 'Z') {
+			if (current && current.length > 1) push(sx, sy)
+			cx = sx
+			cy = sy
+			continue
+		}
+		if (!current) continue
+		if (segment.c === 'L') {
+			const point = segment.p[0]
+			push(point[0], point[1])
+			cx = point[0]
+			cy = point[1]
+			continue
+		}
+		if (segment.c === 'C') {
+			const [p1, p2, p3] = segment.p
+			for (let step = 1; step <= 8; step += 1) {
+				const t = step / 8
+				push(cubicAt(cx, p1[0], p2[0], p3[0], t), cubicAt(cy, p1[1], p2[1], p3[1], t))
+			}
+			cx = p3[0]
+			cy = p3[1]
+			continue
+		}
+		if (segment.c === 'Q') {
+			const [p1, p3] = segment.p
+			for (let step = 1; step <= 8; step += 1) {
+				const t = step / 8
+				push(quadAt(cx, p1[0], p3[0], t), quadAt(cy, p1[1], p3[1], t))
+			}
+			cx = p3[0]
+			cy = p3[1]
+			continue
+		}
+		if (segment.c === 'A') {
+			const point = segment.p[segment.p.length - 1]
+			push(point[0], point[1])
+			cx = point[0]
+			cy = point[1]
+		}
+	}
+	return lines.filter((line) => line.length > 1)
+}
+
+/** Polylines of one SVG element, in canvas units. */
+function elementPolylines(tag, attrs) {
+	const pick = (name) => {
+		const match = new RegExp(`(?:^|\\s)${name}="([^"]*)"`, 'u').exec(attrs)
+		return match ? Number(match[1]) : NaN
+	}
+	if (tag === 'path') return pathPolylines(/\sd="([^"]*)"/u.exec(attrs)?.[1] ?? '')
+	if (tag === 'line') {
+		const x1 = pick('x1')
+		const y1 = pick('y1')
+		const x2 = pick('x2')
+		const y2 = pick('y2')
+		return [[x1, y1], [x2, y2]].some(([x, y]) => !Number.isFinite(x) || !Number.isFinite(y)) ? [] : [[[x1, y1], [x2, y2]]]
+	}
+	if (tag === 'rect') {
+		const x = pick('x') || 0
+		const y = pick('y') || 0
+		const w = pick('width')
+		const h = pick('height')
+		if (!Number.isFinite(w) || !Number.isFinite(h)) return []
+		return [[[x, y], [x + w, y], [x + w, y + h], [x, y + h], [x, y]]]
+	}
+	if (tag === 'circle' || tag === 'ellipse') {
+		const cx = pick('cx') || 0
+		const cy = pick('cy') || 0
+		const rx = tag === 'circle' ? pick('r') : pick('rx')
+		const ry = tag === 'circle' ? pick('r') : pick('ry')
+		if (!Number.isFinite(rx) || !Number.isFinite(ry)) return []
+		const points = []
+		for (let step = 0; step <= 24; step += 1) {
+			const angle = (step / 24) * Math.PI * 2
+			points.push([cx + rx * Math.cos(angle), cy + ry * Math.sin(angle)])
+		}
+		return [points]
+	}
+	if (tag === 'polygon' || tag === 'polyline') {
+		const raw = /\spoints="([^"]*)"/u.exec(attrs)?.[1] ?? ''
+		const numbers = raw.trim().split(/[\s,]+/u).map(Number).filter((value) => Number.isFinite(value))
+		const points = []
+		for (let index = 0; index + 1 < numbers.length; index += 2) points.push([numbers[index], numbers[index + 1]])
+		if (tag === 'polygon' && points.length > 2) points.push(points[0])
+		return points.length > 1 ? [points] : []
+	}
+	return []
+}
+
+/** Do two segments cross strictly between their endpoints? */
+function segmentsCross(ax, ay, bx, by, cx, cy, dx, dy) {
+	const side = (px, py, qx, qy, rx, ry) => (qx - px) * (ry - py) - (qy - py) * (rx - px)
+	const d1 = side(ax, ay, bx, by, cx, cy)
+	const d2 = side(ax, ay, bx, by, dx, dy)
+	const d3 = side(cx, cy, dx, dy, ax, ay)
+	const d4 = side(cx, cy, dx, dy, bx, by)
+	return ((d1 > CROSS_EPS && d2 < -CROSS_EPS) || (d1 < -CROSS_EPS && d2 > CROSS_EPS))
+		&& ((d3 > CROSS_EPS && d4 < -CROSS_EPS) || (d3 < -CROSS_EPS && d4 > CROSS_EPS))
+}
+
+/**
+ * How many pairs of separate elements have one stroke passing **through** the
+ * other (two or more proper crossings).
+ *
+ * A single touch is a joint — a calendar's tabs crossing its top edge, a plus
+ * made of two lines — and stays quiet. Two crossings means one shape is laid on
+ * top of another, which is the classic broken composite: the line that should
+ * be hidden keeps going through.
+ */
+export function strokeCrossings(svg) {
+	const text = String(svg || '')
+	const elements = []
+	for (const match of text.matchAll(/<(path|circle|rect|line|polygon|polyline|ellipse)\b([^>]*)>/gu)) {
+		const lines = elementPolylines(match[1].toLowerCase(), match[2])
+		if (lines.length > 0) elements.push(lines)
+	}
+	let pairs = 0
+	for (let left = 0; left < elements.length; left += 1) {
+		for (let right = left + 1; right < elements.length; right += 1) {
+			let crossings = 0
+			for (const a of elements[left]) {
+				for (let index = 0; index + 1 < a.length && crossings < 2; index += 1) {
+					for (const b of elements[right]) {
+						for (let step = 0; step + 1 < b.length; step += 1) {
+							if (segmentsCross(a[index][0], a[index][1], a[index + 1][0], a[index + 1][1], b[step][0], b[step][1], b[step + 1][0], b[step + 1][1])) {
+								crossings += 1
+								if (crossings >= 2) break
+							}
+						}
+						if (crossings >= 2) break
+					}
+					if (crossings >= 2) break
+				}
+			}
+			if (crossings >= 2) pairs += 1
+		}
+	}
+	return pairs
+}
+
 /**
  * One path -> the pieces it should become. Disjoint subpaths are separate
  * shapes worth selecting on their own; nested ones are a compound path whose
