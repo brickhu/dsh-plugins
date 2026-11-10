@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Icon Library",
+    "description": "在工作区创建一个可供 Agent 消费的图标库：从工作区扫描图标、粘贴或导入 SVG，并让所有引用保持一致。"
+  }
+}

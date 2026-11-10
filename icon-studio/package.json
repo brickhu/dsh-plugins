@@ -1,0 +1,74 @@
+{
+  "name": "dsh-icon-library",
+  "version": "0.17.0",
+  "description": "Icon Library for DeepSeek Harness: create a workspace icon library that agents can consume \u2014 scan icons from workspace, paste or import SVGs, and keep every copy in sync. Agents use icon_list / icon_get / icon_save / icon_annotate. \u9879\u76ee\u7ea7\u56fe\u6807\u5e93\u3002",
+  "license": "MIT",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "lib/*.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "icon.mask.svg",
+    "README.md",
+    "DESIGN.md",
+    "LICENSE",
+    "scripts/install.mjs",
+    "README.zh.md"
+  ],
+  "engines": {
+    "dsh": ">=0.2.1-rc.5 <0.3.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
+      ]
+    }
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "icons",
+    "svg",
+    "graphics",
+    "sidebar"
+  ],
+  "scripts": {
+    "test": "node test/run.mjs",
+    "sync-logo": "node scripts/sync-logo.mjs",
+    "build-mask-icon": "node scripts/build-mask-icon.mjs icon-studio-logo-colorful"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/brickhu/dsh-plugins.git",
+    "directory": "icon-studio"
+  },
+  "homepage": "https://github.com/brickhu/dsh-plugins/tree/main/icon-studio#readme",
+  "bugs": {
+    "url": "https://github.com/brickhu/dsh-plugins/issues"
+  },
+  "bin": {
+    "dsh-icon-library-install": "./scripts/install.mjs"
+  }
+}

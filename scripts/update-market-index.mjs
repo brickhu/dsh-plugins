@@ -18,7 +18,9 @@ const flags = process.argv.slice(2)
 const versionFlag = flags.indexOf('--version')
 const checkOnly = flags.includes('--check')
 
-const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, 'references', 'package.json'), 'utf8'))
+const pluginFlag = flags.indexOf('--plugin')
+const pluginDir = pluginFlag >= 0 && flags[pluginFlag + 1] ? flags[pluginFlag + 1] : 'references'
+const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, pluginDir, 'package.json'), 'utf8'))
 const version = versionFlag >= 0 ? flags[versionFlag + 1] : manifest.version
 if (!/^\d+\.\d+\.\d+/.test(version)) {
 	console.error(`not a concrete version: ${version}`)
@@ -42,10 +44,30 @@ const publishTimestamp = iso ? Math.floor(new Date(iso).getTime() / 1000) : Math
 
 const indexPath = path.join(repoRoot, 'market', 'index.json')
 const index = JSON.parse(fs.readFileSync(indexPath, 'utf8'))
-const plugin = index.plugins.find((entry) => entry.name === manifest.name)
+let plugin = index.plugins.find((entry) => entry.name === manifest.name)
 if (!plugin) {
-	console.error(`${manifest.name} is not listed in market/index.json`)
-	process.exit(1)
+	// First release of a new plugin: add its market entry from package + locale copy.
+	const readLocale = (lang) => {
+		try {
+			return JSON.parse(fs.readFileSync(path.join(repoRoot, pluginDir, 'locale', `${lang}.json`), 'utf8')).meta || {}
+		} catch (_error) {
+			return {}
+		}
+	}
+	const en = readLocale('en')
+	const zh = readLocale('zh')
+	plugin = {
+		name: manifest.name,
+		title: { en: en.title || manifest.name, zh: zh.title || en.title || manifest.name },
+		description: { en: en.description || '', zh: zh.description || en.description || '' },
+		icon: `https://raw.githubusercontent.com/brickhu/dsh-plugins/main/${pluginDir}/icon.svg`,
+		author: 'brickhu',
+		...(manifest.homepage ? { homepage: manifest.homepage } : {}),
+		...(manifest.repository ? { repository: manifest.repository } : {}),
+		metadata: { category: 'tools' },
+		versions: [],
+	}
+	index.plugins.push(plugin)
 }
 const versions = Array.isArray(plugin.versions) ? plugin.versions : []
 const existing = versions.find((entry) => entry.version === version)

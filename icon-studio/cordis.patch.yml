@@ -1,0 +1,6 @@
+# 以 bundle 形式把这个插件插进 profile 的 Loader 树：
+# 一条 insert 让 host 侧加载 lib/index.js（图标库 + 四个 agent 工具 + 规则），
+# client 侧加载 lib/client.js（右侧栏「图标」标签页）。
+- insert:
+    - id: dsh-icon-studio
+      name: 'dsh-icon-library'

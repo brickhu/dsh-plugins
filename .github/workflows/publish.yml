@@ -7,6 +7,7 @@ on:
   push:
     tags:
       - 'v*'
+      - 'icon-studio-v*'
   workflow_dispatch:
 
 permissions:
@@ -59,3 +60,41 @@ jobs:
             sleep 20
           done
           node scripts/update-market-index.mjs
+
+  publish-icon-library:
+    name: Publish dsh-icon-library
+    if: startsWith(github.ref, 'refs/tags/icon-studio-v')
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: icon-studio
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Upgrade npm for OIDC trusted publishing
+        run: npm install -g npm@^11
+
+      - name: Run the offline test suite
+        run: node test/run.mjs
+
+      - name: Show the package that will be published
+        run: npm pack --dry-run
+
+      - name: Publish via OIDC trusted publishing
+        run: npm publish --access public --provenance --registry https://registry.npmjs.org/
+
+      - name: Refresh the market index with the published version
+        working-directory: ${{ github.workspace }}
+        run: |
+          for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            if node scripts/update-market-index.mjs --plugin icon-studio; then exit 0; fi
+            echo "registry not updated yet (attempt $attempt), waiting 20s"
+            sleep 20
+          done
+          node scripts/update-market-index.mjs --plugin icon-studio
