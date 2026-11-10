@@ -166,9 +166,34 @@ function attrValue(attrs, name) {
  * `h('svg', {…}, h('path', {…}), …)` blocks. Many codebases (including this
  * one) never write raw `<svg>` markup, so the scanner must read React calls.
  */
+
+/** String constants in a file (`const D = '…'`), so JSX can reference them. */
+function collectStringVars(source) {
+	const vars = new Map()
+	const re = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:'([^']*)'|"([^"]*)"|`([^`]*)`)/gu
+	let match
+	while ((match = re.exec(source)) !== null) {
+		vars.set(match[1], match[2] ?? match[3] ?? match[4] ?? '')
+	}
+	return vars
+}
+
+/** One attribute of a React props object, resolving identifiers to string constants. */
+function attrValueFrom(attrs, name, vars) {
+	const match = new RegExp(`\\b${name}\\s*:\\s*(?:'([^']*)'|"([^"]*)"|\`([^\`]*)\`|(-?[\\d.]+)|([A-Za-z_$][\\w$]*))`, 'u').exec(attrs)
+	if (!match) return ''
+	if (match[1] !== undefined) return match[1]
+	if (match[2] !== undefined) return match[2]
+	if (match[3] !== undefined) return match[3]
+	if (match[4] !== undefined) return match[4]
+	const ident = match[5]
+	return ident !== undefined && vars.has(ident) ? vars.get(ident) : ''
+}
+
 export function jsxSvgBlocks(text) {
 	const blocks = []
 	const source = String(text || '')
+	const vars = collectStringVars(source)
 	const re = /h\(\s*['"](svg)['"]/gu
 	let match
 	while ((match = re.exec(source)) !== null) {
@@ -180,8 +205,8 @@ export function jsxSvgBlocks(text) {
 		const propsOpen = call.indexOf('{')
 		const propsEnd = propsOpen === -1 ? -1 : closingIndex(call, propsOpen)
 		const props = propsEnd === -1 ? '' : call.slice(propsOpen + 1, propsEnd)
-		const viewBox = attrValue(call, 'viewBox') || '0 0 24 24'
-		const rootFill = attrValue(props, 'fill')
+		const viewBox = attrValueFrom(call, 'viewBox', vars) || '0 0 24 24'
+		const rootFill = attrValueFrom(props, 'fill', vars)
 		const elements = []
 		const sites = []
 		const elRe = /h\(\s*['"](path|circle|rect|line|polygon|polyline|ellipse)['"]\s*,\s*\{/gu
@@ -192,23 +217,26 @@ export function jsxSvgBlocks(text) {
 			if (close === -1) continue
 			const attrs = call.slice(brace + 1, close - 1)
 			const tag = element[1]
-			const d = attrValue(attrs, 'd')
+			const d = attrValueFrom(attrs, 'd', vars)
 			const attrsOut = []
 			for (const [key, name] of Object.entries(REACT_ATTR)) {
-				const value = attrValue(attrs, key)
+				const value = attrValueFrom(attrs, key, vars)
 				if (value !== '') attrsOut.push(`${name}="${value}"`)
 			}
 			for (const name of ['cx', 'cy', 'r', 'x', 'y', 'width', 'height', 'points']) {
-				const value = attrValue(attrs, name)
+				const value = attrValueFrom(attrs, name, vars)
 				if (value !== '') attrsOut.push(`${name}="${value}"`)
 			}
-			const fill = attrValue(attrs, 'fill') || rootFill
+			const fill = attrValueFrom(attrs, 'fill', vars) || rootFill
 			if (fill !== '') attrsOut.push(`fill="${fill}"`)
-			const stroke = attrValue(attrs, 'stroke')
+			const stroke = attrValueFrom(attrs, 'stroke', vars)
 			if (stroke !== '') attrsOut.push(`stroke="${stroke}"`)
 			if (d !== '') {
-				const dStart = match.index + call.indexOf(`${d}`, brace)
-				sites.push({ start: dStart, end: dStart + d.length, literal: d })
+				const at = call.indexOf(d, brace)
+				if (at !== -1) {
+					const dStart = match.index + at
+					sites.push({ start: dStart, end: dStart + d.length, literal: d })
+				}
 				elements.push(`<path d="${d}" ${attrsOut.join(' ')}/>`)
 			} else {
 				elements.push(`<${tag} ${attrsOut.join(' ')}/>`)
@@ -220,7 +248,7 @@ export function jsxSvgBlocks(text) {
 		const rootAttrs = []
 		if (rootFill !== '') rootAttrs.push(`fill="${rootFill}"`)
 		for (const [key, name] of [['stroke', 'stroke'], ...Object.entries(REACT_ATTR)]) {
-			const value = attrValue(props, key)
+			const value = attrValueFrom(props, key, vars)
 			if (value !== '') rootAttrs.push(`${name}="${value}"`)
 		}
 		blocks.push({
