@@ -2,18 +2,18 @@
   "format": 1,
   "title": {
     "en": "brickhu DSH plugins",
-    "zh": "brickhu \u7684 DSH \u63d2\u4ef6"
+    "zh": "brickhu 的 DSH 插件"
   },
   "description": {
     "en": "Plugins published by brickhu for DeepSeek Harness.",
-    "zh": "brickhu \u53d1\u5e03\u7684 DeepSeek Harness \u63d2\u4ef6\u3002"
+    "zh": "brickhu 发布的 DeepSeek Harness 插件。"
   },
   "metadata": {
     "categories": {
       "tools": {
         "title": {
           "en": "Tools",
-          "zh": "\u5de5\u5177"
+          "zh": "工具"
         }
       }
     }
@@ -23,11 +23,11 @@
       "name": "dsh-links-panel",
       "title": {
         "en": "Reference Links",
-        "zh": "\u53c2\u8003\u94fe\u63a5"
+        "zh": "参考链接"
       },
       "description": {
         "en": "Collects every URL of a conversation into a right-sidebar tab with pins, turn counts, search, rename, hide and a keyboard shortcut.",
-        "zh": "\u628a\u5bf9\u8bdd\u91cc\u51fa\u73b0\u7684\u6240\u6709 URL \u6c47\u603b\u5230\u53f3\u680f\u6807\u7b7e\u9875\uff1a\u7f6e\u9876\u3001\u8f6e\u6b21\u7edf\u8ba1\u3001\u641c\u7d22\u3001\u6539\u540d\u3001\u9690\u85cf\u4e0e\u5feb\u6377\u952e\u3002"
+        "zh": "把对话里出现的所有 URL 汇总到右栏标签页：置顶、轮次统计、搜索、改名、隐藏与快捷键。"
       },
       "icon": "https://raw.githubusercontent.com/brickhu/dsh-plugins/main/references/icon.svg",
       "author": "brickhu",
@@ -320,7 +320,7 @@
       },
       "description": {
         "en": "A workspace icon library for your project: drag icons into the chat as <name>, let the agent pick the right icon by meaning, and edit an SVG once to update every place it is used.",
-        "zh": "\u9879\u76ee\u81ea\u5df1\u7684\u56fe\u6807\u5e93\uff1a\u628a\u56fe\u6807\u62d6\u8fdb\u5bf9\u8bdd\u7528 <\u56fe\u6807\u540d> \u6307\u4ee3\uff0c\u8ba9 Agent \u6309\u8bed\u4e49\u4ece\u5e93\u91cc\u6311\u9009\u5408\u9002\u56fe\u6807\uff1b\u6539\u4e00\u6b21 SVG\uff0c\u4ee3\u7801\u91cc\u7684\u6240\u6709\u5f15\u7528\u4e00\u8d77\u66f4\u65b0\u3002"
+        "zh": "项目自己的图标库：把图标拖进对话用 <图标名> 指代，让 Agent 按语义从库里挑选合适图标；改一次 SVG，代码里的所有引用一起更新。"
       },
       "icon": "https://raw.githubusercontent.com/brickhu/dsh-plugins/main/icon-studio/icon.svg",
       "author": "brickhu",
@@ -334,6 +334,16 @@
         "category": "tools"
       },
       "versions": [
+        {
+          "version": "0.17.2",
+          "publishTimestamp": 1794297427,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": ">=0.2.1-rc.5 <0.3.0"
+          }
+        },
         {
           "version": "0.17.1",
           "publishTimestamp": 1794293701,
