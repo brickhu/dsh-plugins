@@ -19,6 +19,7 @@
     "cordis.patch.yml",
     "locale/*.json",
     "cover.png",
+    "screenshots.json",
     "icon.svg",
     "icon.mask.svg",
     "README.md",
