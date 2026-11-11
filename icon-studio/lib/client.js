@@ -2089,6 +2089,8 @@ window.__ModuleLoader__.load({
           library,
           mode: add.mode,
           draft: add.draft || null,
+          svg: add.svg || '',
+          viewBox: add.viewBox,
           text: add.text || '',
           name: add.name || '',
           iconRef: add.ref || '',
