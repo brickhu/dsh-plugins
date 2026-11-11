@@ -191,6 +191,7 @@ window.__ModuleLoader__.load({
       listEmpty: '这个 workspace 还没有图标库',
       listEmptyHint: '新建一个图标，或把 Figma / 现有的 SVG 粘进来。',
       listReorder: '拖动排序',
+      detailDragHint: '拖到对话输入框，用 <图标名> 引用它',
       cardCopyName: 'Copy Name',
       listDeleteIcon: 'Delete The Icon',
       listExportSvg: 'Export as SVG',
@@ -506,6 +507,7 @@ window.__ModuleLoader__.load({
       initHint: 'Initialising only creates `.icons.json` at the project root; it never edits business code.',
       listEmptyHint: 'Create one, or paste a Figma / existing SVG.',
       listReorder: 'Drag to reorder',
+      detailDragHint: 'Drag into the chat input to reference it as <name>',
       cardCopyName: 'Copy Name',
       listDeleteIcon: 'Delete The Icon',
       listExportSvg: 'Export as SVG',
@@ -3817,7 +3819,18 @@ window.__ModuleLoader__.load({
         h('div', { className: 'gs-detail-body' },
           h('div', { className: 'gs-field', onFocus: enterField, onBlur: leaveField },
             h('div', { className: 'gs-info-card gs-svg-card' },
-              h('div', { className: 'gs-previewbox', style: { minHeight: 132 } }, svgArt(preview, entry.name)),
+              h('div', {
+                className: 'gs-previewbox',
+                style: { minHeight: 132, cursor: 'grab' },
+                draggable: true,
+                title: t('detailDragHint'),
+                onDragStart: (event) => {
+                  if (!event.dataTransfer) return
+                  // Same payload as a list card: dropping in the chat types the reference.
+                  event.dataTransfer.effectAllowed = 'copy'
+                  event.dataTransfer.setData('text/plain', `<${name.trim() || entry.name}>`)
+                },
+              }, svgArt(preview, entry.name)),
               h('div', { className: 'gs-svg-head' },
                 h('button', {
                   type: 'button',
