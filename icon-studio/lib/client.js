@@ -3440,6 +3440,17 @@ window.__ModuleLoader__.load({
      * one row each. Naming a row imports that shape and links all of its sites;
      * shapes already in the library are shown as such and skipped.
      */
+    /** Stable short key for an unnamed shape, derived from its identity. */
+    function shortShapeKey(text) {
+      let hash = 2166136261 >>> 0
+      const source = String(text || '')
+      for (let index = 0; index < source.length; index += 1) {
+        hash ^= source.charCodeAt(index)
+        hash = Math.imul(hash, 16777619) >>> 0
+      }
+      return hash.toString(36).padStart(6, '0').slice(-6)
+    }
+
     /** Second-level page: every distinct SVG shape already drawn in the workspace. */
     function ScanView(props) {
       const { t, sessionId, say } = props
@@ -3517,7 +3528,7 @@ window.__ModuleLoader__.load({
         return h('div', { key: group.signature, className: 'gs-scan-item' },
           h('div', { className: 'gs-scan-thumb' }, svgArt(group.svg, group.signature)),
           h('div', { className: 'gs-scan-main' },
-            h('b', { className: 'gs-scan-title' }, group.existing || t('scanUnnamed')),
+            h('b', { className: 'gs-scan-title', title: group.existing || group.signature }, group.existing || `#${shortShapeKey(group.signature)}`),
             h('div', { className: 'gs-scan-refs' }, refs)),
           action)
       }) : null
