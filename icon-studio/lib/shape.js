@@ -71,17 +71,27 @@ export const bodySignature = (svg) => {
  * offered as an icon candidate. Illustrations, multi-colour marks, masked or
  * raster-backed art are left out — they are not things this library should own.
  */
+/**
+ * Budget for "a glyph, not an illustration". Real icon sets go well past the
+ * old limits: a favicon often has three or four colours, and detailed icons
+ * carry a dozen or more shapes. Traced artwork is orders of magnitude larger,
+ * so the element and path-size budgets are what separate the two.
+ */
+const ICON_MAX_ELEMENTS = 40
+const ICON_MAX_PATH_CHARS = 8000
+const ICON_MAX_PAINTS = 8
+
 export function isIconCandidate(svg) {
 	const text = String(svg || '')
 	if (text.trim() === '') return false
 	if (/<(?:image|foreignObject|text|linearGradient|radialGradient|filter|mask|pattern|clipPath)\b/iu.test(text)) return false
 	if (/url\(\s*[#'"][^)]*\)/u.test(text)) return false
 	const elements = [...text.matchAll(/<(path|circle|rect|line|polygon|polyline|ellipse)\b/gu)].length
-	if (elements === 0 || elements > 10) return false
+	if (elements === 0 || elements > ICON_MAX_ELEMENTS) return false
 	const paths = [...text.matchAll(/\bd="([^"]*)"/gu)].map((match) => match[1])
-	if (paths.reduce((total, d) => total + d.length, 0) > 2000) return false
+	if (paths.reduce((total, d) => total + d.length, 0) > ICON_MAX_PATH_CHARS) return false
 	const paints = new Set([...text.matchAll(/\b(?:fill|stroke)="(?!none")[^"]*"/gu)].map((match) => match[0]))
-	if (paints.size > 2) return false
+	if (paints.size > ICON_MAX_PAINTS) return false
 	return true
 }
 

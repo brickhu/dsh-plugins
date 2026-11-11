@@ -195,6 +195,10 @@ function cleanEntry(raw, defaults = { width: 24, height: 24 }) {
 		palette: Array.isArray(raw.palette) ? raw.palette.filter((value) => typeof value === 'string').slice(0, 24) : [],
 		createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : new Date().toISOString(),
 		updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : new Date().toISOString(),
+		// The drawing's identity *after* normalisation (single colour -> currentColor,
+		// groups flattened). The scan compares against this, so a copy of the same
+		// icon is recognised no matter which form the code wrote it in.
+		signature: typeof raw.signature === 'string' ? raw.signature : '',
 		// When the workspace was last indexed for this drawing. An empty value
 		// means "never scanned", which is how the panel knows it may scan once —
 		// and how it knows not to scan again after finding nothing.
@@ -219,6 +223,25 @@ export async function readEntrySvg(io, entry) {
 		return io.readText(`${LIB_DIR}/${entry.file}`)
 	}
 	return null
+}
+
+/**
+ * The drawing's identity, independent of the authored markup: normalise without
+ * pinning the canvas (which crops to content) and hash the result. Falls back to
+ * the pinned form for element-model input, which carries no SVG text.
+ */
+function identityOf(input, normalized) {
+	const text = typeof input?.svg === 'string' ? input.svg : ''
+	if (text.trim() !== '') {
+		try {
+			return bodySignature(normalizeSvg(text).svg)
+		} catch (_error) { /* fall through to the pinned form */ }
+	}
+	try {
+		return bodySignature(normalized.svg)
+	} catch (_error) {
+		return ''
+	}
 }
 
 export function createStore(io) {
@@ -325,6 +348,7 @@ export function createStore(io) {
 			const extra = {}
 			if (entry.rule) extra.rule = entry.rule
 			if (Array.isArray(entry.pointers) && entry.pointers.length > 0) extra.pointers = entry.pointers
+			if (entry.signature) extra.signature = entry.signature
 			if (entry.scannedAt) extra.scannedAt = entry.scannedAt
 			if (entry.hash) extra.hash = entry.hash
 			if (entry.source) extra.source = entry.source
@@ -540,6 +564,11 @@ export function createStore(io) {
 				license: typeof input?.license === 'string' && input.license !== '' ? input.license : (target.license ?? 'unknown'),
 				palette: normalized.palette,
 				updatedAt: now,
+				// The same artwork in another authored form normalises to the same
+				// signature, which is what the workspace scan matches on. It is
+				// computed on the *cropped* form (no pinned canvas): the scan never
+				// knows the canvas a copy was drawn on, only the drawing.
+				signature: identityOf(input, normalized),
 				// New artwork moves: the pointer list must be discovered again.
 				scannedAt: '',
 			}

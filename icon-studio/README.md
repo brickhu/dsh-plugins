@@ -1,79 +1,81 @@
 # dsh-icon-library
 
-你的项目自己的图标库：把图标从"散落在代码里的 SVG"变成一个可浏览、可引用、可自动同步的集合。
+A project-level icon library for Vibe Coding: it turns icons into recognizable, searchable, maintainable, synchronized project assets.
 
 [中文说明 →](README.zh.md)
 
-## 你会得到什么
+## Four features
 
-- **在对话里直接指代图标**：从 Icons 面板把图标拖进对话窗口，消息里会出现 `<delete>` 这样的引用。Agent 知道它指的是哪个图标，不会再问你"你说的是哪个删除图标"。
-- **让 Agent 从你的库里挑图标**：说"给这个按钮加个设置图标"，Agent 会先在你工作区的图标库里按名称和**应用规则**找到合适的那个，而不是随手画一个风格不一致的 SVG。
-- **改一次，N 处同步**：同一个图标通常在很多地方被内联使用。你在面板里替换它的图形并保存，工作区里所有引用会一起更新，不需要逐个文件去找。
-- **随时把图标加进来**：选择本地 SVG 文件、直接粘贴，或从内置供给库导入——Iconify 与 IconMCP 在同一个浏览器里，搜一次问两家。
+- **Semantic reference**: once in the library, a shape gains a name, a rule and a stable identity. Write `<close>` in a conversation and both people and agents refer to it by meaning: `icon_list` / `icon_get` pick it by intent, `icon_annotate` writes usage experience back.
+- **Single source**: name, application rule and artwork live together in `.icons.json` at the project root; content-hash dedupe and cascading renames. Business code never imports it.
+- **Many ways in**: paste an SVG, import from Iconify / IconMCP, scan the workspace (naming the anonymous shapes already drawn in code), or generate one with AI.
+- **Global sync**: one semantic identity runs through every code reference (`@asset` copies, derivation pointers); change the artwork once and every site follows.
 
-## 适合谁
+In one line: **one shape, one meaning, four ways in, synced everywhere.**
 
-- 项目里图标很多、而且以 SVG 形式散落在组件里的前端项目；
-- 经常和 Agent 一起改 UI，希望"我说的图标"和"Agent 用的图标"是同一个；
-- 希望图标数据可读、可 diff、能跟着仓库一起走。
+## Who it is for
 
-## 安装
+- Frontend projects with many icons, scattered inline across components as SVG;
+- Teams that edit UI together with an agent and want “the icon I meant” and “the icon the agent used” to be the same one;
+- Anyone who wants icon data that is readable, diffable, and travels with the repository.
 
-要求 DSH `>=0.2.1-rc.5 <0.3.0`。
+## Install
 
-### 方式一：DSH 插件管理器（推荐）
+Requires DSH `>=0.2.1-rc.5 <0.3.0`.
 
-1. 打开 DSH → 右侧栏 **Plugins**（插件）；
-2. 点 **Add plugin / 添加插件**，输入：
+### Option 1: DSH plugin manager (recommended)
+
+1. Open DSH → **Plugins** in the right sidebar;
+2. Click **Add plugin** and enter:
 
    ```
    dsh-icon-library
    ```
 
-3. 安装并确认 bundle 已启用；
-4. **完全退出 DSH**（macOS `Cmd+Q`）后重新打开；
-5. 在会话里展开右侧栏，点 **+**，选择 **Icons / 图标**。
+3. Install it and make sure the bundle is enabled;
+4. **Quit DSH completely** (macOS `Cmd+Q`) and open it again;
+5. In a session, expand the right sidebar, click **+**, and choose **Icons**.
 
-### 方式二：命令行
+### Option 2: command line
 
 ```bash
 npx --yes --package dsh-icon-library dsh-icon-library-install
 ```
 
-可选参数：
+Options:
 
 ```bash
-npx --yes --package dsh-icon-library dsh-icon-library-install --version 0.17.0
+npx --yes --package dsh-icon-library dsh-icon-library-install --version 0.18.0
 npx --yes --package dsh-icon-library dsh-icon-library-install --profile desktop
 npx --yes --package dsh-icon-library dsh-icon-library-install --dry-run
 ```
 
-安装完成后同样需要完全退出并重开 DSH。
+Quit and reopen DSH afterwards, as above.
 
-## 使用
+## Usage
 
-| 我想…… | 怎么做 |
+| I want to… | How |
 |---|---|
-| 在对话里指一个图标 | 从 Icons 面板把图标拖进对话输入框，会出现 `<图标名>` |
-| AI 生成图标 | 右上 `⋯` → **AI 生成**，描述一句；会先去 IconMCP / Iconify 找同类图标参考构图，再按本库画法重画，满意后入库 |
-| 加一个新图标 | **+ Add** 选本地 SVG、`⌘V` 粘贴、`⋯` → **从图标库导入**（Iconify / IconMCP），或 `⋯` → **AI 生成**；四个入口打开的是同一个入库窗口，只是顶部取图方式不同 |
-| 找图标 | 面板顶部搜索（匹配名称和应用规则） |
-| 改图标 | 点开图标 → 在详情页替换 SVG、改名称/应用规则 → Save，几何更新到所有派生，各自的颜色与线宽不变 |
-| 看有哪些派生 | 详情页 Meta 里的 **派生**，点开是每一处真实渲染的缩略图 + 位置 |
-| 删图标 | 卡片 `⋯` → Delete；有派生时会提示会破坏几处 |
+| point at an icon in a conversation | drag it from the Icons panel into the composer; the message gets `<icon-name>` |
+| generate an icon with AI | top-right `⋯` → **AI generate**, describe it in one sentence; it studies similar Iconify / IconMCP icons, redraws in this library's style, then saves after review |
+| add an icon | **+ Add** (local SVG), `⌘V` (paste), `⋯` → **Import from library** (Iconify / IconMCP), or `⋯` → **AI generate**; all four open the same dialog, only the source differs |
+| find an icon | search at the top of the panel (matches name and application rule) |
+| edit an icon | open it → replace the SVG, edit name / application rule → Save; every derivation updates while keeping its own colour and stroke width |
+| see the derivations | **Derivations** in the detail meta: one thumbnail per real site plus its location |
+| delete an icon | card `⋯` → Delete; it warns how many sites would break |
 
-第一次使用某个工作区时，面板会显示初始化页——点 **初始化图标库**，它只会在项目根目录创建 `.icons.json`，不会改你的业务代码。
+The first time you use a workspace, the panel shows an initialise screen. **Initialise icon library** only creates `.icons.json` at the project root — it never touches business code.
 
-## 图标数据在哪
+## Where the data lives
 
-一个 workspace 一个文件：项目根目录的 `.icons.json`。它是可读的 JSON（IconifyJSON 结构），可以 diff、可以提交进 Git；业务代码里不需要 import 它。
+One file per workspace: `.icons.json` at the project root. It is readable JSON (IconifyJSON shape), diffable, and can be committed with the repository; business code never imports it.
 
-## 开发
+## Development
 
 ```bash
 cd icon-studio
-node test/run.mjs                    # 离线测试
-node scripts/install.mjs --dry-run   # 查看 CLI 安装会改什么
+node test/run.mjs                    # offline test suite
+node scripts/install.mjs --dry-run   # inspect what the CLI installer changes
 ```
 
 ## License

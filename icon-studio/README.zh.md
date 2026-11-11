@@ -1,20 +1,22 @@
 # dsh-icon-library
 
-你的项目自己的图标库：把图标从"散落在代码里的 SVG"变成一个可浏览、可引用、可自动同步的集合。
+面向 Vibe Coding 的项目级图标库：让图标成为可识别、可检索、可维护、同步的项目资产。
 
 [English →](README.md)
 
-## 你会得到什么
+## 四大特性
 
-- **在对话里直接指代图标**：从 Icons 面板把图标拖进对话窗口，消息里会出现 `<delete>` 这样的引用。Agent 知道它指的是哪个图标，不会再问你"你说的是哪个删除图标"。
-- **让 Agent 从你的库里挑图标**：说"给这个按钮加个设置图标"，Agent 会先在你工作区的图标库里按名称和**应用规则**找到合适的那个，而不是随手画一个风格不一致的 SVG。
-- **改一次，N 处同步**：同一个图标通常在很多地方被内联使用。你在面板里替换它的图形并保存，工作区里所有引用会一起更新，不需要逐个文件去找。
-- **随时把图标加进来**：选择本地 SVG 文件、直接粘贴，或从内置供给库导入——Iconify 与 IconMCP 在同一个浏览器里，搜一次问两家。
+- **语义指代**：一个形状入库后获得名称、应用规则与稳定身份。对话里写 `<关闭>`，人和 Agent 都按“意思”指代它：`icon_list` / `icon_get` 按意取图，`icon_annotate` 回写使用经验。
+- **单一来源**：名称、应用规则与图形同存于项目根目录 `.icons.json`；按内容去重，改名级联。业务代码不需要 import 它。
+- **多源入库**：粘贴 SVG、从 Iconify / IconMCP 导入、扫描工作区（把代码里匿名形状收编命名）、AI 生成。
+- **全局同步**：同一语义身份贯穿代码引用（`@asset` 拷贝、派生指针）；图形改一次，所有引用一起跟随。
+
+一句话：**一个形状，一套语义，四种来源，全局同步。**
 
 ## 适合谁
 
 - 项目里图标很多、而且以 SVG 形式散落在组件里的前端项目；
-- 经常和 Agent 一起改 UI，希望"我说的图标"和"Agent 用的图标"是同一个；
+- 经常和 Agent 一起改 UI，希望“我说的图标”和“Agent 用的图标”是同一个；
 - 希望图标数据可读、可 diff、能跟着仓库一起走。
 
 ## 安装
@@ -43,7 +45,7 @@ npx --yes --package dsh-icon-library dsh-icon-library-install
 可选参数：
 
 ```bash
-npx --yes --package dsh-icon-library dsh-icon-library-install --version 0.17.0
+npx --yes --package dsh-icon-library dsh-icon-library-install --version 0.18.0
 npx --yes --package dsh-icon-library dsh-icon-library-install --profile desktop
 npx --yes --package dsh-icon-library dsh-icon-library-install --dry-run
 ```

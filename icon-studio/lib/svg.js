@@ -1074,11 +1074,13 @@ export function rectPath(attrs) {
 		return `M${fmt(x)} ${fmt(y)}L${fmt(x + width)} ${fmt(y)}L${fmt(x + width)} ${fmt(y + height)}L${fmt(x)} ${fmt(y + height)}Z`
 	}
 	const k = 0.5522847498
-	const c = (dx, dy) => `${fmt(dx * k)} ${fmt(dy * k)}`
 	return [
 		`M${fmt(x + rx)} ${fmt(y)}`,
 		`L${fmt(x + width - rx)} ${fmt(y)}`,
-		`C${c(rx, 0)} ${fmt(x + width)} ${fmt(y + ry - ry * k)} ${fmt(x + width)} ${fmt(y + ry)}`,
+		// The first control point of every corner is an absolute point: the old
+		// `c(rx, 0)` helper emitted a bare offset (9.94 0), which put the top-right
+		// corner near the left edge and visibly broke every rounded rect.
+		`C${fmt(x + width - rx + rx * k)} ${fmt(y)} ${fmt(x + width)} ${fmt(y + ry - ry * k)} ${fmt(x + width)} ${fmt(y + ry)}`,
 		`L${fmt(x + width)} ${fmt(y + height - ry)}`,
 		`C${fmt(x + width)} ${fmt(y + height - ry + ry * k)} ${fmt(x + width - rx + rx * k)} ${fmt(y + height)} ${fmt(x + width - rx)} ${fmt(y + height)}`,
 		`L${fmt(x + rx)} ${fmt(y + height)}`,

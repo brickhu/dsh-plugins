@@ -7,6 +7,7 @@
  */
 import { walkProject } from './assets.js'
 import { LIB_DIR } from './store.js'
+import { normalizeSvg } from './svg.js'
 import { signature, bodySignature, shapeSignature, mergeInner, isIconCandidate, isSquareCanvas, svgBlocks, jsxSvgBlocks, markupBlocks, pathLiterals, quotedRanges, splitSvg, canonicalD } from './shape.js'
 
 export { signature, bodySignature, shapeSignature, svgBlocks, splitSvg } from './shape.js'
@@ -309,6 +310,21 @@ export async function readDerivations(io, pointers = [], iconSvg = '') {
 	return out.sort((left, right) => left.file.localeCompare(right.file) || left.line - right.line)
 }
 
+/**
+ * How a scanned shape will look once it is in the library: the same
+ * normalisation every import goes through. A hard-coded `fill="#000"` becomes
+ * `currentColor`, so the preview is visible in either theme instead of turning
+ * into a black square on a dark panel. Multi-colour art keeps its own paint.
+ * Returns '' when the drawing has no visible paint at all (nothing to adopt).
+ */
+function displayPreview(text) {
+	try {
+		return normalizeSvg(text).svg
+	} catch (_error) {
+		return ''
+	}
+}
+
 export async function scanCodeShapes(io, { exclude = [] } = {}) {
 	const files = []
 	try {
@@ -320,6 +336,8 @@ export async function scanCodeShapes(io, { exclude = [] } = {}) {
 	// Non-square art is out of scope, and the count is reported so a disappearing
 	// shape can be explained instead of silently swallowed.
 	let excluded = 0
+	// Shapes with no visible paint: neither offered nor listed.
+	let unusable = 0
 	for (const file of files) {
 		if (!isUiSource(file)) continue
 		let text = null
@@ -343,13 +361,22 @@ export async function scanCodeShapes(io, { exclude = [] } = {}) {
 				excluded += 1
 				continue
 			}
-			const sig = bodySignature(block.text)
+			// Identity is the drawing *after* normalisation: the same icon written
+			// with root paint, per-element paint or a <g> wrapper is one group, and
+			// it matches the signature the library stores for it.
+			const preview = displayPreview(block.text)
+			// No visible paint: nothing to thumbnail and nothing worth adopting.
+			if (preview === '') { unusable += 1; continue }
+			const sig = bodySignature(preview)
 			if (sig === '') continue
 			let group = groups.get(sig)
 			if (!group) {
 				group = {
 					signature: sig,
+					// `svg` stays the authored markup: importing it keeps its canvas.
 					svg: block.text,
+					// `preview` is what the list draws (single colour -> currentColor).
+					preview,
 					viewBox: /viewBox="([^"]+)"/u.exec(block.text)?.[1] ?? '0 0 24 24',
 					sites: [],
 				}
@@ -367,5 +394,6 @@ export async function scanCodeShapes(io, { exclude = [] } = {}) {
 	// The count rides along so the panel can say why an SVG it used to offer is
 	// gone, without changing the shape of the answer for every existing caller.
 	Object.defineProperty(list, 'excluded', { value: excluded, enumerable: false })
+	Object.defineProperty(list, 'unusable', { value: unusable, enumerable: false })
 	return list
 }

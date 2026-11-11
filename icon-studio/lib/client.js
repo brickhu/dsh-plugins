@@ -50,11 +50,12 @@ window.__ModuleLoader__.load({
       listNew: '添加',
       listLibrary: '从图标库导入',
       scanTitle: '工作区里的所有 SVG',
-      scanBar: '{workspace} 中有 {n} 个未命名的 SVG',
-      scanBarTitle: '查看并命名工作区里的 SVG',
+      scanBar: '发现 {n} 个未命名的 SVG',
+      scanBarTitle: '查看并命名',
       scanBarRescan: '重新扫描工作区',
-      scanBarScanning: '正在扫描 {workspace} 中的 SVG …',
-      scanBarWorkspace: '当前工作区',
+      scanBarEmpty: '工作区里没有可收编的 SVG',
+      scanBarScanning: '正在扫描工作区…',
+      scanBarError: '扫描失败，点击重新扫描',
       scanAdd: '添加这个图标',
       scanImported: '已添加：{name}',
       scanDesc: '{n} 个不同的 SVG 图形',
@@ -97,18 +98,17 @@ window.__ModuleLoader__.load({
       aiWarnCrossing: '有 {n} 处描边互相穿过：两个形状可能叠在一起了，建议重画。',
       initAction: '初始化图标库',
       initName: 'dsh-icon-library',
-      initSlogan: '在工作区创建一个可供 Agent 消费的图标库。',
-      initFeature1Title: '按形状索引',
-      initFeature1Desc: '扫描 UI 代码里已有的图标，自动记录每一处引用。',
-      initFeature2Title: '随处导入',
-      initFeature2Desc: '粘贴 SVG、选择本地文件，或从 Iconify / IconMCP 浏览添加。',
-      initFeature3Title: '应用规则',
-      initFeature3Desc: '每个图标都有名称与应用规则，Agent 按含义选图，而不是猜。',
-      initFeature4Title: '自动同步',
-      initFeature4Desc: '保存时原地重写所有引用，改一次全站生效。',
-      initHint: '初始化不会修改业务代码，只会在项目根目录创建 `.icons.json`。',
-      listEmpty: '这个 workspace 还没有图标库',
-      listEmptyHint: '新建一个图标，或把 Figma / 现有的 SVG 粘进来。',
+      initKicker: '面向 Vibe Coding 的项目级图标库',
+      initSlogan: '一个形状，一套语义，四种来源，全局同步。',
+      initFeature1Title: '语义指代',
+      initFeature1Desc: '对话里写图标名，人和 Agent 都按应用规则取图。',
+      initFeature2Title: '单一来源',
+      initFeature2Desc: '名称、应用规则与图形同存一个文件，按内容去重。',
+      initFeature3Title: '多源入库',
+      initFeature3Desc: '粘贴、导入 Iconify / IconMCP、扫描工作区、AI 生成。',
+      initFeature4Title: '全局同步',
+      initFeature4Desc: '改一次图形，代码里所有引用一起更新。',
+      initHint: '初始化不会修改业务代码，只会在项目根目录创建 .icons.json。',
       listReorder: '拖动排序',
       detailDragHint: '拖到对话输入框，用 <图标名> 引用它',
       cardCopyName: 'Copy Name',
@@ -119,6 +119,7 @@ window.__ModuleLoader__.load({
       listCopied: '已复制：{name}',
       listCount: '{n} 个图标',
       listNoMatch: '没有匹配的图标',
+      listEmptyPaste: '暂无图标，复制 SVG，粘贴到这里即可入库。',
       listNoMatchHint: '换个词试试。',
       importName: '名称',
       importNote: '应用规则',
@@ -189,11 +190,12 @@ window.__ModuleLoader__.load({
       listNew: 'Add',
       listLibrary: 'Add from library',
       scanTitle: 'All svgs in the workspace',
-      scanBar: '{n} unnamed SVGs in {workspace}',
-      scanBarTitle: 'Review and name the workspace SVGs',
+      scanBar: '{n} unnamed SVG found',
+      scanBarTitle: 'Review and name',
       scanBarRescan: 'Re-scan the workspace',
-      scanBarScanning: 'Scanning SVGs in {workspace} …',
-      scanBarWorkspace: 'this workspace',
+      scanBarEmpty: 'No SVG in this workspace to adopt',
+      scanBarScanning: 'Scanning the workspace…',
+      scanBarError: 'Scan failed — click to retry',
       scanAdd: 'Add this icon',
       scanImported: 'Added: {name}',
       scanDesc: '{n} distinct SVG shapes',
@@ -234,20 +236,19 @@ window.__ModuleLoader__.load({
       aiTooLong: 'The answer was cut off by the token limit — try again.',
       aiRefs: 'Arrangement studied from {n} icons in {sources}; the drawing itself is this library\'s own.',
       aiWarnCrossing: '{n} pairs of strokes cross each other — the shapes may be laid on top of one another. Consider a redraw.',
-      listEmpty: 'This workspace has no icon library yet',
       initAction: 'Initialise icon library',
       initName: 'dsh-icon-library',
-      initSlogan: 'Create a workspace icon library that agents can consume.',
-      initFeature1Title: 'Shape indexing',
-      initFeature1Desc: 'Scans icons already drawn in your UI code and records every reference.',
-      initFeature2Title: 'Import anywhere',
-      initFeature2Desc: 'Paste an SVG, pick a local file, or browse Iconify / IconMCP.',
-      initFeature3Title: 'Application rule',
-      initFeature3Desc: 'Every icon carries a name and a rule: an agent picks by meaning, not by guessing.',
-      initFeature4Title: 'Automatic sync',
-      initFeature4Desc: 'Saving rewrites every reference in place — one edit, everywhere.',
-      initHint: 'Initialising only creates `.icons.json` at the project root; it never edits business code.',
-      listEmptyHint: 'Create one, or paste a Figma / existing SVG.',
+      initKicker: 'A project-level icon library for Vibe Coding',
+      initSlogan: 'One shape, one meaning, four ways in, synced everywhere.',
+      initFeature1Title: 'Semantic reference',
+      initFeature1Desc: 'Humans and agents name an icon and pick it by its rule, not by guessing.',
+      initFeature2Title: 'Single source',
+      initFeature2Desc: 'Name, application rule and artwork live in one file; content dedupe.',
+      initFeature3Title: 'Many ways in',
+      initFeature3Desc: 'Paste, import from Iconify / IconMCP, scan the workspace, or generate with AI.',
+      initFeature4Title: 'Global sync',
+      initFeature4Desc: 'Change the artwork once; every reference in code follows.',
+      initHint: 'Initialising only creates .icons.json at the project root; it never edits business code.',
       listReorder: 'Drag to reorder',
       detailDragHint: 'Drag into the chat input to reference it as <name>',
       cardCopyName: 'Copy Name',
@@ -258,6 +259,7 @@ window.__ModuleLoader__.load({
       listCopied: 'Copied: {name}',
       listCount: '{n} icons',
       listNoMatch: 'No matching icon',
+      listEmptyPaste: 'No icons yet — copy an SVG and paste it here to add it.',
       listNoMatchHint: 'Try another word.',
       importName: 'Name',
       importNote: 'Application rule',
@@ -401,7 +403,8 @@ window.__ModuleLoader__.load({
 .gs-init-tile{position:absolute;display:flex;align-items:center;justify-content:center;border-radius:11px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 6%,var(--dsw-alias-bg-base));border:.5px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);transform-origin:50% 50%;transform-style:preserve-3d;backface-visibility:hidden}
 .gs-init-tile svg{width:56%;height:56%}
 .gs-init-card{position:relative;display:flex;flex-direction:column;align-items:center;gap:10px;max-width:380px;text-align:center}
-.gs-init-slogan{margin:0;font-size:32px;line-height:1.15;font-weight:600;color:var(--dsw-alias-label-primary)}
+.gs-init-kicker{margin:0;font-size:11px;line-height:1.4;letter-spacing:.02em;color:var(--dsw-alias-label-tertiary)}
+.gs-init-slogan{margin:0;font-size:30px;line-height:1.18;font-weight:600;color:var(--dsw-alias-label-primary)}
 .gs-init-features{list-style:none;margin:10px 0 4px;padding:0;display:flex;flex-direction:column;gap:16px;width:100%;text-align:left}
 .gs-init-feature{display:flex;align-items:flex-start;gap:12px}
 .gs-init-feature-icon{flex:none;display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:.5px solid var(--dsw-alias-border-l2,rgba(127,127,127,.3));color:var(--dsw-alias-brand-primary,#4d6bfe)}
@@ -419,7 +422,6 @@ window.__ModuleLoader__.load({
 .gs-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:40px 16px;text-align:center;color:var(--dsw-alias-label-secondary)}
 .gs-empty h3{font-size:14px;color:var(--dsw-alias-label-primary);font-weight:600;margin:0}
 .gs-empty p{margin:0;max-width:360px}
-.gs-empty .gs-empty-art{width:56px;height:56px;opacity:.5}
 .gs-info-card.gs-svg-card{padding:0;overflow:hidden}
 .gs-svg-card .gs-previewbox{background:transparent;border-radius:0;padding:14px 12px}
 .gs-info-desc.gs-svg-code{max-height:40vh;padding:8px 12px 10px;line-height:1.5;font-family:inherit;font-size:12px;resize:vertical}
@@ -559,6 +561,9 @@ window.__ModuleLoader__.load({
 .gs-searchhint{display:flex;align-items:center;gap:5px;min-width:0;flex:0 1 auto;max-width:72%;height:28px;padding:0 6px;border:0;border-radius:999px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:11px;text-align:left;cursor:text;overflow:hidden}
 .gs-searchhint span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.4;transition:opacity .12s}
 .gs-searchhint:hover span{opacity:.8}
+.gs-searchhint:disabled{cursor:default}
+.gs-searchhint:disabled:hover{background:transparent}
+.gs-searchhint:disabled:hover span{opacity:.4}
 .gs-searchhint svg{width:14px;height:14px;flex:none}
 /* Ghost buttons in the header: an explicit grey wash, since the theme's layer-2
    is nearly the panel colour and the hover read as "nothing happened". */
@@ -631,6 +636,21 @@ window.__ModuleLoader__.load({
       strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round', ...extra,
     }, ...children)
     const dot = (cx, cy, r = 1.4) => h('circle', { cx, cy, r, fill: 'currentColor', stroke: 'none' })
+
+    /**
+     * A workspace-library drawing as a component. The bodies are inlined (not
+     * fetched) so a glyph costs one small element, inherits currentColor, and
+     * still updates when the library entry changes.
+     */
+    const glyph = (viewBox, markup) => () => h('svg', {
+      viewBox,
+      width: 16,
+      height: 16,
+      fill: 'none',
+      'aria-hidden': true,
+      dangerouslySetInnerHTML: { __html: markup },
+    })
+
     const I = {
       arrowLeft: () => svgIcon([h('path', { key: 'p', d: 'M15 5l-7 7 7 7' })]),
       aiMagic: () => svgIcon([
@@ -642,6 +662,11 @@ window.__ModuleLoader__.load({
       close: () => svgIcon([h('path', { key: 'p', d: 'M6 6l12 12M18 6L6 18' })]),
       pen: () => svgIcon([h('path', { key: 'p', d: 'M4 20l3-3M6 18c3-9 9-13 14-14-1 5-5 11-14 14z' }), dot(8, 16)]),
       search: () => svgIcon([h('circle', { key: 'c', cx: 11, cy: 11, r: 6.5 }), h('path', { key: 'p', d: 'M16 16l4.5 4.5' })]),
+      // <icon-file>, <icon-text> and <icon-link-checked> from this workspace's
+      // library: one file, one name, and a checked link.
+      file: glyph('0 0 19.61 19.61', '<g fill="none"><path d="M4.3 0.8L11.3 0.8L15.3 4.8L15.3 18.8L4.3 18.8Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M11.3 0.8L11.3 4.8L15.3 4.8" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></g>'),
+      text: glyph('0 0 24 24', '<path d="M13 19L15 19L15 21L9 21L9 19L11 19L11 6L4 6L4 4L20 4L20 6L13 6L13 19Z" fill="currentColor"/>'),
+      linkChecked: glyph('0 0 12.64 12.64', '<g fill="none"><path d="M2.67 4.46L1.08 6.05C0.2 6.93 0.2 8.35 1.08 9.23C1.96 10.11 3.38 10.11 4.26 9.23L5.85 7.64" stroke="currentColor" stroke-width="0.83" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.09 3.04L5.68 1.45C6.56 0.57 7.98 0.57 8.86 1.45C9.74 2.33 9.74 3.75 8.86 4.63L7.27 6.22" stroke="currentColor" stroke-width="0.83" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.38 6.93L6.56 3.75" stroke="currentColor" stroke-width="0.83" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.47 10.09L9.22 11.84L12.22 8.59" stroke="currentColor" stroke-width="0.83" stroke-linecap="round" stroke-linejoin="round"/></g>'),
     }
 
     /* ───────────────────────────── small pieces ───────────────────────────── */
@@ -759,7 +784,6 @@ window.__ModuleLoader__.load({
       // library" for a workspace that does have one. Reopening the tab used to be
       // the only cure; instead, probe a few times and show loading meanwhile.
       const probeTimers = useRef([])
-      const [confirming, setConfirming] = useState(false)
       useEffect(() => {
         libraryRef.current = null
         setLibrary(null)
@@ -773,18 +797,17 @@ window.__ModuleLoader__.load({
           timers.length = 0
         }
         stop()
-        const attempt = async (waits) => {
-          const result = await load()
+        const attempt = async (waits, first = false) => {
+          const result = first ? await load() : await load({ silent: true })
           if (!alive) return
           if (shouldRetryLibrary(result, waits.length)) {
-            setConfirming(true)
             const [wait, ...rest] = waits
             timers.push(setTimeout(() => { if (alive) attempt(rest) }, wait))
-            return
           }
-          setConfirming(false)
         }
-        attempt([400, 1200, 3000])
+        // Short probes: the page is already usable, and the only thing the wait
+        // guards is creating a file in the wrong workspace if the host is late.
+        attempt([300, 900], true)
         return () => { alive = false; stop() }
       }, [load])
 
@@ -821,6 +844,11 @@ window.__ModuleLoader__.load({
       const initialize = async () => {
         setInitializing(true)
         try {
+          // Ask the host once more at the moment of the click: if the project
+          // does have a library and the boot-time answer was just early, adopt
+          // it instead of creating a second file.
+          const settled = await load({ silent: true })
+          if (settled && settled.libraryExists) return
           await api.post('init', target)
           await load()
         } catch (err) {
@@ -927,10 +955,11 @@ window.__ModuleLoader__.load({
         return result
       }
 
-      /** Push: record this icon as the mark and write it into the plugin source. */
-      const body = confirming && (!library || library.libraryExists === false)
+      // Nothing is rendered until the host has answered: mounting the list first
+      // would start a workspace scan for a library that may not exist.
+      const body = !library
         ? h(Loading, { t })
-        : library && library.libraryExists === false
+        : library.libraryExists === false
         ? h(InitView, { t, busy: initializing, onInit: initialize })
         : view === 'scan'
         ? h(ScanView, {
@@ -1109,28 +1138,41 @@ window.__ModuleLoader__.load({
       const [flashName, setFlashName] = useState('')
       const flashTimer = useRef(null)
       const fileRef = useRef(null)
-      const [scanGroups, setScanGroups] = useState(null)
-      const [scanBusy, setScanBusy] = useState(false)
+      // The workspace scan is one machine with three phases:
+      //   scanning — a request is in flight
+      //   ready    — `groups` is the answer of the last successful scan (maybe empty)
+      //   error    — the last attempt failed; retry is the only action
+      // Nothing else drives the bar: no parallel booleans to contradict each other.
+      const [scan, setScan] = useState({ phase: 'scanning', groups: [] })
+      const scanRun = useRef(0)
       const scanTarget = props.workspace ? { sessionId: props.sessionId, workspace: props.workspace } : { sessionId: props.sessionId }
-      const workspaceName = (() => {
-        const root = props.library && props.library.root ? String(props.library.root) : ''
-        const parts = root.split(/[\\/]/u).filter(Boolean)
-        return parts.length > 0 ? parts[parts.length - 1] : t('scanBarWorkspace')
-      })()
       // `force` is the explicit "scan again" press; the mount-time probe takes
       // the host's cached answer, so returning to the list is instant.
       const runScan = async (force = false) => {
-        setScanBusy(true)
+        const run = scanRun.current + 1
+        scanRun.current = run
+        // Keep what we already listed: the bar only disappears when the new
+        // answer really has nothing to offer.
+        setScan((current) => ({ phase: 'scanning', groups: current.groups }))
         try {
           const result = await api.post('scan', force ? { ...scanTarget, force: true } : scanTarget)
-          setScanGroups((Array.isArray(result.groups) ? result.groups : []).filter((group) => !group.existing))
+          // A newer run (or a workspace switch) owns the answer now.
+          if (scanRun.current !== run) return
+          setScan({
+            phase: 'ready',
+            groups: (Array.isArray(result.groups) ? result.groups : []).filter((group) => !group.existing),
+          })
         } catch (_error) {
-          setScanGroups((current) => (Array.isArray(current) ? current : []))
-        } finally {
-          setScanBusy(false)
+          if (scanRun.current !== run) return
+          setScan((current) => ({ phase: 'error', groups: current.groups }))
         }
       }
-      useEffect(() => { runScan() }, [])
+      // Opening the list scans by itself; a workspace switch starts over instead
+      // of showing the previous workspace's answers.
+      useEffect(() => {
+        runScan()
+        return () => { scanRun.current += 1 }
+      }, [props.sessionId, props.workspace])
       const pickSvgFile = () => { if (fileRef.current) fileRef.current.click() }
       const onSvgFile = async (event) => {
         const file = event.target.files && event.target.files[0]
@@ -1248,14 +1290,22 @@ window.__ModuleLoader__.load({
         }
       }
 
-      // An empty library shows the empty state alone: a title bar and a search
-      // box over nothing are noise, and the tab chip already names the panel.
-      const chrome = graphics.length > 0
+      // An existing library keeps its toolbar even when it holds no icons: that
+      // is where import / AI / scan live. Only a missing library (mid-init) has
+      // nothing to act on.
+      const chrome = Boolean(props.library && props.library.libraryExists)
+      const hasIcons = graphics.length > 0
 
       const closeSearch = () => {
         setSearchOpen(false)
         setQuery('')
       }
+
+      /** The standard footer: icon count and plugin version, at the bottom. */
+      const footer = (extra = '') => h('div', { className: `gs-listfoot${extra}` },
+        h('span', { className: 'gs-foot-count' }, t('listCount', { n: filtered.length })),
+        h('span', { className: 'gs-foot-spacer' }),
+        props.version ? h('span', { className: 'gs-foot-version' }, `v${props.version}`) : null)
 
       return h(react.Fragment, null,
         h('input', {
@@ -1266,7 +1316,7 @@ window.__ModuleLoader__.load({
           onChange: onSvgFile,
         }),
         chrome ? h('div', { className: 'gs-head' },
-          searchOpen
+          searchOpen && hasIcons
             ? h(react.Fragment, null,
               h('div', { className: 'gs-searchfield' },
                 h('span', { className: 'gs-searchfield-icon' }, h(I.search)),
@@ -1288,7 +1338,10 @@ window.__ModuleLoader__.load({
                 type: 'button',
                 className: 'gs-searchhint',
                 onClick: () => setSearchOpen(true),
-                title: t('listSearch'),
+                title: hasIcons ? t('listSearch') : t('listEmptyPaste'),
+                // The control is part of the standard header even when there is
+                // nothing to search: it stays in place, visibly inert.
+                disabled: !hasIcons,
               }, h(I.search), h('span', null, t('listSearch'))),
               h('div', { className: 'gs-spacer' }),
               !searchOpen && moreOpen
@@ -1365,12 +1418,10 @@ window.__ModuleLoader__.load({
         props.loading
           ? h('div', { className: 'gs-empty' }, h('div', null, t('commonLoading')))
           : !props.error && graphics.length === 0
-            ? h('div', { className: 'gs-empty' },
-              h('div', { className: 'gs-empty-art' }, h(I.pen)),
-              h('h3', null, t('listEmpty')),
-              h('p', null, t('listEmptyHint')),
-              h('div', { style: { display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap', justifyContent: 'center' } },
-                h(Btn, { variant: 'primary', onClick: pickSvgFile }, h(I.plus), t('listNew'))))
+            ? h('div', { className: 'gs-listwrap' },
+              h('div', { className: 'gs-empty gs-empty-paste' },
+                h('p', null, t('listEmptyPaste'))),
+              footer())
             : !props.error && filtered.length === 0
               ? h('div', { className: 'gs-empty' }, h('h3', null, t('listNoMatch')), h('p', null, t('listNoMatchHint')))
               : h('div', { className: 'gs-listwrap' },
@@ -1445,35 +1496,11 @@ window.__ModuleLoader__.load({
                       },
                     }, h(MoreMark, { size: 14 })))
                 })),
-                h('div', { className: `gs-listfoot${orderDrag ? ' dim' : ''}` },
-                  h('span', { className: 'gs-foot-count' }, t('listCount', { n: filtered.length })),
-                  h('span', { className: 'gs-foot-spacer' }),
-                  props.version ? h('span', { className: 'gs-foot-version' }, `v${props.version}`) : null)),
-        !props.loading && !props.error && Array.isArray(scanGroups) && scanGroups.length > 0
-          ? h('div', { className: 'gs-scanbar' },
-            h('button', {
-              type: 'button',
-              className: 'gs-scanbar-scan',
-              title: t('scanBarRescan'),
-              disabled: scanBusy,
-              onClick: () => runScan(true),
-            }, h(ScanSearchMark, { size: 14 })),
-            h('span', { className: 'gs-scanbar-text' },
-              scanBusy
-                ? t('scanBarScanning', { workspace: workspaceName })
-                : t('scanBar', { n: scanGroups.length, workspace: workspaceName })),
-            h('button', {
-              type: 'button',
-              className: 'gs-scanbar-open',
-              title: t('scanBarTitle'),
-              disabled: scanBusy,
-              onClick: props.onScan,
-            },
-              scanBusy
-                ? null
-                : h(react.Fragment, null,
-                  scanGroups.slice(0, 3).map((group) => h('span', { key: group.signature, className: 'gs-scanbar-thumb' }, svgArt(group.svg, group.signature))),
-                  h('span', { className: 'gs-scanbar-chev' }, h(I.arrowLeft)))))
+                footer(orderDrag ? ' dim' : '')),
+        // Silent by default: the startup scan runs in the background, and the
+        // bar only appears once it has something to offer.
+        !props.loading && !props.error && scan.groups.length > 0
+          ? h(ScanBar, { t, scan, onOpen: props.onScan, onRescan: () => runScan(true) })
           : null,
         pendingDelete
           ? h(DeleteDialog, {
@@ -1488,6 +1515,50 @@ window.__ModuleLoader__.load({
           })
           : null,
         props.opening ? h('div', { className: 'gs-toast' }, t('commonLoading')) : null)
+    }
+
+        /**
+     * The workspace-scan bar at the bottom of the list. It is the entry to
+     * "name the SVG this project already draws", and it owns its busy state so
+     * a scan in progress is visible right where the scan is started.
+     */
+    function ScanBar(props) {
+      const { t, scan, onOpen, onRescan } = props
+      const phase = scan && typeof scan.phase === 'string' ? scan.phase : 'ready'
+      const groups = scan && Array.isArray(scan.groups) ? scan.groups : []
+      const count = groups.length
+      const scanning = phase === 'scanning'
+      // One phase, one sentence. The bar always describes what just happened;
+      // it never asks for a scan that already ran.
+      const status = scanning
+        ? t('scanBarScanning')
+        : phase === 'error'
+          ? t('scanBarError')
+          : count > 0
+            ? t('scanBar', { n: count })
+            : t('scanBarEmpty')
+      const canOpen = phase === 'ready' && count > 0
+      return h('div', { className: 'gs-scanbar' },
+        h('button', {
+          type: 'button',
+          className: 'gs-scanbar-scan',
+          title: t('scanBarRescan'),
+          // A failed scan is exactly when the button must work: it is the retry.
+          disabled: scanning,
+          onClick: onRescan,
+        }, scanning ? h('span', { className: 'gs-spinner' }) : h(ScanSearchMark, { size: 14 })),
+        h('span', { className: 'gs-scanbar-text', 'aria-live': 'polite' }, status),
+        // The chevron only exists when there is something behind it to open.
+        canOpen
+          ? h('button', {
+            type: 'button',
+            className: 'gs-scanbar-open',
+            title: t('scanBarTitle'),
+            onClick: onOpen,
+          },
+            groups.slice(0, 3).map((group) => h('span', { key: group.signature, className: 'gs-scanbar-thumb' }, svgArt(group.preview || group.svg, group.signature))),
+            h('span', { className: 'gs-scanbar-chev' }, h(I.arrowLeft)))
+          : null)
     }
 
     /** AI create, step one: the prompt. The save dialog only opens after a draft exists. */
@@ -1747,33 +1818,48 @@ window.__ModuleLoader__.load({
     /** Cards scattered in a frozen 3D space: near and strong at the edges, far and faint in the middle. */
     const INIT_SCATTER = [
       { icon: 'import', x: 1, y: 4, size: 56, z: 140, rx: 8, ry: -32, rz: -14, opacity: 0.66 },
-      { icon: 'wand', x: 17, y: 1, size: 46, z: 60, rx: -6, ry: 26, rz: 6, opacity: 0.6 },
-      { icon: 'layers', x: 33, y: 5, size: 42, z: -50, rx: 14, ry: -20, rz: -6, opacity: 0.48 },
-      { icon: 'copy', x: 55, y: 1, size: 50, z: 90, rx: 6, ry: 18, rz: 10, opacity: 0.62 },
-      { icon: 'search', x: 76, y: 5, size: 46, z: 50, rx: -8, ry: -26, rz: -8, opacity: 0.58 },
-      { icon: 'pen', x: 94, y: 9, size: 58, z: 150, rx: 10, ry: 34, rz: 14, opacity: 0.68 },
-      { icon: 'node', x: 97, y: 38, size: 50, z: 110, rx: -4, ry: -30, rz: 18, opacity: 0.6 },
-      { icon: 'kindUnion', x: 92, y: 66, size: 56, z: 140, rx: 12, ry: 24, rz: -16, opacity: 0.64 },
-      { icon: 'grid', x: 79, y: 88, size: 48, z: 70, rx: -10, ry: -18, rz: 8, opacity: 0.58 },
-      { icon: 'save', x: 59, y: 94, size: 46, z: 40, rx: 8, ry: 22, rz: -10, opacity: 0.56 },
-      { icon: 'plus', x: 37, y: 92, size: 54, z: 120, rx: -6, ry: -34, rz: 12, opacity: 0.64 },
-      { icon: 'select', x: 13, y: 87, size: 50, z: 90, rx: 10, ry: 20, rz: -6, opacity: 0.6 },
-      { icon: 'undo', x: -1, y: 63, size: 58, z: 160, rx: -8, ry: -24, rz: 16, opacity: 0.66 },
-      { icon: 'kindText', x: 1, y: 33, size: 46, z: 60, rx: 6, ry: 28, rz: -4, opacity: 0.54 },
+      { icon: 'file', x: 17, y: 1, size: 46, z: 60, rx: -6, ry: 26, rz: 6, opacity: 0.6 },
+      { icon: 'text', x: 33, y: 5, size: 42, z: -50, rx: 14, ry: -20, rz: -6, opacity: 0.48 },
+      { icon: 'search', x: 55, y: 1, size: 50, z: 90, rx: 6, ry: 18, rz: 10, opacity: 0.62 },
+      { icon: 'pen', x: 76, y: 5, size: 46, z: 50, rx: -8, ry: -26, rz: -8, opacity: 0.58 },
+      { icon: 'linkChecked', x: 94, y: 9, size: 58, z: 150, rx: 10, ry: 34, rz: 14, opacity: 0.68 },
+      { icon: 'aiMagic', x: 97, y: 38, size: 50, z: 110, rx: -4, ry: -30, rz: 18, opacity: 0.6 },
+      { icon: 'plus', x: 92, y: 66, size: 56, z: 140, rx: 12, ry: 24, rz: -16, opacity: 0.64 },
+      { icon: 'close', x: 79, y: 88, size: 48, z: 70, rx: -10, ry: -18, rz: 8, opacity: 0.58 },
+      { icon: 'arrowLeft', x: 59, y: 94, size: 46, z: 40, rx: 8, ry: 22, rz: -10, opacity: 0.56 },
+      { icon: 'import', x: 37, y: 92, size: 54, z: 120, rx: -6, ry: -34, rz: 12, opacity: 0.64 },
+      { icon: 'file', x: 13, y: 87, size: 50, z: 90, rx: 10, ry: 20, rz: -6, opacity: 0.6 },
+      { icon: 'aiMagic', x: -1, y: 63, size: 58, z: 160, rx: -8, ry: -24, rz: 16, opacity: 0.66 },
+      { icon: 'search', x: 1, y: 33, size: 46, z: 60, rx: 6, ry: 28, rz: -4, opacity: 0.54 },
       // The middle stays sparse and distant so the copy reads cleanly.
-      { icon: 'kindPath', x: 44, y: 40, size: 24, z: -320, rx: 16, ry: 22, rz: 8, opacity: 0.14, blur: 1.2 },
+      { icon: 'linkChecked', x: 44, y: 40, size: 24, z: -320, rx: 16, ry: 22, rz: 8, opacity: 0.14, blur: 1.2 },
       { icon: 'close', x: 57, y: 55, size: 26, z: -300, rx: -12, ry: -20, rz: -6, opacity: 0.16, blur: 1 },
     ]
+
+    /**
+     * The four things this plugin is, in one list. Shown on the first-run card
+     * and again whenever the library has no icons, so both empty screens say
+     * the same thing.
+     */
+    function FeatureList(props) {
+      const t = props.t
+      const features = [
+        { icon: 'text', title: t('initFeature1Title'), desc: t('initFeature1Desc') },
+        { icon: 'file', title: t('initFeature2Title'), desc: t('initFeature2Desc') },
+        { icon: 'import', title: t('initFeature3Title'), desc: t('initFeature3Desc') },
+        { icon: 'linkChecked', title: t('initFeature4Title'), desc: t('initFeature4Desc') },
+      ]
+      return h('ul', { className: props.className || 'gs-init-features' },
+        features.map((feature) => h('li', { key: feature.title, className: 'gs-init-feature' },
+          h('span', { className: 'gs-init-feature-icon' }, h(I[feature.icon])),
+          h('span', { className: 'gs-init-feature-text' },
+            h('b', { className: 'gs-init-feature-title' }, feature.title),
+            h('span', { className: 'gs-init-feature-desc' }, feature.desc)))))
+    }
 
     /** First run in a workspace: create the library before any import path. */
     function InitView(props) {
       const { t, onInit, busy } = props
-      const features = [
-        { icon: 'search', title: t('initFeature1Title'), desc: t('initFeature1Desc') },
-        { icon: 'import', title: t('initFeature2Title'), desc: t('initFeature2Desc') },
-        { icon: 'kindText', title: t('initFeature3Title'), desc: t('initFeature3Desc') },
-        { icon: 'undo', title: t('initFeature4Title'), desc: t('initFeature4Desc') },
-      ]
       return h('div', { className: 'gs-init' },
         h('div', { className: 'gs-init-bg', 'aria-hidden': true },
           INIT_SCATTER.map((spec) => h('span', {
@@ -1793,13 +1879,9 @@ window.__ModuleLoader__.load({
           h('div', { className: 'gs-init-name' },
             h('span', { className: 'gs-init-logo' }, h(LogoMark, { size: 24 })),
             h('h2', { className: 'gs-init-title' }, t('initName'))),
+          h('p', { className: 'gs-init-kicker' }, t('initKicker')),
           h('h1', { className: 'gs-init-slogan' }, t('initSlogan')),
-          h('ul', { className: 'gs-init-features' },
-            features.map((feature) => h('li', { key: feature.title, className: 'gs-init-feature' },
-              h('span', { className: 'gs-init-feature-icon' }, h(I[feature.icon])),
-              h('span', { className: 'gs-init-feature-text' },
-                h('b', { className: 'gs-init-feature-title' }, feature.title),
-                h('span', { className: 'gs-init-feature-desc' }, feature.desc))))),
+          h(FeatureList, { t }),
           h(Btn, { variant: 'primary', className: 'gs-init-action', onClick: onInit, disabled: busy },
             busy ? t('commonLoading') : t('initAction')),
           h('p', { className: 'gs-init-hint' }, t('initHint'))))
@@ -2210,7 +2292,7 @@ window.__ModuleLoader__.load({
           ? h('span', { className: 'gs-scan-done', title: t('scanExisting', { name: group.existing }) }, h(CheckMark, { size: 12 }))
           : h('button', { type: 'button', className: 'gs-scan-add', title: t('scanAdd'), onClick: () => openNaming(group) }, '+')
         return h('div', { key: group.signature, className: 'gs-scan-item' },
-          h('div', { className: 'gs-scan-thumb' }, svgArt(group.svg, group.signature)),
+          h('div', { className: 'gs-scan-thumb' }, svgArt(group.preview || group.svg, group.signature)),
           h('div', { className: 'gs-scan-main' },
             h('b', { className: 'gs-scan-title', title: group.existing || group.signature }, group.existing || `#${shortShapeKey(group.signature)}`),
             h('div', { className: 'gs-scan-refs' }, refs)),
@@ -2230,6 +2312,7 @@ window.__ModuleLoader__.load({
           library: props.library,
           mode: 'workspace',
           svg: naming.svg,
+          preview: naming.preview,
           viewBox: naming.viewBox,
           onClose: () => setNaming(null),
           onImported: async (value) => {
@@ -2924,7 +3007,7 @@ window.__ModuleLoader__.load({
     exports.inject = INJECT
     // The surface the offline suite renders and calls. Geometry helpers are not
     // here on purpose: nothing in the panel draws paths any more.
-    exports._test = { Panel, Detail, ListView, SupplyView, AddIconDialog, AiPromptDialog, DerivationRow, siteLabel, shouldRetryLibrary, InitView, ScanView, PanelTitle, TabMark, GuideMark, scopeIds, makeT }
+    exports._test = { Panel, Detail, ListView, SupplyView, AddIconDialog, AiPromptDialog, DerivationRow, ScanBar, siteLabel, shouldRetryLibrary, InitView, ScanView, PanelTitle, TabMark, GuideMark, scopeIds, makeT }
     return module.exports
   },
 })

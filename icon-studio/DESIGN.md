@@ -98,6 +98,7 @@ iconmcp-generic:trash   # IconMCP：前缀带集合
       // left/top/width/height 省略时取顶层默认（0,0,24,24）
       "rule": "删除动作…",                                // 应用规则，选填
       "pointers": [{ "file": "src/a.tsx", "kind": "inline", "index": 0, "line": 3 }],
+      "signature": "1.000::path|M1,9…",                     // 归一化后的形状身份（扫描/去重靠它）
       "scannedAt": "…",                                     // 上次在工作区里找过引用
       "hash": "sha256:…",
       "createdAt": "…", "updatedAt": "…", "version": 1, "pushed": 1

@@ -625,6 +625,10 @@ export function apply(ctx, config = {}) {
 	const SCAN_TTL = 60 * 1000
 	const scanCache = new Map()
 	const pointerCache = new Map()
+	// Normalised signatures for entries saved before `signature` existed. Keyed by
+	// content hash so an edit naturally misses; bounded so a churn-heavy library
+	// cannot grow it forever.
+	const legacySignatureCache = new Map()
 
 	function forgetScans(root) {
 		scanCache.delete(root)
@@ -1240,14 +1244,31 @@ export function apply(ctx, config = {}) {
 			const { entries } = await store.list()
 			const known = new Map()
 			for (const entry of entries) {
-				let text = null
-				try {
-					text = await readEntrySvg(io, entry)
-				} catch (_error) {
-					continue
+				let sig = entry.signature
+				if (sig === '') {
+					// Legacy entry: normalise it once and remember, so the marker shows
+					// up after an upgrade without a re-save.
+					const key = entry.hash || `${entry.name}\u0000${entry.updatedAt}`
+					sig = legacySignatureCache.get(key)
+					if (sig === undefined) {
+						let text = null
+						try {
+							text = await readEntrySvg(io, entry)
+						} catch (_error) {
+							text = null
+						}
+						sig = ''
+						if (text !== null) {
+							try {
+								sig = bodySignature(normalizeSvg(text).svg)
+							} catch (_error) {
+								sig = ''
+							}
+						}
+						if (legacySignatureCache.size > 2000) legacySignatureCache.clear()
+						legacySignatureCache.set(key, sig)
+					}
 				}
-				if (text === null) continue
-				const sig = bodySignature(text)
 				if (sig !== '' && !known.has(sig)) known.set(sig, entry.name)
 			}
 			ok(res, {

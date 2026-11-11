@@ -124,6 +124,16 @@ async function main() {
 		assert.ok(graphic.elements[0].d.includes('L'), 'path data missing')
 	})
 
+	test('a rounded rect keeps its corner arcs', () => {
+		const normalized = normalizeSvg('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="18" fill="currentColor"/></svg>')
+		const d = /d="([^"]+)"/.exec(normalized.svg)[1]
+		const cubic = parsePath(d).find((segment) => segment.c === 'C')
+		assert.ok(cubic, 'the corners are cubics')
+		const [control, , end] = cubic.p
+		assert.ok(Math.abs(control[0] - 55.94) < 0.05, `the first control sits near the right edge, got ${control[0]}`)
+		assert.ok(Math.abs(end[0] - 64) < 0.05 && Math.abs(end[1] - 18) < 0.05, 'and the arc ends on the rounded corner')
+	})
+
 	test('splits a merged path into one element per M', () => {
 		const graphic = normalizeSvg('<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0L4 0L4 4Z M8 8L12 8L12 12Z" fill="#000"/></svg>')
 		assert.equal(graphic.elements.length, 2)
@@ -373,7 +383,8 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 		assert.equal(pointers.length, 1, 'the constant is one rewrite site, not one per SVG')
 		assert.equal(pointers[0].kind, 'path')
 		const groups = await scanCodeShapes(io)
-		const shared = groups.find((group) => group.signature === bodySignature(library))
+		// Scan identity is the normalised drawing, not the authored markup.
+		const shared = groups.find((group) => group.signature === bodySignature(normalizeSvg(library).svg))
 		assert.ok(shared, 'the shape is listed')
 		assert.equal(shared.sites.length, 2, 'both SVGs are usage sites')
 		const next = library.replace('M4 4L20 4L20 20L4 20Z', 'M2 2L22 2L22 22L2 22Z')
@@ -425,21 +436,57 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 		assert.ok(out.includes('M2 2h20v20H2z'), 'only the inner code is replaced')
 	})
 
-	await test('the workspace scan only offers simple glyph art', async () => {
-		const icon = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 4h16v16H4z" fill="currentColor"/></svg>'
+	await test('the workspace scan offers icon-like art and rejects illustrations', async () => {
+		const glyph = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 4h16v16H4z" fill="currentColor"/></svg>'
+		// A real favicon: dark rounded square, two eyes, a green stroke — three colours.
+		const favicon = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
+			+ '<rect width="64" height="64" rx="18" fill="#17140F"/>'
+			+ '<circle cx="24" cy="27" r="3.6" fill="#F6F1E7"/>'
+			+ '<circle cx="40" cy="27" r="3.6" fill="#F6F1E7"/>'
+			+ '<path d="M22 38c3.2 4 6.6 6 10 6s6.8-2 10-6" stroke="#22AA5A" stroke-width="3.6" stroke-linecap="round" fill="none"/>'
+			+ '</svg>'
 		const gradient = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><defs><linearGradient id="g"><stop offset="0"/></linearGradient></defs><path d="M4 4h16v16H4z" fill="url(#g)"/></svg>'
-		const colorful = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 4h8v8H4z" fill="#f00"/><path d="M12 12h8v8h-8z" fill="#0f0"/><path d="M4 16h8v4H4z" fill="#00f"/></svg>'
-		const many = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">${'<path d="M1 1h2v2H1z" fill="currentColor"/>'.repeat(12)}</svg>`
+		const illustration = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">${'<path d="M1 1h2v2H1z" fill="#111111"/>'.repeat(50)}</svg>`
+		const manyColours = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">${Array.from({ length: 12 }, (_, index) => `<path d="M${index} 0h2v2H${index}z" fill="#${(index + 1).toString(16).padStart(2, '0')}0000"/>`).join('')}</svg>`
 		const io = memIo({
 			'package.json': '{}',
-			'src/A.tsx': `export const A = () => (${icon})`,
-			'src/B.tsx': `export const B = () => (${gradient})`,
-			'src/C.tsx': `export const C = () => (${colorful})`,
-			'src/D.tsx': `export const D = () => (${many})`,
+			'src/Glyph.tsx': `export const A = () => (${glyph})`,
+			'src/Favicon.tsx': `export const B = () => (${favicon})`,
+			'src/Gradient.tsx': `export const C = () => (${gradient})`,
+			'src/Illustration.tsx': `export const D = () => (${illustration})`,
+			'src/ManyColours.tsx': `export const E = () => (${manyColours})`,
 		})
 		const groups = await scanCodeShapes(io)
-		assert.equal(groups.length, 1, 'only the simple glyph is a candidate')
-		assert.equal(groups[0].sites[0].file, 'src/A.tsx')
+		const files = groups.map((group) => group.sites[0].file)
+		assert.ok(files.includes('src/Glyph.tsx'), 'a plain glyph is offered')
+		assert.ok(files.includes('src/Favicon.tsx'), 'so is a three-colour favicon')
+		assert.ok(!files.includes('src/Gradient.tsx'), 'gradient art is still out of scope')
+		assert.ok(!files.includes('src/Illustration.tsx'), 'fifty shapes is an illustration, not a glyph')
+		assert.ok(!files.includes('src/ManyColours.tsx'), 'twelve colours is not a glyph')
+		const fav = groups.find((group) => group.sites[0].file === 'src/Favicon.tsx')
+		assert.ok(/#17140f/i.test(fav.preview) && /#22aa5a/i.test(fav.preview), 'its preview keeps the authored colours')
+	})
+
+	await test('a scanned icon is previewed the way it will be stored', async () => {
+		const red = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 4h16v16H4z" fill="#ff0000"/></svg>'
+		const solid = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>'
+		const invisible = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 5h7v7H5z" fill="none"/></svg>'
+		const io = memIo({
+			'package.json': '{}',
+			'src/Red.tsx': `export const A = () => (${red})`,
+			'src/Solid.tsx': `export const B = () => (${solid})`,
+			'src/Invisible.tsx': `export const C = () => (${invisible})`,
+		})
+		const groups = await scanCodeShapes(io)
+		assert.equal(groups.length, 2, 'the paint-less shape is not offered at all')
+		assert.equal(groups.unusable, 1, 'and it is counted as unusable')
+		const redGroup = groups.find((group) => group.svg.includes('#ff0000'))
+		assert.ok(redGroup, 'the red square is a candidate')
+		assert.ok(redGroup.preview.includes('fill="currentColor"'), 'its preview follows the text colour')
+		assert.ok(!redGroup.preview.includes('#ff0000'), 'the hard-coded red is gone from the preview')
+		assert.ok(redGroup.svg.includes('#ff0000'), 'but the authored markup is kept for the import')
+		const solidGroup = groups.find((group) => group.svg.includes('<circle'))
+		assert.ok(solidGroup.preview.includes('fill="currentColor"'), 'a fill-less path previews as currentColor, not black')
 	})
 
 	await test('the workspace scan ignores packages and build output', async () => {
@@ -479,6 +526,38 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 		assert.equal(groups.length, 1, 'the wide canvas is not offered')
 		assert.ok(groups[0].svg.includes('viewBox="0 0 24 24"'))
 		assert.equal(groups.excluded, 1, 'and the panel can say why something disappeared')
+	})
+
+	await test('an icon added from code is recognised on the next scan', async () => {
+		// The paint lives on the root here: the old comparison hashed the authored
+		// markup, while the save stores a <g> wrapper as its body — different text,
+		// same drawing, so the panel showed no name and no tick after adding it.
+		const raw = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16"/></svg>'
+		const io = memIo({ 'package.json': '{}', 'src/A.tsx': `export const A = () => (${raw})` })
+		const first = await scanCodeShapes(io)
+		assert.equal(first.length, 1)
+		const store = createStore(io)
+		await store.save({ name: 'my-icon', svg: first[0].svg, viewBox: first[0].viewBox, preserveViewBox: true, rule: 'x' })
+		const entry = (await store.get('my-icon')).entry
+		assert.ok(entry.signature, 'the entry records its normalised identity')
+		assert.equal(entry.signature, first[0].signature, 'which is exactly the scan identity')
+		const stored = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${entry.viewBox}">${entry.body}</svg>`
+		assert.notEqual(bodySignature(raw), bodySignature(stored), 'the authored markup and the stored body hash differently')
+		const second = await scanCodeShapes(io)
+		assert.equal(second[0].signature, entry.signature, 'so the next scan can name it')
+	})
+
+	await test('the same icon written two ways is one scan group', async () => {
+		const rootPaint = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 4h16"/></svg>'
+		const elementPaint = '<svg viewBox="0 0 24 24"><path d="M4 4h16" fill="none" stroke="currentColor"/></svg>'
+		const io = memIo({
+			'package.json': '{}',
+			'src/A.tsx': `export const A = () => (${rootPaint})`,
+			'src/B.tsx': `export const B = () => (${elementPaint})`,
+		})
+		const groups = await scanCodeShapes(io)
+		assert.equal(groups.length, 1, 'one drawing, one group')
+		assert.equal(groups[0].sites.length, 2, 'both places are listed as sites')
 	})
 
 	await test('the workspace scan groups one shape once', async () => {
@@ -1633,6 +1712,11 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 		const used = new Set([...source.slice(end).matchAll(/\bI\.([a-zA-Z]+)\b/g)].map((match) => match[1]))
 		const missing = [...used].filter((name) => !keys.has(name))
 		assert.deepEqual(missing, [], `unknown icon keys: ${missing.join(', ')}`)
+		// The init page looks glyphs up by name (feature list + scattered tiles),
+		// so a quoted key is a reference too — a missing one renders an empty box.
+		const dynamic = new Set([...source.matchAll(/icon: '([A-Za-z]+)'/g)].map((match) => match[1]))
+		const missingDynamic = [...dynamic].filter((name) => !keys.has(name))
+		assert.deepEqual(missingDynamic, [], `unknown dynamic icon keys: ${missingDynamic.join(', ')}`)
 	})
 
 	await test('panel and detail render a first frame without throwing', async () => {
@@ -1650,7 +1734,7 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 			useMemo: (fn) => fn(),
 		}
 		const module = factory((name) => (name === 'react' ? fakeReact : undefined))
-		const { Panel, Detail, ListView, SupplyView, AddIconDialog, DerivationRow, shouldRetryLibrary } = module._test
+		const { Panel, Detail, ListView, SupplyView, AddIconDialog, DerivationRow, InitView, ScanBar, shouldRetryLibrary } = module._test
 		const t = (key) => key
 		const say = () => {}
 		const treeOf = (node) => {
@@ -1672,7 +1756,32 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 			;(node.children || []).forEach((child) => classesOf(child, out))
 			return out
 		}
-		assert.ok(treeOf(Panel({ sessionId: 's', t })) >= 4, 'Panel did not render')
+		const first = Panel({ sessionId: 's', t })
+		const nodeByClass = (root, wanted) => {
+			let hit = null
+			const walk = (node) => {
+				if (hit || node === null || node === undefined) return
+				if (Array.isArray(node)) { node.forEach(walk); return }
+				if (typeof node !== 'object') return
+				if (node.props && node.props.className === wanted) { hit = node; return }
+				if (typeof node.type === 'function') walk(node.type(node.props || {}))
+				;(node.children || []).forEach(walk)
+			}
+			walk(root)
+			return hit
+		}
+		assert.ok(treeOf(first) >= 4, 'Panel did not render')
+		assert.ok(classesOf(first).includes('gs-loading'), 'before the host answers, the panel only shows loading — no list, no scan')
+		// The first-run screen names its glyphs by string, so a missing icon would
+		// render an empty circle instead of failing: assert the whole card builds.
+		const init = InitView({ t, onInit: say, busy: false })
+		assert.ok(treeOf(init) > 8, 'the init screen rendered too little')
+		assert.ok(classesOf(init).includes('gs-init'), 'the init screen keeps its frame')
+		assert.ok(classesOf(init).includes('gs-init-feature'), 'and lists its features')
+		assert.equal(classesOf(init).filter((name) => name === 'gs-init-feature-icon').length, 4, 'one icon per feature')
+		// The card is usable the moment it appears: the boot-time re-probe runs in
+		// the background, and clicking Initialise re-asks the host before writing.
+		assert.equal(Boolean(nodeByClass(init, 'gs-init-action').props.disabled), false, 'the action is enabled immediately')
 		const detailEntry = { name: 'close', file: 'icons/close.svg', viewBox: '0 0 24 24', rule: '关闭浮层', history: [], pointers: [{ file: 'src/a.tsx', kind: 'inline', index: 0, line: 1, literal: '' }], keywords: [] }
 		const detail = Detail({ t, entry: detailEntry, svg: '<svg/>', onBack: say, onSave: async () => ({}), onInspect: async () => ({}), onDelete: say, onRefresh: say, say })
 		assert.ok(treeOf(detail) > 10, 'Detail rendered too little')
@@ -1680,11 +1789,52 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 		assert.ok(classesOf(detail).includes('gs-meta-link'), 'references are folded into the meta block')
 		const empty = ListView({ t, library: { libraryExists: false, root: '/w', graphics: [] }, loading: false, error: '', onOpen: say, onCreate: say, onImport: say, onRefresh: say, say })
 		assert.ok(treeOf(empty) > 5)
-		assert.ok(!classesOf(empty).includes('gs-head'), 'empty library must not draw the title bar')
-		assert.ok(!classesOf(empty).includes('gs-filter'), 'empty library must not draw the search row')
+		assert.ok(!classesOf(empty).includes('gs-head'), 'a missing library must not draw the title bar')
+		assert.ok(!classesOf(empty).includes('gs-filter'), 'a missing library must not draw the search row')
+		// An initialised but empty library is a real state: the toolbar (import /
+		// AI / add) and the same four features as the first-run card must be there.
+		const blank = ListView({ t, library: { libraryExists: true, root: '/w', graphics: [] }, loading: false, error: '', onOpen: say, onCreate: say, onImport: say, onRefresh: say, say })
+		const blankClasses = classesOf(blank)
+		assert.ok(blankClasses.includes('gs-head'), 'an empty library keeps the standard header')
+		assert.ok(blankClasses.includes('gs-listwrap'), 'and the standard body frame')
+		assert.ok(blankClasses.includes('gs-listfoot'), 'and the standard footer')
+		assert.ok(blankClasses.includes('gs-empty gs-empty-paste'), 'with the centred paste hint')
+		assert.ok(!blankClasses.includes('gs-scanbar'), 'the startup scan stays silent: no bar until it finds something')
+		const blankSearch = nodeByClass(blank, 'gs-searchhint')
+		assert.ok(blankSearch, 'the standard header keeps its search box')
+		assert.equal(blankSearch.props.disabled, true, 'but it is inert while the library is empty')
+		// The scan bar owns its states: one sentence each, and the chevron only
+		// exists when there is something behind it.
+		const flatText = (node) => {
+			if (node === null || node === undefined) return ''
+			if (Array.isArray(node)) return node.map(flatText).join('')
+			if (typeof node !== 'object') return String(node)
+			const own = typeof node.type === 'function' ? flatText(node.type(node.props || {})) : ''
+			return own + (node.children || []).map(flatText).join('')
+		}
+		const bar = (scan) => ScanBar({ t, scan, onOpen: say, onRescan: say })
+		const scanningBar = bar({ phase: 'scanning', groups: [] })
+		assert.ok(classesOf(scanningBar).includes('gs-spinner'), 'scanning shows a spinner in the bar')
+		assert.equal(nodeByClass(scanningBar, 'gs-scanbar-scan').props.disabled, true, 'the rescan button waits for the answer')
+		assert.ok(flatText(scanningBar).includes('scanBarScanning'), 'with a scanning sentence')
+		const emptyBar = bar({ phase: 'ready', groups: [] })
+		assert.ok(!classesOf(emptyBar).includes('gs-spinner'), 'a finished scan has no spinner')
+		assert.ok(!classesOf(emptyBar).includes('gs-scanbar-open'), 'and nothing to open when it found nothing')
+		assert.ok(flatText(emptyBar).includes('scanBarEmpty'), 'it says the scan found nothing, not "please scan"')
+		const errorBar = bar({ phase: 'error', groups: [] })
+		assert.ok(flatText(errorBar).includes('scanBarError'), 'a failed scan says so')
+		assert.ok(!classesOf(errorBar).includes('gs-scanbar-open'), 'and offers no dead-end link')
+		assert.equal(nodeByClass(errorBar, 'gs-scanbar-scan').props.disabled, false, 'the rescan button becomes the retry')
+		const foundBar = bar({ phase: 'ready', groups: [{ signature: 's', svg: '<svg/>' }] })
+		assert.ok(classesOf(foundBar).includes('gs-scanbar-thumb'), 'a found group shows its thumbnail')
+		assert.ok(classesOf(foundBar).includes('gs-scanbar-open'), 'and the chevron into the scan view')
+
 		const filled = ListView({ t, library: { libraryExists: true, root: '/w', graphics: [{ name: 'close', note: 'n', keywords: [], svg: '' }] }, loading: false, error: '', onOpen: say, onCreate: say, onImport: say, onRefresh: say, say })
 		assert.ok(classesOf(filled).includes('gs-head'), 'a filled library keeps its chrome')
 		assert.ok(!classesOf(filled).includes('gs-filter'), 'search now lives in the title bar')
+		const filledSearch = nodeByClass(filled, 'gs-searchhint')
+		assert.equal(filledSearch.props.disabled, false, 'the search box is usable once an icon exists')
+		assert.ok(!classesOf(filled).includes('gs-scanbar'), 'a library with nothing to adopt shows no bar')
 		// One dialog, four sources: every mode renders its first frame.
 		for (const mode of ['paste', 'supply', 'ai']) {
 			const add = AddIconDialog({ t, sessionId: 's', workspace: '/w', library: { graphics: [] }, mode, text: '', name: '', ref: '', onClose: say, onImported: async () => {} })
