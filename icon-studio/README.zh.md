@@ -1,3 +1,5 @@
+![dsh-icon-library — a project icon library for Vibe Coding](cover.png)
+
 # dsh-icon-library
 
 面向 Vibe Coding 的项目级图标库：让图标成为可识别、可检索、可维护、同步的项目资产。

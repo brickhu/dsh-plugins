@@ -1677,6 +1677,21 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 		assert.ok(manifest.files.includes('locale/*.json'), 'locale files ship with the package')
 	})
 
+	await test('the plugin detail ships its cover image', () => {
+		const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+		assert.ok(manifest.files.includes('cover.png'), 'the cover ships with the package')
+		const png = readFileSync(new URL('../cover.png', import.meta.url))
+		assert.deepEqual([...png.subarray(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 'cover.png is a real PNG')
+		assert.ok(png.readUInt32BE(16) >= 1200, 'wide enough for a detail hero')
+		for (const [lang, detail] of [['en', 'README.md'], ['zh', 'README.zh.md']]) {
+			const meta = JSON.parse(readFileSync(new URL(`../locale/${lang}.json`, import.meta.url), 'utf8'))
+			assert.equal(meta.meta.detail, detail, `${lang} names its detail document`)
+			const text = readFileSync(new URL(`../${detail}`, import.meta.url), 'utf8')
+			assert.ok(text.startsWith('![dsh-icon-library'), `${detail} leads with the cover`)
+			assert.ok(text.includes('](cover.png)'), `${detail} references the shipped image`)
+		}
+	})
+
 	await test('the shipped app icon is the library copy, untouched', () => {
 		const lib = iconSvgFor('icon-studio-logo-colorful')
 		if (lib === null) return

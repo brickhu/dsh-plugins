@@ -18,6 +18,7 @@
     "lib/*.js",
     "cordis.patch.yml",
     "locale/*.json",
+    "cover.png",
     "icon.svg",
     "icon.mask.svg",
     "README.md",

@@ -1,6 +1,7 @@
 {
   "meta": {
     "title": "Icon Library",
-    "description": "项目自己的图标库：把图标拖进对话用 <图标名> 指代，让 Agent 按语义从库里挑选合适图标；改一次 SVG，代码里的所有引用一起更新。"
+    "description": "项目自己的图标库：把图标拖进对话用 <图标名> 指代，让 Agent 按语义从库里挑选合适图标；改一次 SVG，代码里的所有引用一起更新。",
+    "detail": "README.zh.md"
   }
 }

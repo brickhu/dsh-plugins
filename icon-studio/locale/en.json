@@ -1,6 +1,7 @@
 {
   "meta": {
     "title": "Icon Library",
-    "description": "A workspace icon library for your project: drag icons into the chat as <name>, let the agent pick the right icon by meaning, and edit an SVG once to update every place it is used."
+    "description": "A workspace icon library for your project: drag icons into the chat as <name>, let the agent pick the right icon by meaning, and edit an SVG once to update every place it is used.",
+    "detail": "README.md"
   }
 }

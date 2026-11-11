@@ -1,3 +1,5 @@
+![dsh-icon-library — a project icon library for Vibe Coding](cover.png)
+
 # dsh-icon-library
 
 A project-level icon library for Vibe Coding: it turns icons into recognizable, searchable, maintainable, synchronized project assets.
