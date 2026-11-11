@@ -241,6 +241,9 @@ window.__ModuleLoader__.load({
       namedAs: '命名为 {name}',
       namingFailed: '没能识别出名字：{msg}',
       importNeedSvg: '先粘一段 SVG',
+      pasteSource: '粘贴的 SVG',
+      workspaceSource: '工作区 SVG',
+      aiSource: 'AI 草稿',
       importNeedName: '先填名称',
       importNameTaken: '名称已被占用：{name}',
       importNameHint: '必填、库里唯一，可中文',
@@ -557,6 +560,9 @@ window.__ModuleLoader__.load({
       namedAs: 'Named {name}',
       namingFailed: 'Could not name it: {msg}',
       importNeedSvg: 'Paste an SVG first',
+      pasteSource: 'Pasted SVG',
+      workspaceSource: 'Workspace SVG',
+      aiSource: 'AI draft',
       importNeedName: 'Name is required',
       importNameTaken: 'Name already in use: {name}',
       importNameHint: 'Required, unique, Chinese OK',
@@ -933,6 +939,7 @@ window.__ModuleLoader__.load({
 .gs-step.on b{background:var(--dsw-alias-brand-primary,#4d6bfe);color:var(--dsw-alias-bg-base)}
 .gs-sizes{display:flex;gap:6px;flex-wrap:wrap}
 
+.gs-add-source{margin:0;font-size:11px;color:var(--dsw-alias-label-tertiary)}
 .gs-ai-preview{display:flex;align-items:center;justify-content:center;height:132px;border:.5px solid var(--dsw-alias-border-l1);border-radius:10px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 5%,transparent);color:var(--dsw-alias-label-primary)}
 .gs-ai-preview svg{width:96px;height:96px}
 .gs-derivs{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none;max-height:46vh;overflow:auto}
@@ -1914,8 +1921,6 @@ window.__ModuleLoader__.load({
        * first save (which a drawn element triggers) creates it, so leaving an
        * untouched blank canvas leaves nothing behind.
        */
-      const createGraphic = () => setAdd({ mode: 'paste', text: '' })
-
       const expandMaskElement = (element) => api.post('expand-mask', {
         mask: element.mask,
         defs: element.defs,
@@ -1939,9 +1944,16 @@ window.__ModuleLoader__.load({
         }
       }
 
-      const pasteImport = (text, suggestedName = '') => {
-        // Naming is mandatory, so every paste goes through the one add dialog.
-        setAdd({ mode: 'paste', text: text || '', name: suggestedName || '' })
+      const pasteImport = async (text, suggestedName = '') => {
+        // Parse first: the add dialog only ever shows a ready preview, name and rule.
+        const source = String(text || '')
+        if (source.trim() === '') return
+        try {
+          const result = await api.post('inspect', { ...target, svg: source, preserveViewBox: true })
+          setAdd({ mode: 'pasted', svg: result.svg || source, viewBox: result.viewBox, name: suggestedName || '' })
+        } catch (err) {
+          say(t('pasteFailed', { msg: err && err.message ? err.message : String(err) }), 'err')
+        }
       }
 
       const pasteRef = useRef(pasteImport)
@@ -2046,7 +2058,6 @@ window.__ModuleLoader__.load({
           error,
           onOpen: openGraphicByName,
           opening,
-          onCreate: createGraphic,
           onDelete: deleteGraphic,
           onAiCreate: () => setAiOpen(true),
           // The ⋯ menu no longer lists it, but the bar at the bottom of the
@@ -2800,7 +2811,6 @@ window.__ModuleLoader__.load({
     function AddIconDialog(props) {
       const { t, sessionId, workspace, library, mode, onClose, onImported } = props
       const target = workspace ? { sessionId, workspace } : { sessionId }
-      const [text, setText] = useState(mode === 'paste' ? (props.text || '') : '')
       const [name, setName] = useState((props.draft && props.draft.name) || props.name || '')
       const [rule, setRule] = useState((props.draft && props.draft.rule) || '')
       const [parsed, setParsed] = useState(null)
@@ -2822,13 +2832,13 @@ window.__ModuleLoader__.load({
         ? (peek && peek.previews ? (peek.previews[style] || peek.previews.outline || '') : '')
         : mode === 'ai'
           ? (draft ? draft.svg : '')
-          : mode === 'workspace'
+          : mode === 'workspace' || mode === 'pasted'
             ? (props.svg || '')
             : (parsed ? parsed.svg : '')
       const ready = name.trim() !== '' && (
         mode === 'supply' ? Boolean(peek)
           : mode === 'ai' ? Boolean(draft)
-            : mode === 'workspace' ? Boolean(props.svg)
+            : mode === 'workspace' || mode === 'pasted' ? Boolean(props.svg)
               : Boolean(parsed)
       )
 
@@ -2861,34 +2871,6 @@ window.__ModuleLoader__.load({
         return () => { alive = false }
       }, [mode, props.iconRef])
 
-      // Paste / file: a seed is inspected on arrival so the name is the only step.
-      useEffect(() => {
-        if (mode !== 'paste') return undefined
-        const seed = props.text
-        if (!seed || seed.trim() === '') return undefined
-        let alive = true
-        api.post('inspect', { ...target, svg: seed, preserveViewBox: true })
-          .then((result) => { if (alive) setParsed(result) })
-          .catch((err) => { if (alive) setError(err && err.message ? err.message : String(err)) })
-        return () => { alive = false }
-      }, [mode, props.text])
-
-      const inspectText = async () => {
-        if (text.trim() === '') { setError(t('importNeedSvg')); return }
-        setBusy(true)
-        setError('')
-        try {
-          const result = await api.post('inspect', { ...target, svg: text, preserveViewBox: true })
-          setParsed(result)
-          await suggestName(result.svg || text)
-        } catch (err) {
-          setParsed(null)
-          setError(err && err.message ? err.message : String(err))
-        } finally {
-          setBusy(false)
-        }
-      }
-
       const finish = async (savedName) => {
         if (onImported) await onImported(savedName)
         onClose()
@@ -2915,7 +2897,7 @@ window.__ModuleLoader__.load({
             else setError(row.message || t('supplyAddFailed'))
             return
           }
-          if (mode === 'workspace') {
+          if (mode === 'pasted' || mode === 'workspace') {
             const result = await api.post('save', {
               ...target,
               name: name.trim(),
@@ -2923,7 +2905,7 @@ window.__ModuleLoader__.load({
               viewBox: props.viewBox,
               preserveViewBox: true,
               rule: rule.trim(),
-              source: 'workspace',
+              source: mode === 'pasted' ? 'pasted-svg' : 'workspace',
             })
             if (!result.entry) { setError(t('supplyAddShapeExists', { of: result.of || '' })); return }
             await finish(name.trim())
@@ -2950,27 +2932,19 @@ window.__ModuleLoader__.load({
         }
       }
 
-      const sourceBlock = mode === 'paste'
+      const sourceLine = mode === 'supply'
+        ? [peek && peek.source, peek && peek.license].filter(Boolean).join(' · ')
+        : mode === 'pasted' ? t('pasteSource')
+          : mode === 'workspace' ? t('workspaceSource')
+            : t('aiSource')
+      const sourceBlock = mode === 'supply'
         ? h('div', { className: 'gs-field' },
-          h('textarea', {
-            className: 'gs-textarea',
-            style: { minHeight: 96, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 11 },
-            placeholder: t('importPaste'),
-            value: text,
-            spellCheck: false,
-            onChange: (event) => { setText(event.target.value); setParsed(null) },
-          }),
-          h('div', { className: 'gs-row' },
-            h(Btn, { onClick: inspectText, disabled: busy || text.trim() === '' }, busy ? t('commonLoading') : t('importParse'))))
-        : mode === 'supply'
-          ? h('div', { className: 'gs-field' },
-            peek ? h('p', { className: 'gs-hint' }, [peek.source, peek.license].filter(Boolean).join(' · ')) : null,
-            peek && peek.supplier === 'iconmcp' && !styles.includes('solid')
-              ? h('p', { className: 'gs-hint' }, t('supplyAddStyleOnly'))
-              : null)
-          : mode === 'workspace'
-            ? h('p', { className: 'gs-hint' }, t('scanAddHint'))
-            : h('div', null,
+          peek && peek.supplier === 'iconmcp' && !styles.includes('solid')
+            ? h('p', { className: 'gs-hint' }, t('supplyAddStyleOnly'))
+            : null)
+        : mode === 'workspace'
+          ? h('p', { className: 'gs-hint' }, t('scanAddHint'))
+          : h('div', null,
               h('p', { className: 'gs-hint' }, t('aiDraftReady')),
               Array.isArray(draft && draft.references) && draft.references.length > 0
                 ? h('p', { className: 'gs-hint' }, t('aiRefs', {
@@ -2991,6 +2965,7 @@ window.__ModuleLoader__.load({
           h(Btn, { onClick: onClose }, t('commonCancel')),
           h(Btn, { variant: 'primary', onClick: submit, disabled: busy || !ready }, t('supplyAddConfirm'))),
       },
+        sourceLine ? h('p', { className: 'gs-add-source' }, sourceLine) : null,
         sourceBlock,
         mode === 'supply' && styles.length > 1
           ? h('div', { className: 'gs-stylepick' }, ['outline', 'solid'].map((option) => h('button', {
