@@ -1999,6 +1999,7 @@ window.__ModuleLoader__.load({
           t,
           sessionId,
           workspace,
+          library,
           say,
           onBack: () => setView('list'),
           onImported: () => load({ silent: true }),
@@ -2821,9 +2822,14 @@ window.__ModuleLoader__.load({
         ? (peek && peek.previews ? (peek.previews[style] || peek.previews.outline || '') : '')
         : mode === 'ai'
           ? (draft ? draft.svg : '')
-          : (parsed ? parsed.svg : '')
+          : mode === 'workspace'
+            ? (props.svg || '')
+            : (parsed ? parsed.svg : '')
       const ready = name.trim() !== '' && (
-        mode === 'supply' ? Boolean(peek) : mode === 'ai' ? Boolean(draft) : Boolean(parsed)
+        mode === 'supply' ? Boolean(peek)
+          : mode === 'ai' ? Boolean(draft)
+            : mode === 'workspace' ? Boolean(props.svg)
+              : Boolean(parsed)
       )
 
       /** Naming from the model: pasted artwork only needs a name and a rule. */
@@ -2909,6 +2915,20 @@ window.__ModuleLoader__.load({
             else setError(row.message || t('supplyAddFailed'))
             return
           }
+          if (mode === 'workspace') {
+            const result = await api.post('save', {
+              ...target,
+              name: name.trim(),
+              svg: props.svg,
+              viewBox: props.viewBox,
+              preserveViewBox: true,
+              rule: rule.trim(),
+              source: 'workspace',
+            })
+            if (!result.entry) { setError(t('supplyAddShapeExists', { of: result.of || '' })); return }
+            await finish(name.trim())
+            return
+          }
           const art = mode === 'ai'
             ? { svg: draft.svg, viewBox: draft.viewBox }
             : { svg: parsed.svg || text, viewBox: parsed.viewBox }
@@ -2945,28 +2965,22 @@ window.__ModuleLoader__.load({
         : mode === 'supply'
           ? h('div', { className: 'gs-field' },
             peek ? h('p', { className: 'gs-hint' }, [peek.source, peek.license].filter(Boolean).join(' · ')) : null,
-            styles.includes('solid')
-              ? h('div', { className: 'gs-stylepick' }, ['outline', 'solid'].map((option) => h('button', {
-                key: option,
-                type: 'button',
-                className: `gs-stylepick-item${style === option ? ' on' : ''}`,
-                onClick: () => setStyle(option),
-              }, option === 'outline' ? t('supplyAddStyleOutline') : t('supplyAddStyleSolid'))))
-              : null,
             peek && peek.supplier === 'iconmcp' && !styles.includes('solid')
               ? h('p', { className: 'gs-hint' }, t('supplyAddStyleOnly'))
               : null)
-          : h('div', null,
-            h('p', { className: 'gs-hint' }, t('aiDraftReady')),
-            Array.isArray(draft && draft.references) && draft.references.length > 0
-              ? h('p', { className: 'gs-hint' }, t('aiRefs', {
-                n: draft.references.length,
-                sources: [...new Set(draft.references.map((item) => (item.source === 'iconmcp' ? 'IconMCP' : 'Iconify')))].join(' / '),
-              }))
-              : null,
-            draft && draft.crossings > 0
-              ? h('p', { className: 'gs-warn' }, t('aiWarnCrossing', { n: draft.crossings }))
-              : null)
+          : mode === 'workspace'
+            ? h('p', { className: 'gs-hint' }, t('scanAddHint'))
+            : h('div', null,
+              h('p', { className: 'gs-hint' }, t('aiDraftReady')),
+              Array.isArray(draft && draft.references) && draft.references.length > 0
+                ? h('p', { className: 'gs-hint' }, t('aiRefs', {
+                  n: draft.references.length,
+                  sources: [...new Set(draft.references.map((item) => (item.source === 'iconmcp' ? 'IconMCP' : 'Iconify')))].join(' / '),
+                }))
+                : null,
+              draft && draft.crossings > 0
+                ? h('p', { className: 'gs-warn' }, t('aiWarnCrossing', { n: draft.crossings }))
+                : null)
 
       return h(Modal, {
         title: t('supplyAddTitle'),
@@ -2978,6 +2992,14 @@ window.__ModuleLoader__.load({
           h(Btn, { variant: 'primary', onClick: submit, disabled: busy || !ready }, t('supplyAddConfirm'))),
       },
         sourceBlock,
+        mode === 'supply' && styles.length > 1
+          ? h('div', { className: 'gs-stylepick' }, ['outline', 'solid'].map((option) => h('button', {
+            key: option,
+            type: 'button',
+            className: `gs-stylepick-item${style === option ? ' on' : ''}`,
+            onClick: () => setStyle(option),
+          }, option === 'outline' ? t('supplyAddStyleOutline') : t('supplyAddStyleSolid'))))
+          : null,
         artwork ? h('div', { className: 'gs-ai-preview' }, svgArt(artwork, 'add')) : null,
         duplicate
           ? h('div', { className: 'gs-warn' },
@@ -3460,7 +3482,6 @@ window.__ModuleLoader__.load({
       const [error, setError] = useState('')
       const [busy, setBusy] = useState(false)
       const [naming, setNaming] = useState(null)
-      const [name, setName] = useState('')
 
       const scan = async () => {
         setBusy(true)
@@ -3481,38 +3502,7 @@ window.__ModuleLoader__.load({
 
       const openNaming = (group) => {
         setNaming(group)
-        setName('')
         setError('')
-      }
-
-      const add = async () => {
-        const value = name.trim()
-        if (!naming) return
-        if (value === '') {
-          setError(t('importNeedName'))
-          return
-        }
-        setBusy(true)
-        setError('')
-        try {
-          await api.post('save', {
-            ...target,
-            name: value,
-            svg: naming.svg,
-            viewBox: naming.viewBox,
-            preserveViewBox: true,
-            source: 'workspace',
-          })
-          setNaming(null)
-          setName('')
-          await scan()
-          if (props.onImported) await props.onImported()
-          say(t('scanImported', { name: value }))
-        } catch (err) {
-          setError(err && err.message ? err.message : String(err))
-        } finally {
-          setBusy(false)
-        }
       }
 
       const rows = Array.isArray(groups) ? groups.map((group) => {
@@ -3539,25 +3529,22 @@ window.__ModuleLoader__.load({
       else body = rows
 
       const modal = naming
-        ? h(Modal, {
-          title: t('scanAddTitle'),
-          onClose: () => { setNaming(null); setError('') },
-          footer: h(react.Fragment, null,
-            h('div', { className: 'gs-spacer' }),
-            h(Btn, { onClick: () => { setNaming(null); setError('') } }, t('saveConfirmCancel')),
-            h(Btn, { variant: 'primary', onClick: add, disabled: busy || name.trim() === '' }, t('scanAddConfirm'))),
-        },
-          h('p', { className: 'gs-hint' }, t('scanAddHint')),
-          h('input', {
-            className: 'gs-input',
-            value: name,
-            spellCheck: false,
-            autoFocus: true,
-            placeholder: t('scanNameHint'),
-            onChange: (event) => { setName(event.target.value); setError('') },
-            onKeyDown: (event) => { if (event.key === 'Enter') add() },
-          }),
-          error ? h('p', { className: 'gs-hint', style: { color: 'var(--dsw-alias-state-error-primary, #e5484d)' } }, error) : null)
+        ? h(AddIconDialog, {
+          t,
+          sessionId,
+          workspace: props.workspace,
+          library: props.library,
+          mode: 'workspace',
+          svg: naming.svg,
+          viewBox: naming.viewBox,
+          onClose: () => setNaming(null),
+          onImported: async (value) => {
+            setNaming(null)
+            await scan()
+            if (props.onImported) await props.onImported()
+            if (value) say(t('scanImported', { name: value }))
+          },
+        })
         : null
 
       return h(react.Fragment, null,
