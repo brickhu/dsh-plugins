@@ -940,6 +940,10 @@ window.__ModuleLoader__.load({
 .gs-sizes{display:flex;gap:6px;flex-wrap:wrap}
 
 .gs-add-source{margin:0;font-size:11px;color:var(--dsw-alias-label-tertiary)}
+.gs-add-preview{position:relative}
+.gs-preview-styles{position:absolute;top:8px;right:8px;display:flex;gap:2px;padding:2px;border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-bg-base) 78%,transparent);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:.5px solid var(--dsw-alias-border-l1);box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.gs-preview-styles button{height:22px;padding:0 9px;border:0;border-radius:999px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:10px;cursor:pointer}
+.gs-preview-styles button.on{background:var(--dsw-alias-label-primary);color:var(--dsw-alias-bg-base);font-weight:500}
 .gs-ai-preview{display:flex;align-items:center;justify-content:center;height:132px;border:.5px solid var(--dsw-alias-border-l1);border-radius:10px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 5%,transparent);color:var(--dsw-alias-label-primary)}
 .gs-ai-preview svg{width:96px;height:96px}
 .gs-derivs{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none;max-height:46vh;overflow:auto}
@@ -2934,15 +2938,7 @@ window.__ModuleLoader__.load({
         }
       }
 
-      const sourceLine = mode === 'supply'
-        ? [peek && peek.source, peek && peek.license].filter(Boolean).join(' · ')
-        : ''
-      const sourceBlock = mode === 'supply'
-        ? h('div', { className: 'gs-field' },
-          peek && peek.supplier === 'iconmcp' && !styles.includes('solid')
-            ? h('p', { className: 'gs-hint' }, t('supplyAddStyleOnly'))
-            : null)
-        : mode === 'ai'
+      const sourceBlock = mode === 'ai'
           ? h('div', null,
               Array.isArray(draft && draft.references) && draft.references.length > 0
                 ? h('p', { className: 'gs-hint' }, t('aiRefs', {
@@ -2964,17 +2960,19 @@ window.__ModuleLoader__.load({
           h(Btn, { onClick: onClose }, t('commonCancel')),
           h(Btn, { variant: 'primary', onClick: submit, disabled: busy || !ready }, t('supplyAddConfirm'))),
       },
-        sourceLine ? h('p', { className: 'gs-add-source' }, sourceLine) : null,
         sourceBlock,
-        mode === 'supply' && styles.length > 1
-          ? h('div', { className: 'gs-stylepick' }, ['outline', 'solid'].map((option) => h('button', {
-            key: option,
-            type: 'button',
-            className: `gs-stylepick-item${style === option ? ' on' : ''}`,
-            onClick: () => setStyle(option),
-          }, option === 'outline' ? t('supplyAddStyleOutline') : t('supplyAddStyleSolid'))))
+        artwork
+          ? h('div', { className: 'gs-ai-preview gs-add-preview' },
+            svgArt(artwork, 'add'),
+            mode === 'supply' && styles.length > 1
+              ? h('div', { className: 'gs-preview-styles' }, ['outline', 'solid'].map((option) => h('button', {
+                key: option,
+                type: 'button',
+                className: style === option ? 'on' : '',
+                onClick: () => setStyle(option),
+              }, option === 'outline' ? t('supplyAddStyleOutline') : t('supplyAddStyleSolid'))))
+              : null)
           : null,
-        artwork ? h('div', { className: 'gs-ai-preview' }, svgArt(artwork, 'add')) : null,
         duplicate
           ? h('div', { className: 'gs-warn' },
             h('b', null, t('importDup', { name: duplicate.name })),
