@@ -729,8 +729,9 @@ window.__ModuleLoader__.load({
 
     const CSS = `
 .gs-root{position:relative;display:flex;flex-direction:column;height:100%;min-height:0;container-type:inline-size;background:var(--dsw-alias-bg-base,var(--dsw-alias-bg-layer-1));color:var(--dsw-alias-label-primary);font-family:inherit;font-size:12px;line-height:1.45}
-.gs-tabmark{display:inline-flex;align-items:center;justify-content:center;line-height:0;opacity:.85;align-self:center;flex:none}
-.gs-tablabel{align-self:center;line-height:1.2;display:inline-block}
+.gs-tabtitle{display:inline-flex;align-items:center;gap:4px;line-height:1;vertical-align:middle}
+.gs-tabmark{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;line-height:0;opacity:.85;flex:none}
+.gs-tablabel{display:inline-block;line-height:1.2;white-space:nowrap}
 .gs-tabmark svg{display:block;flex:none}
 .gs-head{display:flex;align-items:center;gap:8px;min-height:44px;padding:12px 16px 6px;flex:none}
 .gs-head.plain{border-bottom:0}
@@ -3959,9 +3960,11 @@ window.__ModuleLoader__.load({
 
     function PanelTitle(props) {
       const t = (props && props.t) || translate
-      return h(react.Fragment, null,
-        h('span', { key: 'mark', className: 'gs-tabmark' }, h(TabMark, { size: 14 })),
-        h('span', { key: 'label', className: 'gs-tablabel' }, t('panelTitle')))
+      // One flex box for mark + label: the host may render the title as inline or
+      // flex depending on selection, so alignment must not depend on the parent.
+      return h('span', { className: 'gs-tabtitle' },
+        h('span', { className: 'gs-tabmark' }, h(TabMark, { size: 14 })),
+        h('span', { className: 'gs-tablabel' }, t('panelTitle')))
     }
 
     /**
