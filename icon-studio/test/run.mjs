@@ -16,6 +16,7 @@ import { applyAsset, cascadeRename, scanUsage } from '../lib/assets.js'
 import { findShapePointers, pushShapePointers, readDerivations, isUiSource, scanCodeShapes } from '../lib/sync.js'
 import { bodySignature, shapeSignature, mergeInner, isSquareCanvas, generatedIconIssues } from '../lib/shape.js'
 import { parseSupplyRef, seedRule, svgCanvasSize, isImportedSource, createIconmcpClient } from '../lib/supply.js'
+import { isNewer, latestPublished } from '../lib/update.js'
 
 let passed = 0
 let failed = 0
@@ -1425,6 +1426,37 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 		assert.ok(io.files.get('notes.md').includes('@asset alpha'), 'prose must not be rewritten')
 	})
 
+	console.log('version check')
+
+	test('versions compare the way npm reports them', () => {
+		assert.equal(isNewer('0.18.1', '0.18.0'), true, 'a patch release is newer')
+		assert.equal(isNewer('0.18.0', '0.18.0'), false, 'the same version is not an update')
+		assert.equal(isNewer('0.17.9', '0.18.0'), false, 'an older release is not an update')
+		assert.equal(isNewer('1.0.0', '0.99.99'), true, 'major beats minor')
+		assert.equal(isNewer('0.18.0-rc.1', '0.18.0'), false, 'a prerelease is older than its release')
+		assert.equal(isNewer('0.18.0', '0.18.0-rc.1'), true, 'and the release is newer than the prerelease')
+		assert.equal(isNewer('0.18.1-rc.2', '0.18.1-rc.1'), true, 'prereleases compare in order')
+		assert.equal(isNewer('0.18.1-rc.1', '0.18.1-rc.2'), false)
+		assert.equal(isNewer('nonsense', '0.18.0'), false, 'unparsable versions never claim an update')
+		assert.equal(isNewer('0.18.0', ''), false)
+	})
+
+	await test('the registry check falls back to the mirror, then gives up', async () => {
+		const calls = []
+		const found = await latestPublished({
+			name: 'dsh-icon-library',
+			registries: ['https://registry.npmjs.org', 'https://registry.npmmirror.com'],
+			fetchImpl: async (url) => {
+				calls.push(url)
+				if (url.startsWith('https://registry.npmjs.org')) throw new Error('down')
+				return { ok: true, async json() { return { version: '0.18.2' } } }
+			},
+		})
+		assert.deepEqual(found, { version: '0.18.2', registry: 'https://registry.npmmirror.com' })
+		assert.equal(calls.length, 2, 'one failed registry, one answer')
+		assert.equal(await latestPublished({ name: 'x', fetchImpl: async () => { throw new Error('offline') } }), null, 'offline reads as "cannot prove an update"')
+	})
+
 	console.log('client panel')
 
 	await test('inline previews scope gradient ids', async () => {
@@ -1834,6 +1866,28 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 		assert.ok(!classesOf(filled).includes('gs-filter'), 'search now lives in the title bar')
 		const filledSearch = nodeByClass(filled, 'gs-searchhint')
 		assert.equal(filledSearch.props.disabled, false, 'the search box is usable once an icon exists')
+		let opened = 0
+		const tLocal = module._test.makeT(null)
+		const updated = ListView({
+			t: tLocal,
+			library: { libraryExists: true, root: '/w', graphics: [] },
+			version: '0.18.0',
+			update: { available: true, latest: '0.18.1' },
+			onUpdate: () => { opened += 1 },
+			loading: false,
+			error: '',
+			onOpen: say,
+			onCreate: say,
+			onImport: say,
+			onRefresh: say,
+			say,
+		})
+		const badge = nodeByClass(updated, 'gs-update')
+		assert.ok(badge, 'a newer release shows a badge next to the version')
+		assert.ok(flatText(badge).includes('0.18.1'), 'and names the version it can update to')
+		badge.props.onClick()
+		assert.equal(opened, 1, 'clicking it opens the plugin panel')
+		assert.ok(!classesOf(blank).includes('gs-update'), 'no badge when the host proves nothing newer')
 		assert.ok(!classesOf(filled).includes('gs-scanbar'), 'a library with nothing to adopt shows no bar')
 		// One dialog, four sources: every mode renders its first frame.
 		for (const mode of ['paste', 'supply', 'ai']) {

@@ -63,6 +63,7 @@ Quit and reopen DSH afterwards, as above.
 | edit an icon | open it → replace the SVG, edit name / application rule → Save; every derivation updates while keeping its own colour and stroke width |
 | see the derivations | **Derivations** in the detail meta: one thumbnail per real site plus its location |
 | delete an icon | card `⋯` → Delete; it warns how many sites would break |
+| update the plugin | When a newer release exists, **Update x.y.z** appears next to the version in the panel footer; clicking it opens this plugin's page in the Plugins panel |
 
 The first time you use a workspace, the panel shows an initialise screen. **Initialise icon library** only creates `.icons.json` at the project root — it never touches business code.
 

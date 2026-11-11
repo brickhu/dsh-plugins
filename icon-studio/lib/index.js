@@ -17,6 +17,7 @@ import { cascadeRename, applyAsset } from './assets.js'
 import { findShapePointers, pushShapePointers, readDerivations, bodySignature, scanCodeShapes } from './sync.js'
 import { normalizeSvg, pathBBox, bakeIconifyTransform, strokeCrossings } from './svg.js'
 import { parseSupplyRef, seedRule, svgCanvasSize, createIconmcpClient } from './supply.js'
+import { isNewer, latestPublished } from './update.js'
 import { generatedIconIssues } from './shape.js'
 import { readFileSync as readJsonFile } from 'node:fs'
 
@@ -25,15 +26,17 @@ function shortHash(hash) {
 	return String(hash ?? '').replace(/^sha256:/u, '').slice(0, 16)
 }
 
-/** Shown in the panel footer; read once at load so a hot reload picks it up. */
-const PLUGIN_VERSION = (() => {
+/** Read once at load so a hot reload picks up a new version. */
+const PACKAGE = (() => {
 	try {
-		const url = new URL('../package.json', import.meta.url)
-		return JSON.parse(readJsonFile(url, 'utf8')).version ?? ''
+		return JSON.parse(readJsonFile(new URL('../package.json', import.meta.url), 'utf8'))
 	} catch (_error) {
-		return ''
+		return {}
 	}
 })()
+/** Shown in the panel footer and compared with the registry's `latest`. */
+const PLUGIN_VERSION = typeof PACKAGE.version === 'string' ? PACKAGE.version : ''
+const PLUGIN_NAME = typeof PACKAGE.name === 'string' && PACKAGE.name !== '' ? PACKAGE.name : 'dsh-icon-library'
 
 import { createStore, readEntrySvg, LIB_DIR, MANIFEST_FILE, normalizeName, refName } from './store.js'
 
@@ -629,6 +632,11 @@ export function apply(ctx, config = {}) {
 	// content hash so an edit naturally misses; bounded so a churn-heavy library
 	// cannot grow it forever.
 	const legacySignatureCache = new Map()
+	// The registry check is shared by every panel: six hours is plenty for a
+	// version hint, and a failed attempt waits ten minutes before trying again.
+	const UPDATE_TTL = 6 * 60 * 60 * 1000
+	const UPDATE_RETRY = 10 * 60 * 1000
+	let updateState = { at: 0, latest: '', registry: '' }
 
 	function forgetScans(root) {
 		scanCache.delete(root)
@@ -1057,6 +1065,29 @@ export function apply(ctx, config = {}) {
 				revision,
 				version: PLUGIN_VERSION,
 				graphics,
+			})
+		})
+
+		route('update', async (req, res) => {
+			if (req.method !== 'GET') return json(res, 405, { status: 'error', error: { code: 'method-not-allowed' } })
+			const now = Date.now()
+			const fresh = updateState.latest !== '' && now - updateState.at < UPDATE_TTL
+			const retryLater = updateState.latest === '' && now - updateState.at < UPDATE_RETRY
+			if (!fresh && !retryLater) {
+				const found = await latestPublished({ name: PLUGIN_NAME })
+				updateState = {
+					at: now,
+					latest: found ? found.version : '',
+					registry: found ? found.registry : '',
+				}
+			}
+			const latest = updateState.latest
+			ok(res, {
+				current: PLUGIN_VERSION,
+				latest,
+				available: latest !== '' && isNewer(latest, PLUGIN_VERSION),
+				registry: updateState.registry,
+				checkedAt: updateState.at,
 			})
 		})
 

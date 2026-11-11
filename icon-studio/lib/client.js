@@ -40,6 +40,31 @@ window.__ModuleLoader__.load({
     /** Replaced by makeT(ctx) in apply(); components fall back to it. */
     let translate = (key) => ZH[key] || key
 
+    /**
+     * Where "update available" leads. The latest harness exposes the Plugins
+     * page through `pluginNavigation.openBundle`; older ones only offer the whole
+     * panel, and without either the click falls back to a hint.
+     */
+    const PACKAGE_NAME = 'dsh-icon-library'
+    let pluginNavigator = null
+    let layoutService = null
+    function openPluginPanel(t, say) {
+      try {
+        if (pluginNavigator && typeof pluginNavigator.openBundle === 'function') {
+          pluginNavigator.openBundle(PACKAGE_NAME)
+          return true
+        }
+        if (layoutService && typeof layoutService.selectPanel === 'function') {
+          layoutService.selectPanel('plugins')
+          return true
+        }
+      } catch (error) {
+        console.warn('[dsh-icon-studio] could not open the plugin panel', error)
+      }
+      if (say) say(t('updateManual'))
+      return false
+    }
+
 
     /* ───────────────────────────── copy ───────────────────────────── */
 
@@ -120,6 +145,9 @@ window.__ModuleLoader__.load({
       listCount: '{n} 个图标',
       listNoMatch: '没有匹配的图标',
       listEmptyPaste: '暂无图标，复制 SVG，粘贴到这里即可入库。',
+      updateBadge: '可更新 {version}',
+      updateTitle: '打开插件面板更新',
+      updateManual: '请在插件面板里更新 dsh-icon-library',
       listNoMatchHint: '换个词试试。',
       importName: '名称',
       importNote: '应用规则',
@@ -260,6 +288,9 @@ window.__ModuleLoader__.load({
       listCount: '{n} icons',
       listNoMatch: 'No matching icon',
       listEmptyPaste: 'No icons yet — copy an SVG and paste it here to add it.',
+      updateBadge: 'Update {version}',
+      updateTitle: 'Open the plugin panel to update',
+      updateManual: 'Update dsh-icon-library in the plugin panel',
       listNoMatchHint: 'Try another word.',
       importName: 'Name',
       importNote: 'Application rule',
@@ -368,6 +399,9 @@ window.__ModuleLoader__.load({
 /* Footer row: it follows the last card instead of pinning itself to the panel. */
 .gs-listfoot{display:flex;align-items:center;gap:8px;margin-top:auto;padding:2px 16px 14px;font-size:11px;color:var(--dsw-alias-label-tertiary)}
 .gs-listfoot.dim{opacity:.4}
+.gs-update{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 7px;border:0;border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-brand-primary,#4d6bfe) 14%,transparent);color:var(--dsw-alias-brand-primary,#4d6bfe);font:inherit;font-size:10px;font-weight:600;white-space:nowrap;cursor:pointer}
+.gs-update:hover{background:color-mix(in srgb,var(--dsw-alias-brand-primary,#4d6bfe) 22%,transparent)}
+.gs-update-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
 .gs-foot-count{color:var(--dsw-alias-label-secondary)}
 .gs-foot-spacer{flex:1}
 .gs-foot-version{color:var(--dsw-alias-label-tertiary)}
@@ -729,6 +763,7 @@ window.__ModuleLoader__.load({
       const workspace = props.workspace || (props.session && (props.session.workspace || props.session.cwd)) || undefined
       const target = workspace ? { sessionId, workspace } : { sessionId }
       const [library, setLibrary] = useState(null)
+      const [update, setUpdate] = useState(null)
       const [loading, setLoading] = useState(true)
       const [initializing, setInitializing] = useState(false)
       const [error, setError] = useState('')
@@ -913,6 +948,19 @@ window.__ModuleLoader__.load({
       const pasteRef = useRef(pasteImport)
       pasteRef.current = pasteImport
 
+      // A newer published version, when the host can prove one. Cached for hours
+      // on the host, so this is one cheap read per panel mount.
+      useEffect(() => {
+        let alive = true
+        api.get('update')
+          .then((result) => {
+            if (!alive || !result || result.available !== true) return
+            setUpdate({ available: true, latest: String(result.latest || '') })
+          })
+          .catch(() => { /* the hint is optional */ })
+        return () => { alive = false }
+      }, [])
+
       useEffect(() => {
         if (view !== 'list') return
         const onPaste = (event) => {
@@ -1009,6 +1057,8 @@ window.__ModuleLoader__.load({
           workspace,
           library,
           version: library && library.version ? String(library.version) : '',
+          update,
+          onUpdate: () => openPluginPanel(t, say),
           loading,
           error,
           onOpen: openGraphicByName,
@@ -1305,6 +1355,16 @@ window.__ModuleLoader__.load({
       const footer = (extra = '') => h('div', { className: `gs-listfoot${extra}` },
         h('span', { className: 'gs-foot-count' }, t('listCount', { n: filtered.length })),
         h('span', { className: 'gs-foot-spacer' }),
+        // A newer release exists: one click lands on this plugin's page in the
+        // Plugins panel, where the harness already updates it.
+        props.update && props.update.available
+          ? h('button', {
+            type: 'button',
+            className: 'gs-update',
+            title: t('updateTitle'),
+            onClick: () => { if (props.onUpdate) props.onUpdate() },
+          }, h('span', { className: 'gs-update-dot' }), t('updateBadge', { version: props.update.latest }))
+          : null,
         props.version ? h('span', { className: 'gs-foot-version' }, `v${props.version}`) : null)
 
       return h(react.Fragment, null,
@@ -2968,6 +3028,21 @@ window.__ModuleLoader__.load({
       try {
         ctx.effect(() => ctx.locale.register(NS, { zh: plain(ZH), en: plain(EN) }), 'dsh-icon-studio: copy')
       } catch (err) { console.warn('[dsh-icon-studio] locale', err) }
+
+      // Both are optional: an older harness has no plugin page to jump to, and
+      // a missing service must never stop the tab from registering.
+      try {
+        ctx.inject(['pluginNavigation'], (scope) => {
+          const navigation = scope.get('pluginNavigation')
+          if (navigation && typeof navigation.openBundle === 'function') pluginNavigator = navigation
+        })
+        ctx.inject(['layout'], (scope) => {
+          const layout = scope.get('layout')
+          if (layout && typeof layout.selectPanel === 'function') layoutService = layout
+        })
+      } catch (error) {
+        console.warn('[dsh-icon-studio] plugin navigation unavailable', error)
+      }
 
       ctx.inject(['sidebarRightTabs'], (scope) => {
         const tabs = scope.get('sidebarRightTabs')
