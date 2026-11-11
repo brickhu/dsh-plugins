@@ -40,64 +40,14 @@ window.__ModuleLoader__.load({
     /** Replaced by makeT(ctx) in apply(); components fall back to it. */
     let translate = (key) => ZH[key] || key
 
-    /** Icons are square; the working canvas is the 24-unit icon grid. */
-    const ICON_CANVAS = 24
-
-    const POLYGON_SIDES = 5
-
-    const SHAPE_TOOLS = [
-      ['rect', 'R'],
-      ['line', 'L'],
-      ['ellipse', 'O'],
-      ['polygon', 'G'],
-    ]
-    const PATH_TOOLS = [
-      ['pen', 'P'],
-      ['node', 'A'],
-    ]
-    /** Tool families: each renders one button plus a flyout with its members. */
-    const TOOL_GROUPS = [
-      { id: 'select', tools: [['select', 'V']] },
-      { id: 'path', tools: PATH_TOOLS },
-      { id: 'shape', tools: SHAPE_TOOLS },
-      { id: 'text', tools: [['text', 'T']], disabled: true },
-    ]
-    const GROUP_OF_TOOL = (id) => (TOOL_GROUPS.find((group) => group.tools.some(([toolId]) => toolId === id)) || TOOL_GROUPS[0]).id
 
     /* ───────────────────────────── copy ───────────────────────────── */
 
     const ZH = {
       panelTitle: 'Icons',
-      studioTitle: 'dsh-icon-library',
-      panelSub: '项目图标库',
       guideDesc: '当前项目的图标库，存放在根目录 `.icons.json`；点开任意图标管理名称与应用规则，或粘贴新 SVG 替换图形',
       listSearch: '搜索名称与应用规则',
-      logoBadge: '插件 logo：',
-      logoSetHint: '设为插件 logo（写入插件代码）',
-      logoPushHint: '图标已改动，点击同步到插件代码',
-      logoIsSet: '已同步',
-      logoPushAction: '推送',
-      logoPullAction: '拉取',
-      logoPullHint: '从插件代码读取当前 logo',
-      logoPulled: ({ name }) => `已从代码拉取：${name}`,
-      logoPullMiss: '插件代码里的 logo 不在当前图标库中',
-      logoPullEmpty: '插件代码里还没有 logo',
-      logoInSync: '已推送',
-      syncTitle: '源码 ↔ 代码',
-      syncStale: ({ n }) => `${n} 个图标待推送`,
-      syncClean: '代码与源码一致',
-      syncPush: '推送',
-      syncPushAll: '全部推送',
-      syncPull: '拉取代码中的图标',
-      syncStaleTag: '有差异',
-      syncCleanTag: '一致',
-      syncCode: '代码',
-      syncSource: '源码',
-      syncSites: ({ n }) => `${n} 处`, 
-      logoPushed: '已写入插件代码，重载插件后生效',
-      logoSynced: '插件 logo 已是最新',
       listNew: '添加',
-      listImport: '粘贴 SVG',
       listLibrary: '从图标库导入',
       scanTitle: '工作区里的所有 SVG',
       scanBar: '{workspace} 中有 {n} 个未命名的 SVG',
@@ -105,36 +55,17 @@ window.__ModuleLoader__.load({
       scanBarRescan: '重新扫描工作区',
       scanBarScanning: '正在扫描 {workspace} 中的 SVG …',
       scanBarWorkspace: '当前工作区',
-      scanUnnamed: '未命名 SVG',
       scanAdd: '添加这个图标',
-      scanAddTitle: '为这个图标命名',
-      scanAddHint: '这个图形已经在工作区代码里出现，给它一个名称即可加入图标库并自动关联这些引用。',
-      scanAddConfirm: '添加',
       scanImported: '已添加：{name}',
       scanDesc: '{n} 个不同的 SVG 图形',
       scanExcluded: '另有 {n} 个非正方形 SVG 已排除（这个库只收方形画框）',
-      scanSites: '{n} 处',
       scanExisting: '已在库中：{name}',
-      scanNameHint: '唯一名称',
-      scanNeedName: '先给至少一个图标填名称',
-      scanDup: '名称已被占用：{name}',
       scanNone: 'UI 代码里没有找到内联 SVG。',
-      scanScanning: '正在扫描…',
       scanAgain: '重新扫描',
-      scanImport: '导入 {n} 个',
-      scanDone: '已导入扫描到的图标并建立引用索引',
-      supplyTitle: '从图标库导入',
       supplySearchHint: '搜索图标（如 trash、home）',
       supplySearch: '搜索',
-      supplyAllSets: '全部图标集',
-      supplyEmpty: '输入关键词，同时搜索 Iconify 与 IconMCP',
       supplyNoMatch: '没有匹配的结果',
-      supplySelected: '已选 {n} 个',
-      supplyAdd: '添加 {n} 个到图标库',
-      supplyImported: '已导入 {n} 个图标',
-      supplySkipped: '跳过重复 {n} 个',
       supplySets: '图标集',
-      supplySet: '图标集',
       supplySearchResults: '搜索结果',
       supplyBack: '返回图标集',
       supplyPrev: '上一页',
@@ -142,24 +73,18 @@ window.__ModuleLoader__.load({
       supplyNoSets: '图标集列表加载失败或为空',
       supplyCount: '{n} 个图标',
       supplyAddOne: '添加到图标库',
-      supplyAddedOne: '已添加：{name}',
-      supplyExists: '已在库中：{name}',
       supplyAddFailed: '添加失败',
       supplyAddTitle: '添加到图标库',
       supplyAddConfirm: '添加',
-      supplyAddStyle: '风格',
       supplyAddStyleOutline: '描边',
       supplyAddStyleSolid: '实心',
-      supplyAddStyleOnly: '这家只有描边画法，没有实心版本',
       supplyAddShapeExists: '库里已有同样图形：{of}。换个名字，或先在图层里删掉它。',
       commonCancel: '取消',
       supplyAdded: '已添加',
-      supplySame: '已在库中：{name}',
       listMore: '更多',
       listAi: 'AI 生成图标',
       aiPromptLabel: '描述',
       aiPromptPlaceholder: '描述你要的图标，例如：带锁的日历',
-      aiHint: '按当前库的画布、线宽和画法风格生成；生成后进入入库对话框，可改名称与应用规则。⌘↵ 生成。',
       aiPromptHint: '描述你要的图标。生成后才会打开入库框，可改名称和应用规则。⌘↵ 生成。',
       aiDraftReady: '草稿已生成。确认名称和应用规则后入库。',
       aiGenerate: '生成',
@@ -170,12 +95,6 @@ window.__ModuleLoader__.load({
       aiTooLong: '生成被长度限制截断，请再试一次。',
       aiRefs: '参考了 {n} 个库外同类图标（{sources}）的构图，画法仍是本库自己的。',
       aiWarnCrossing: '有 {n} 处描边互相穿过：两个形状可能叠在一起了，建议重画。',
-      aiFeedback: '哪里不对（重画时告诉模型）',
-      aiFeedbackPlaceholder: '例如：线穿过了另一个形状 / 锁应该更小 / 和库里线宽不一致',
-      aiRetry: '重画',
-      aiUseIt: '用这张入库',
-      aiBack: '改描述',
-      initDesc: '这个工作区还没有图标库。初始化会在项目根目录创建 `.icons.json`，之后即可扫描代码、粘贴 SVG，或从内置供给库（Iconify / IconMCP）导入图标。',
       initAction: '初始化图标库',
       initName: 'dsh-icon-library',
       initSlogan: '在工作区创建一个可供 Agent 消费的图标库。',
@@ -195,62 +114,23 @@ window.__ModuleLoader__.load({
       cardCopyName: 'Copy Name',
       listDeleteIcon: 'Delete The Icon',
       listExportSvg: 'Export as SVG',
-      pushMenu: '推送',
-      pushTitle: '推送更新',
-      pushOld: '代码中的旧图标',
-      pushNew: '库中的新图标',
-      pushCount: '将更新 {n} 处引用',
-      pushConfirm: '推送',
-      pushNoPreview: '没有可显示的旧图形',
       listSvgCopied: '已复制 SVG',
-      listDragDelete: '拖到这里删除',
       listCopyRef: '复制引用',
-      listDragHint: '拖到输入框可插入名称',
       listCopied: '已复制：{name}',
       listCount: '{n} 个图标',
       listNoMatch: '没有匹配的图标',
       listNoMatchHint: '换个词试试。',
-      listUsage: '使用位置',
-      listApply: '应用更新',
-      listApplied: '已重写 {n} 处 @asset 内联',
-      listAppliedNone: '没有找到带 @asset 标记的内联处',
-      listUsageNone: '还没有代码引用这个库',
-      listDeleteHint: '删除请用 git 或文件管理器（插件不改动删除）',
-      createWidth: '宽',
-      createHeight: '高',
-      createCancel: '取消',
-      createSize: '{w} × {h}',
-      importPaste: '把 SVG 源码粘到这里（支持 Figma 导出的 transform / 合并路径 / style）',
-      importParse: '解析并预览',
       importName: '名称',
       importNote: '应用规则',
       importNoteHint: '选填：它是什么、什么时候用、什么时候别用。',
-      importSave: '规范化并入库',
-      importWarn: '规范化提示',
-      importElements: '{n} 个可选中元素',
-      importDup: '库里已有内容相同的图标：{name}',
       importedToast: '已导入 {name}',
       importDupOpen: '库里已有相同的图标「{name}」，已打开它',
-      importDupKeep: '库里已有相同的图标「{name}」',
-      importDupCopy: '内容与「{of}」相同，已另存为 {name}',
-      namingIcon: '识别图形并命名…',
-      magicName: '用 LLM 命名',
-      maskExpand: '展开蒙版',
-      maskExpanded: '已展开为 {n} 个可编辑元素',
-      maskExpandFailed: '展开失败：{msg}',
-      namedAs: '命名为 {name}',
-      namingFailed: '没能识别出名字：{msg}',
       importNeedSvg: '先粘一段 SVG',
-      pasteSource: '粘贴的 SVG',
-      workspaceSource: '工作区 SVG',
-      aiSource: 'AI 草稿',
       importNeedName: '先填名称',
       importNameTaken: '名称已被占用：{name}',
       importNameHint: '必填、库里唯一，可中文',
       importNaming: '正在自动命名…',
-      importUseExisting: '打开已有的「{name}」',
       editorBack: '返回列表',
-      editorUntitled: '未命名',
       editorSave: '保存',
       deleteTitle: '删除这个图标？',
       deleteBody: '「{name}」会从库里移除，清单和生成层同步更新，磁盘上的 SVG 也会删掉。',
@@ -259,71 +139,11 @@ window.__ModuleLoader__.load({
       deleteConfirm: '删除',
       deletedToast: '已删除 {name}',
       deleteFileKept: '清单已更新，但文件没删掉：{file}',
-      editorSaving: '保存中…',
       editorSaved: '已保存到 {file}',
-      editorSavedShort: '已保存',
-      editorDirty: '未保存',
-      editorSaveFailedShort: '保存失败',
-      editorUnsaved: '未保存的修改',
       editorName: '名称',
-      editorProps: '属性',
-      editorMore: '更多',
-      editorGroupPath: '路径工具',
-      editorGroupShape: '形状工具',
-      editorGroupText: '文本工具',
-      editorShapes: '形状',
-      editorDragToDraw: '拖拽绘制',
-      editorZoomOut: '缩小',
-      editorZoomIn: '放大',
-      editorCanvas: '画布',
-      canvasSize: '尺寸',
-      canvasZoom: '缩放',
-      canvasShapes: '元素',
-      canvasGrid: '网格',
-      canvasSnap: '吸附',
-      editorLayerPane: '图层',
-      editorUnion: '合并为形状',
       copySvg: '复制 SVG',
-      copyCanvasSvg: '复制整张 SVG',
-      copiedSvg: '已复制 SVG',
-      editorSplit: '打散为路径',
-      editorSoon: '即将支持',
-      editorCrop: '裁切到内容',
-      editorTools: '工具',
-      toolNode: '节点',
-      toolSelect: '选择',
-      toolPen: '钢笔',
-      toolRect: '矩形',
-      toolEllipse: '圆',
-      toolLine: '线',
-      toolPolygon: '多边形',
-      editorLayers: '图层',
-      editorNoLayers: '还没有元素',
-      editorFill: '填充',
-      editorStroke: '描边',
-      editorWidth: '线宽',
-      editorOpacity: '不透明度',
-      editorAuto: 'currentColor',
-      editorNone: '无',
-      editorAlign: '对齐与分布',
-      canvasCopies: '代码引用',
-      canvasCopiesPush: '推送',
-      canvasCopiesStale: ({ n }) => `${n} 处待更新`,
-      canvasCopiesClean: '代码中的拷贝已是最新',
-      copiesPushed: ({ n }) => `已推送：重写了 ${n} 处拷贝`,
-      copiesPushedNone: '已经是源码的最新版本',
-      canvasCopiesNone: '工程里还没有这份资源的拷贝：`// @asset <name>` 或内容相同的独立 .svg 文件都算',
-      editorNote: '应用规则',
-      pasteDone: '已粘贴 {n} 个元素',
-      pasteEmpty: '这段 SVG 里没有可用的矢量元素',
       pasteFailed: '粘贴失败：{msg}',
-      editorNoteHint: '选填。写清它是什么、什么时候用、什么时候别用，agent 会靠这段文字选图。',
-      editorRule: '应用规则',
-      editorRuleHint: '它是什么、什么时候用、什么时候别用；用户可能怎么称呼它。',
-      detailReplace: 'SVG',
       detailReplaceHint: '粘贴新的 SVG，保存后原地替换当前图形；旧版本保留，可撤销。',
-      detailReplaceApply: '替换',
-      detailReplaced: '图形已替换，旧版本可撤销',
       detailUndo: '撤销替换',
       detailUndoHint: '撤销编辑中的上一步',
       detailRedo: '重做',
@@ -337,9 +157,7 @@ window.__ModuleLoader__.load({
       detailInfo: 'Info',
       detailMeta: '元信息',
       detailSvgCode: 'SVG',
-      metaFile: '文件',
       metaViewBox: 'ViewBox',
-      metaSource: '来源',
       metaCreated: '创建时间',
       metaUpdated: '修改时间',
       metaSize: '文件尺寸',
@@ -350,73 +168,25 @@ window.__ModuleLoader__.load({
       derivStale: '另有 {n} 条派生因代码改动无法定位，重新打开图标会重新扫描。',
       detailInputDescription: '输入应用规则，例如：用于删除、不要用于撤销',
       detailGenerateHint: '用模型生成名称和应用规则',
-      detailGenerateNone: '模型没有返回结果',
       detailGenerateError: '生成失败：{reason}',
       detailGenerated: '已生成名称和应用规则',
-      detailUndone: '已回到上一版图形',
       detailPointers: '{n} 处派生',
       detailPointersOne: '{n} 处派生',
-      detailScanFiles: '扫描了 {n} 个文件',
       detailDupes: '库里还有同形图标：{names}',
       detailNeedName: '先填名称',
-      detailFootHint: '名称与规则是 agent 选图的依据',
-      editorKeywords: '关键词',
-      editorKeywordsHint: '逗号分隔；只在名字不好搜时加，如 close, dismiss',
-      editorInfo: '信息',
-      editorFit: '适应画布',
-      editorSnap: '吸附网格',
-      editorGrid: '网格',
-      editorConfirmTitle: '这个图标还有未保存的修改',
-      editorConfirmBody: '返回列表前要保存吗？',
-      editorConfirmSave: '保存并返回',
-      editorConfirmDrop: '放弃修改',
       editorConfirmCancel: '继续编辑',
-      editorEmpty: '空白画布：用工具画一个，或直接粘贴 SVG（⌘V）',
-      editorSaveFailed: '保存失败：{msg}',
-      editorNoElements: '画布上还没有元素，没法保存',
-      editorSelectHint: '选择一个元素来改填充、描边和线宽',
-      editorMulti: '{n} 个已选中',
-      editorClosePen: '回车 / 双击结束，点起点闭合',
       commonLoading: '加载中…',
       commonError: '出错了：{msg}',
       commonRetry: '重试',
       commonClose: '关闭',
-      commonDelete: '删除',
-      commonEmpty: '空',
+
     }
 
     const EN = {
       panelTitle: 'Icons',
-      studioTitle: 'dsh-icon-library',
-      panelSub: 'Project icon library',
       guideDesc: 'This project\'s icon library in `.icons.json` at the root; open an icon to manage its name and application rule, or paste a new SVG to replace the artwork',
       listSearch: 'Search name and rule',
-      logoBadge: 'Plugin logo: ',
-      logoSetHint: 'Use as the plugin logo (writes the plugin source)',
-      logoPushHint: 'Changed since the last push — click to sync',
-      logoIsSet: 'in sync',
-      logoPushAction: 'Push',
-      logoPullAction: 'Pull',
-      logoPullHint: 'Read the mark published in the plugin source',
-      logoPulled: ({ name }) => `Pulled from code: ${name}`,
-      logoPullMiss: 'The mark in the plugin source matches no icon in this library',
-      logoPullEmpty: 'The plugin source has no mark yet',
-      logoInSync: 'pushed',
-      syncTitle: 'Source ↔ code',
-      syncStale: ({ n }) => `${n} icon${n === 1 ? '' : 's'} to push`,
-      syncClean: 'Code matches the source',
-      syncPush: 'Push',
-      syncPushAll: 'Push all',
-      syncPull: 'Pull icons from code',
-      syncStaleTag: 'drifted',
-      syncCleanTag: 'in sync',
-      syncCode: 'code',
-      syncSource: 'source',
-      syncSites: ({ n }) => `${n} site${n === 1 ? '' : 's'}`, 
-      logoPushed: 'Written to the plugin source — reload the plugin',
-      logoSynced: 'Plugin logo is already current',
       listNew: 'Add',
-      listImport: 'Paste SVG',
       listLibrary: 'Add from library',
       scanTitle: 'All svgs in the workspace',
       scanBar: '{n} unnamed SVGs in {workspace}',
@@ -424,36 +194,17 @@ window.__ModuleLoader__.load({
       scanBarRescan: 'Re-scan the workspace',
       scanBarScanning: 'Scanning SVGs in {workspace} …',
       scanBarWorkspace: 'this workspace',
-      scanUnnamed: 'Unnamed SVG',
       scanAdd: 'Add this icon',
-      scanAddTitle: 'Name this icon',
-      scanAddHint: 'This artwork already appears in the workspace; give it a name to add it to the library and link these references.',
-      scanAddConfirm: 'Add',
       scanImported: 'Added: {name}',
       scanDesc: '{n} distinct SVG shapes',
       scanExcluded: '{n} non-square SVGs were left out — this library keeps square canvases only',
-      scanSites: '{n} sites',
       scanExisting: 'Already in the library: {name}',
-      scanNameHint: 'Unique name',
-      scanNeedName: 'Name at least one icon first',
-      scanDup: 'Name already in use: {name}',
       scanNone: 'No inline SVG found in UI code.',
-      scanScanning: 'Scanning…',
       scanAgain: 'Scan again',
-      scanImport: 'Import {n}',
-      scanDone: 'Imported the scanned icons and indexed their references',
-      supplyTitle: 'Add from library',
       supplySearchHint: 'Search icons (trash, home, …)',
       supplySearch: 'Search',
-      supplyAllSets: 'All icon sets',
-      supplyEmpty: 'Search Iconify and IconMCP at once',
       supplyNoMatch: 'No matches found',
-      supplySelected: '{n} selected',
-      supplyAdd: 'Add {n} to library',
-      supplyImported: 'Imported {n} icons',
-      supplySkipped: 'skipped {n} duplicates',
       supplySets: 'Icon sets',
-      supplySet: 'Icon set',
       supplySearchResults: 'Search results',
       supplyBack: 'Back to icon sets',
       supplyPrev: 'Previous',
@@ -461,24 +212,18 @@ window.__ModuleLoader__.load({
       supplyNoSets: 'Could not load icon sets',
       supplyCount: '{n} icons',
       supplyAddOne: 'Add to library',
-      supplyAddedOne: 'Added: {name}',
-      supplyExists: 'Already in the library: {name}',
       supplyAddFailed: 'Could not add the icon',
       supplyAddTitle: 'Add to library',
       supplyAddConfirm: 'Add',
-      supplyAddStyle: 'Style',
       supplyAddStyleOutline: 'Outline',
       supplyAddStyleSolid: 'Solid',
-      supplyAddStyleOnly: 'Only an outline drawing is available for this icon',
       supplyAddShapeExists: 'The same drawing is already in the library as {of}. Pick another name, or delete that one first.',
       commonCancel: 'Cancel',
       supplyAdded: 'Added',
-      supplySame: 'Already in the library: {name}',
       listMore: 'More',
       listAi: 'AI generate',
       aiPromptLabel: 'Describe it',
       aiPromptPlaceholder: 'Describe the icon, e.g. a calendar with a lock',
-      aiHint: 'Drawn in this library\'s canvas, stroke width and style; the draft then opens the add dialog so name and rule can be edited. ⌘↵ to generate.',
       aiPromptHint: 'Describe the icon. The add dialog only opens once a draft exists, so name and rule can be reviewed. ⌘↵ to generate.',
       aiDraftReady: 'Draft ready. Review the name and rule, then save it.',
       aiGenerate: 'Generate',
@@ -489,13 +234,7 @@ window.__ModuleLoader__.load({
       aiTooLong: 'The answer was cut off by the token limit — try again.',
       aiRefs: 'Arrangement studied from {n} icons in {sources}; the drawing itself is this library\'s own.',
       aiWarnCrossing: '{n} pairs of strokes cross each other — the shapes may be laid on top of one another. Consider a redraw.',
-      aiFeedback: 'What is wrong (told to the model on redraw)',
-      aiFeedbackPlaceholder: 'e.g. a line passes through another shape / the lock should be smaller',
-      aiRetry: 'Redraw',
-      aiUseIt: 'Use this drawing',
-      aiBack: 'Edit prompt',
       listEmpty: 'This workspace has no icon library yet',
-      initDesc: 'This workspace has no icon library yet. Initialising creates `.icons.json` at the project root; after that you can scan code, paste an SVG, or import from the built-in supply library (Iconify / IconMCP).',
       initAction: 'Initialise icon library',
       initName: 'dsh-icon-library',
       initSlogan: 'Create a workspace icon library that agents can consume.',
@@ -514,62 +253,23 @@ window.__ModuleLoader__.load({
       cardCopyName: 'Copy Name',
       listDeleteIcon: 'Delete The Icon',
       listExportSvg: 'Export as SVG',
-      pushMenu: 'Push',
-      pushTitle: 'Push update',
-      pushOld: 'Copy in code',
-      pushNew: 'Library source',
-      pushCount: 'Updates {n} reference(s)',
-      pushConfirm: 'Push',
-      pushNoPreview: 'No preview available',
       listSvgCopied: 'SVG copied',
-      listDragDelete: 'Drop here to delete',
       listCopyRef: 'Copy reference',
-      listDragHint: 'Drag into the chat box to insert the name',
       listCopied: 'Copied: {name}',
       listCount: '{n} icons',
       listNoMatch: 'No matching icon',
       listNoMatchHint: 'Try another word.',
-      listUsage: 'Used in',
-      listApply: 'Apply update',
-      listApplied: 'Rewrote {n} @asset inline blocks',
-      listAppliedNone: 'No @asset block found',
-      listUsageNone: 'No code references this library yet',
-      listDeleteHint: 'Delete with git or your file manager (the plugin never deletes files)',
-      createWidth: 'W',
-      createHeight: 'H',
-      createCancel: 'Cancel',
-      createSize: '{w} × {h}',
-      importPaste: 'Paste SVG markup (transforms, merged paths and styles are normalised)',
-      importParse: 'Parse and preview',
       importName: 'Name',
       importNote: 'Application rule',
       importNoteHint: 'What it is, when to use it, when not to.',
-      importSave: 'Normalise and save',
-      importWarn: 'Normalisation notes',
-      importElements: '{n} selectable elements',
-      importDup: 'The library already has identical content: {name}',
       importedToast: 'Imported {name}',
       importDupOpen: 'Already in the library as "{name}" — opened it',
-      importDupKeep: 'Already in the library: {name}',
-      importDupCopy: 'Same artwork as "{of}" — saved a copy as {name}',
-      namingIcon: 'Naming the icon…',
-      magicName: 'Name with the model',
-      maskExpand: 'Expand mask',
-      maskExpanded: 'Expanded into {n} editable elements',
-      maskExpandFailed: 'Expand failed: {msg}',
-      namedAs: 'Named {name}',
-      namingFailed: 'Could not name it: {msg}',
       importNeedSvg: 'Paste an SVG first',
-      pasteSource: 'Pasted SVG',
-      workspaceSource: 'Workspace SVG',
-      aiSource: 'AI draft',
       importNeedName: 'Name is required',
       importNameTaken: 'Name already in use: {name}',
       importNameHint: 'Required, unique, Chinese OK',
       importNaming: 'Naming automatically…',
-      importUseExisting: 'Open the existing "{name}"',
       editorBack: 'Back to list',
-      editorUntitled: 'Untitled',
       editorSave: 'Save',
       deleteTitle: 'Delete this icon?',
       deleteBody: '“{name}” leaves the library and its inline body is removed from `.icons.json`.',
@@ -578,71 +278,11 @@ window.__ModuleLoader__.load({
       deleteConfirm: 'Delete',
       deletedToast: 'Deleted {name}',
       deleteFileKept: 'Manifest updated, but the file is still there: {file}',
-      editorSaving: 'Saving…',
       editorSaved: 'Saved to {file}',
-      editorSavedShort: 'Saved',
-      editorDirty: 'Unsaved',
-      editorSaveFailedShort: 'Save failed',
-      editorUnsaved: 'Unsaved changes',
       editorName: 'Name',
-      editorProps: 'Properties',
-      editorMore: 'More',
-      editorGroupPath: 'Path tools',
-      editorGroupShape: 'Shape tools',
-      editorGroupText: 'Text tools',
-      editorShapes: 'Shapes',
-      editorDragToDraw: 'Drag to draw',
-      editorZoomOut: 'Zoom out',
-      editorZoomIn: 'Zoom in',
-      editorCanvas: 'Canvas',
-      canvasSize: 'Size',
-      canvasZoom: 'Zoom',
-      canvasShapes: 'Elements',
-      canvasGrid: 'Grid',
-      canvasSnap: 'Snap',
-      editorLayerPane: 'Layer',
-      editorUnion: 'Union to shape',
       copySvg: 'Copy SVG',
-      copyCanvasSvg: 'Copy full SVG',
-      copiedSvg: 'SVG copied',
-      editorSplit: 'Break apart',
-      editorSoon: 'coming soon',
-      editorCrop: 'Crop to content',
-      editorTools: 'Tools',
-      toolNode: 'Node',
-      toolSelect: 'Select',
-      toolPen: 'Pen',
-      toolRect: 'Rectangle',
-      toolEllipse: 'Ellipse',
-      toolLine: 'Line',
-      toolPolygon: 'Polygon',
-      editorLayers: 'Layers',
-      editorNoLayers: 'No elements yet',
-      editorFill: 'Fill',
-      editorStroke: 'Stroke',
-      editorWidth: 'Width',
-      editorOpacity: 'Opacity',
-      editorAuto: 'currentColor',
-      editorNone: 'None',
-      editorAlign: 'Align & distribute',
-      canvasCopies: 'Code copies',
-      canvasCopiesPush: 'Push',
-      canvasCopiesStale: ({ n }) => `${n} out of date`,
-      canvasCopiesClean: 'Every copy matches the source',
-      copiesPushed: ({ n }) => `Pushed: rewrote ${n} cop${n === 1 ? 'y' : 'ies'}`,
-      copiesPushedNone: 'Already matches the source',
-      canvasCopiesNone: 'No copy of this resource in the code yet (use // @asset <name>)',
-      editorNote: 'Application rule',
-      pasteDone: 'Pasted {n} elements',
-      pasteEmpty: 'That SVG has no usable vector elements',
       pasteFailed: 'Paste failed: {msg}',
-      editorNoteHint: 'What it is, when to use it, when not to. Agents pick by this text.',
-      editorRule: 'Application rule',
-      editorRuleHint: 'What it is, when to use it, when not to — and what a user might call it.',
-      detailReplace: 'SVG',
       detailReplaceHint: 'Paste a new SVG; it replaces the current artwork in place. The previous revision is kept and undoable.',
-      detailReplaceApply: 'Replace',
-      detailReplaced: 'Artwork replaced; the previous revision is undoable',
       detailUndo: 'Undo',
       detailUndoHint: 'Undo the last edit',
       detailRedo: 'Redo',
@@ -656,9 +296,7 @@ window.__ModuleLoader__.load({
       detailInfo: 'Info',
       detailMeta: 'Meta',
       detailSvgCode: 'SVG',
-      metaFile: 'File',
       metaViewBox: 'ViewBox',
-      metaSource: 'Source',
       metaCreated: 'Created',
       metaUpdated: 'Updated',
       metaSize: 'Size',
@@ -669,39 +307,18 @@ window.__ModuleLoader__.load({
       derivStale: '{n} derivations could not be located after code changes; reopen the icon to rescan.',
       detailInputDescription: 'Input rule',
       detailGenerateHint: 'Generate a name and a rule with the model',
-      detailGenerateNone: 'The model returned nothing',
       detailGenerateError: 'Generation failed: {reason}',
       detailGenerated: 'Name and rule generated',
-      detailUndone: 'Back to the previous artwork',
       detailPointers: '{n} derivations',
       detailPointersOne: '{n} derivation',
-      detailScanFiles: 'scanned {n} files',
       detailDupes: 'Same shape also exists as: {names}',
       detailNeedName: 'Name is required',
-      detailFootHint: 'Name and rule are what the agent picks by',
-      editorKeywords: 'Keywords',
-      editorKeywordsHint: 'Comma separated; only when the name is hard to find, e.g. close, dismiss',
-      editorInfo: 'Info',
-      editorFit: 'Fit',
-      editorSnap: 'Snap',
-      editorGrid: 'Grid',
-      editorConfirmTitle: 'This icon has unsaved changes',
-      editorConfirmBody: 'Save before going back?',
-      editorConfirmSave: 'Save and go back',
-      editorConfirmDrop: 'Discard',
       editorConfirmCancel: 'Keep editing',
-      editorEmpty: 'Empty canvas: draw with the tools, or paste an SVG (⌘V)',
-      editorSaveFailed: 'Save failed: {msg}',
-      editorNoElements: 'Nothing on the canvas yet',
-      editorSelectHint: 'Select an element to change fill, stroke and width',
-      editorMulti: '{n} selected',
-      editorClosePen: 'Enter / double-click to finish, click the first point to close',
       commonLoading: 'Loading…',
       commonError: 'Error: {msg}',
       commonRetry: 'Retry',
       commonClose: 'Close',
-      commonDelete: 'Delete',
-      commonEmpty: 'Empty',
+
     }
 
     function makeT(ctx) {
@@ -731,10 +348,7 @@ window.__ModuleLoader__.load({
 .gs-root{position:relative;display:flex;flex-direction:column;height:100%;min-height:0;container-type:inline-size;background:var(--dsw-alias-bg-base,var(--dsw-alias-bg-layer-1));color:var(--dsw-alias-label-primary);font-family:inherit;font-size:12px;line-height:1.45}
 .gs-head{display:flex;align-items:center;gap:8px;min-height:44px;padding:12px 16px 6px;flex:none}
 .gs-head.plain{border-bottom:0}
-.gs-title{font-size:13px;font-weight:600;white-space:nowrap}
-.gs-count{color:var(--dsw-alias-label-secondary);font-size:11px;white-space:nowrap}
 .gs-spacer{flex:1;min-width:0}
-.gs-sub{color:var(--dsw-alias-label-secondary);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:34%}
 .gs-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;height:28px;padding:0 9px;border:.5px solid transparent;border-radius:7px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;cursor:pointer;white-space:nowrap;flex:none}
 .gs-btn:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
 .gs-btn:disabled{opacity:.4;pointer-events:none}
@@ -746,19 +360,12 @@ window.__ModuleLoader__.load({
 .gs-btn.icon{width:28px;padding:0}
 .gs-btn.danger{color:var(--dsw-alias-state-error-primary,#e5484d)}
 .gs-btn svg{width:15px;height:15px;flex:none}
-.gs-search{flex:1;min-width:120px;max-width:340px;height:28px;padding:0 10px;border-radius:7px;border:.5px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));background:var(--dsw-alias-bg-layer-1);color:inherit;font:inherit;outline:none}
-.gs-search:focus{border-color:var(--dsw-alias-brand-primary,#4d6bfe)}
-.gs-toolbar2{display:flex;align-items:center;gap:6px;padding:8px 12px;flex:none;flex-wrap:wrap}
 /* Gallery of icons: no card chrome, icon centred, one truncated name below. */
 .gs-listwrap{flex:1;min-height:80vh;overflow:auto;display:flex;flex-direction:column}
 .gs-grid{position:relative;display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:12px;padding:4px 16px 16px;overflow:visible;flex:none;align-content:start}
 /* Footer row: it follows the last card instead of pinning itself to the panel. */
 .gs-listfoot{display:flex;align-items:center;gap:8px;margin-top:auto;padding:2px 16px 14px;font-size:11px;color:var(--dsw-alias-label-tertiary)}
 .gs-listfoot.dim{opacity:.4}
-.gs-foot-diff{display:flex;align-items:center;gap:6px;padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer}
-.gs-foot-diff:hover{color:var(--dsw-alias-label-primary)}
-.gs-foot-dot{width:7px;height:7px;border-radius:50%;background:#f5c518;flex:none}
-.gs-foot-dot.warn{background:#f5a623;box-shadow:0 0 0 2px color-mix(in srgb,#f5a623 28%,transparent)}
 .gs-foot-count{color:var(--dsw-alias-label-secondary)}
 .gs-foot-spacer{flex:1}
 .gs-foot-version{color:var(--dsw-alias-label-tertiary)}
@@ -767,7 +374,6 @@ window.__ModuleLoader__.load({
 .gs-card.drag{opacity:.45}
 .gs-card.hit{border-color:var(--dsw-alias-brand-primary,#4d6bfe);animation:gs-hit 1.6s ease-out}
 @keyframes gs-hit{0%{box-shadow:0 0 0 3px color-mix(in srgb,var(--dsw-alias-brand-primary,#4d6bfe) 40%,transparent)}100%{box-shadow:0 0 0 0 transparent}}
-.gs-badge{position:absolute;top:5px;right:7px;font-size:8px;line-height:1;letter-spacing:.04em;padding:3px 4px;border-radius:4px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary)}
 .gs-thumb{display:flex;align-items:center;justify-content:center;width:100%;height:100%;padding:0;background:transparent;color:var(--dsw-alias-label-primary)}
 .gs-thumb svg{width:40px;height:40px;flex:none;max-width:100%;max-height:100%}
 .gs-svg-inline{display:flex;align-items:center;justify-content:center;width:100%;height:100%}
@@ -775,7 +381,6 @@ window.__ModuleLoader__.load({
 .gs-thumb .gs-svg-art{width:34px;height:34px}
 .gs-previewbox .gs-svg-art{width:96px;height:96px}
 .gs-set-sample .gs-svg-art{width:16px;height:16px}
-.gs-scanthumb .gs-svg-art{width:24px;height:24px}
 /* Name sits in the top-left corner, no plate behind it. */
 .gs-card-name{position:absolute;top:7px;left:9px;right:26px;font-size:10px;font-weight:400;line-height:1.4;color:var(--dsw-alias-label-secondary);text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:none;padding:0}
 .gs-card:hover .gs-card-name{color:var(--dsw-alias-label-primary)}
@@ -788,18 +393,6 @@ window.__ModuleLoader__.load({
 .gs-cardmenu button{display:flex;align-items:center;height:26px;padding:0 8px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;text-align:left;cursor:pointer}
 .gs-cardmenu button:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
 .gs-cardmenu button.danger{color:var(--dsw-alias-state-error-primary,#e5484d)}
-/* A card whose code copies are behind the library. */
-.gs-card-stale{position:absolute;right:6px;bottom:6px;width:6px;height:6px;border-radius:50%;background:#f5c518;pointer-events:none;transition:opacity .12s}
-/* The overflow menu owns that corner on hover. */
-.gs-card:hover .gs-card-stale{opacity:0}
-/* Push confirmation: the copy and the source side by side. */
-.gs-pushcmp{display:flex;gap:14px;margin:4px 0 12px}
-.gs-pushcol{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
-.gs-pushcap{font-size:13px;color:var(--dsw-alias-label-tertiary)}
-.gs-pushbox{display:flex;align-items:center;justify-content:center;height:112px;text-align:center;padding:6px;font-size:11px;color:var(--dsw-alias-label-tertiary);border-radius:10px;background:color-mix(in srgb,var(--dsw-alias-label-primary,#8a8f98) 5%,var(--dsw-alias-bg-base,transparent))}
-.gs-pushbox svg{width:48px;height:48px;flex:none}
-.gs-pushlist{margin:2px 0 0;padding:0;list-style:none;max-height:110px;overflow:auto;font-size:13px;color:var(--dsw-alias-label-tertiary)}
-.gs-pushlist li{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* Insertion line while a card is dragged between two others. */
 .gs-insert{position:absolute;width:2px;border-radius:1px;background:var(--dsw-alias-brand-primary,#0d99ff);pointer-events:none;z-index:3}
 /* Drop-to-delete: a soft red glow on the bottom edge, not a solid bar. */
@@ -823,17 +416,10 @@ window.__ModuleLoader__.load({
 .gs-init-logo{display:flex;align-items:center;justify-content:center;width:24px;height:24px}
 .gs-init-logo svg{width:24px;height:24px}
 .gs-init-title{margin:0;font-size:12px}
-.gs-init-desc{max-width:320px;margin:0;color:var(--dsw-alias-label-secondary)}
 .gs-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:40px 16px;text-align:center;color:var(--dsw-alias-label-secondary)}
 .gs-empty h3{font-size:14px;color:var(--dsw-alias-label-primary);font-weight:600;margin:0}
 .gs-empty p{margin:0;max-width:360px}
 .gs-empty .gs-empty-art{width:56px;height:56px;opacity:.5}
-.gs-editor{position:relative;display:flex;flex-direction:column;flex:1;min-height:0}
-.gs-editor-head{display:flex;align-items:center;gap:6px;height:44px;padding:0 10px;flex:none;border-bottom:.5px solid var(--dsw-alias-border-l2,rgba(127,127,127,.2))}
-.gs-name{height:26px;min-width:120px;max-width:240px;padding:0 8px;border:.5px solid transparent;border-radius:6px;background:transparent;color:inherit;font:inherit;font-weight:600;outline:none}
-.gs-name:hover{background:var(--dsw-alias-bg-layer-2)}
-.gs-name:focus{border-color:var(--dsw-alias-brand-primary,#4d6bfe);background:var(--dsw-alias-bg-layer-1)}
-.gs-dot{width:6px;height:6px;border-radius:50%;background:var(--dsw-alias-state-warn-primary,#f5a524);flex:none}
 .gs-info-card.gs-svg-card{padding:0;overflow:hidden}
 .gs-svg-card .gs-previewbox{background:transparent;border-radius:0;padding:14px 12px}
 .gs-info-desc.gs-svg-code{max-height:40vh;padding:8px 12px 10px;line-height:1.5;font-family:inherit;font-size:12px;resize:vertical}
@@ -846,42 +432,6 @@ window.__ModuleLoader__.load({
 .gs-chevron svg{width:12px;height:12px}
 .gs-spinner{width:14px;height:14px;flex:none;margin:0 3px;border-radius:50%;border:1.5px solid var(--dsw-alias-border-l2,rgba(127,127,127,.4));border-top-color:var(--dsw-alias-brand-primary,#0d99ff);animation:gs-spin .7s linear infinite}
 @keyframes gs-spin{to{transform:rotate(360deg)}}
-.gs-status{flex:none;font-size:10px;color:var(--dsw-alias-label-secondary);white-space:nowrap;padding:0 3px}
-.gs-status.dirty{color:var(--dsw-alias-state-warn-primary,#f5a524)}
-.gs-status.ok{color:var(--dsw-alias-state-success-primary,#22c55e)}
-.gs-status.err{color:var(--dsw-alias-state-error-primary,#e5484d)}
-.gs-body{display:flex;flex:1;min-height:0}
-.gs-layers{width:172px;flex:none;border-right:.5px solid var(--dsw-alias-border-l2,rgba(127,127,127,.2));overflow:auto;padding:8px 6px}
-.gs-layers h4{margin:2px 6px 8px;font-size:11px;font-weight:600;color:var(--dsw-alias-label-secondary);text-transform:uppercase;letter-spacing:.06em}
-.gs-layer{display:flex;align-items:center;gap:6px;height:26px;padding:0 7px;border-radius:6px;cursor:pointer;color:var(--dsw-alias-label-secondary);font-size:11px}
-.gs-layer:hover{background:var(--dsw-alias-bg-layer-2)}
-.gs-layer.on{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
-.gs-layer span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.gs-layer-kind{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;flex:none;color:var(--dsw-alias-label-secondary)}
-.gs-layer-kind svg{width:12px;height:12px}
-.gs-layer.on .gs-layer-kind{color:var(--dsw-alias-brand-primary,#0d99ff)}
-.gs-layer i{width:12px;height:12px;flex:none;border-radius:2px;border:.5px solid currentColor;opacity:.6}
-.gs-canvas{position:relative;flex:1;min-width:0;overflow:hidden;background:var(--dsw-alias-bg-base,var(--dsw-alias-bg-layer-2));touch-action:none;user-select:none;-webkit-user-select:none}
-.gs-canvas.pan{cursor:grab}
-.gs-canvas.panning{cursor:grabbing}
-.gs-paper{position:absolute;left:0;top:0;transform-origin:0 0;box-shadow:0 2px 18px rgba(0,0,0,.18),inset 0 0 0 1px var(--dsw-alias-border-l2,rgba(127,127,127,.45));background:var(--dsw-alias-bg-layer-1,#fff);border-radius:2px;color:var(--dsw-alias-label-primary,#111)}
-.gs-paper svg{display:block;width:100%;height:100%;overflow:visible;-webkit-user-drag:none}
-.gs-overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3}
-.gs-tools{position:absolute;left:10px;top:10px;z-index:4;display:flex;gap:2px;padding:3px;border-radius:9px;background:var(--dsw-alias-bg-overlay,rgba(20,20,24,.85));border:.5px solid var(--dsw-alias-border-l2,rgba(127,127,127,.24));box-shadow:0 4px 14px rgba(0,0,0,.18)}
-.gs-tools button{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer}
-.gs-tools button:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
-.gs-tools button.on{background:var(--dsw-alias-brand-primary,#4d6bfe);color:var(--dsw-alias-bg-base)}
-.gs-tools svg{width:15px;height:15px}
-.gs-zoombar{position:absolute;left:10px;bottom:10px;z-index:4;display:flex;align-items:center;gap:2px;padding:3px;border-radius:9px;background:var(--dsw-alias-bg-overlay,rgba(20,20,24,.85));border:.5px solid var(--dsw-alias-border-l2,rgba(127,127,127,.24))}
-.gs-zoombar button{height:24px;min-width:24px;padding:0 6px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;cursor:pointer}
-.gs-zoombar button:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
-.gs-zoombar button.on{color:var(--dsw-alias-brand-primary,#4d6bfe)}
-.gs-zoomval{min-width:42px;text-align:center;font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-secondary)}
-.gs-size{position:absolute;z-index:5;transform:translate(-50%,-50%);padding:2px 6px;border-radius:3px;background:#0d99ff;color:#ffffff;font:10px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.02em;white-space:nowrap;pointer-events:none;user-select:none}
-.gs-canvas-hint{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:4;padding:5px 10px;border-radius:999px;background:var(--dsw-alias-bg-overlay,rgba(20,20,24,.85));color:var(--dsw-alias-label-secondary);font-size:11px;border:.5px solid var(--dsw-alias-border-l2,rgba(127,127,127,.24));pointer-events:none;white-space:nowrap}
-.gs-insp{width:252px;flex:none;border-left:.5px solid var(--dsw-alias-border-l2,rgba(127,127,127,.2));overflow:auto;padding:10px 12px 24px}
-.gs-group{margin-bottom:14px}
-.gs-group h4{margin:0 0 6px;font-size:11px;font-weight:600;color:var(--dsw-alias-label-secondary);text-transform:uppercase;letter-spacing:.06em}
 .gs-row{display:flex;align-items:center;gap:6px;margin-bottom:6px;min-width:0}
 .gs-row label{flex:none;width:48px;color:var(--dsw-alias-label-secondary);font-size:11px}
 .gs-input{box-sizing:border-box;flex:1;min-width:0;height:26px;padding:0 8px;border:.5px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));border-radius:6px;background:var(--dsw-alias-bg-layer-1);color:inherit;font:inherit;outline:none}
@@ -907,11 +457,6 @@ window.__ModuleLoader__.load({
 .gs-info-name::placeholder,.gs-info-desc::placeholder{color:var(--dsw-alias-label-tertiary)}
 .gs-spinner{width:14px;height:14px;border-radius:50%;border:2px solid color-mix(in srgb, currentColor 22%, transparent);border-top-color:currentColor;animation:gs-spin .7s linear infinite}
 @keyframes gs-spin{to{transform:rotate(360deg)}}
-.gs-color{display:flex;align-items:center;gap:4px;flex:1;min-width:0}
-.gs-swatch{width:26px;height:26px;padding:0;border:.5px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));border-radius:6px;background:var(--dsw-alias-bg-layer-1);cursor:pointer;flex:none;overflow:hidden}
-.gs-swatch input{width:200%;height:200%;margin:-25%;border:0;background:none;cursor:pointer}
-.gs-mini{height:22px;padding:0 6px;border:.5px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));border-radius:5px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:10px;cursor:pointer;flex:none}
-.gs-mini:hover{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-border-l2,rgba(127,127,127,.5))}
 /* Dialogs copy the host's own sheet: 24px radius, 32px gutters, 20px title,
    15px body, borderless sections, a light primary button. */
 .gs-modal{position:absolute;inset:0;z-index:40;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:24px}
@@ -930,13 +475,6 @@ window.__ModuleLoader__.load({
 /* The host's primary action is a light plate with dark ink, not the brand blue. */
 .gs-dialog .gs-btn.primary{background:var(--dsw-alias-label-primary,#e6e6e6);color:var(--dsw-alias-bg-base,#161616)}
 .gs-dialog .gs-btn.primary:hover{filter:brightness(.94)}
-.gs-step{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dsw-alias-label-secondary)}
-.gs-step b{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--dsw-alias-bg-layer-2);font-size:10px;font-weight:600}
-.gs-step.on{color:var(--dsw-alias-label-primary)}
-.gs-step.on b{background:var(--dsw-alias-brand-primary,#4d6bfe);color:var(--dsw-alias-bg-base)}
-.gs-sizes{display:flex;gap:6px;flex-wrap:wrap}
-
-.gs-add-source{margin:0;font-size:11px;color:var(--dsw-alias-label-tertiary)}
 .gs-add-preview{position:relative}
 .gs-preview-styles{position:absolute;top:8px;right:8px;display:flex;gap:2px;padding:2px;border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-bg-base) 78%,transparent);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:.5px solid var(--dsw-alias-border-l1);box-shadow:0 2px 8px rgba(0,0,0,.08)}
 .gs-preview-styles button{height:22px;padding:0 9px;border:0;border-radius:999px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:10px;cursor:pointer}
@@ -969,20 +507,12 @@ window.__ModuleLoader__.load({
 .gs-loading{display:flex;align-items:center;justify-content:center;gap:8px;min-height:calc(80vh - 32px);padding:16px;color:var(--dsw-alias-label-secondary)}
 .gs-loading .gs-spinner{margin:0}
 .gs-supply-sets{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px}
-.gs-stylepick{display:flex;gap:2px;padding:2px;border-radius:8px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 6%,transparent)}
-.gs-stylepick-item{flex:1;height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;cursor:pointer}
-.gs-stylepick-item.on{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}
 .gs-supply-set{display:flex;flex-direction:column;gap:4px;align-items:flex-start;padding:10px 12px;border:.5px solid var(--dsw-alias-border-l1);border-radius:9px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 5%,var(--dsw-alias-bg-base));color:inherit;cursor:pointer;text-align:left;font:inherit}
 .gs-supply-set:hover{border-color:var(--dsw-alias-border-l2)}
 .gs-set-head{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%}
 .gs-set-samples{display:flex;gap:4px;flex:none;opacity:.8}
 .gs-set-sample{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px}
 .gs-set-sample svg{width:16px;height:16px}
-.gs-supply-item{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;border:.5px solid var(--dsw-alias-border-l1);border-radius:8px;background:transparent;color:inherit;cursor:pointer}
-.gs-supply-item.on{border-color:var(--dsw-alias-brand-primary,#4d6bfe);background:color-mix(in srgb,var(--dsw-alias-brand-primary,#4d6bfe) 12%,transparent)}
-.gs-supply-thumb{display:flex;align-items:center;justify-content:center;width:28px;height:28px}
-.gs-supply-thumb svg{width:24px;height:24px}
-.gs-supply-name{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:var(--dsw-alias-label-secondary)}
 .gs-scanbar{display:flex;align-items:center;gap:6px;margin:0;padding:7px 10px 7px 6px;border:0;border-top:1px solid color-mix(in srgb,var(--dsw-alias-label-primary) 10%,transparent);border-radius:0;background:rgba(255,255,255,.1);-webkit-backdrop-filter:blur(12px) saturate(1.2);backdrop-filter:blur(12px) saturate(1.2);color:var(--dsw-alias-label-secondary);text-align:left;flex:none}
 .gs-scanbar-scan{display:flex;align-items:center;justify-content:center;width:24px;height:24px;flex:none;padding:0;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer}
 .gs-scanbar-scan:hover{background:rgba(255,255,255,.16);color:var(--dsw-alias-label-primary)}
@@ -1008,48 +538,24 @@ window.__ModuleLoader__.load({
 .gs-scan-add{display:flex;align-items:center;justify-content:center;width:22px;height:22px;flex:none;padding:0;border:0;border-radius:50%;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:15px;line-height:1;cursor:pointer}
 .gs-scan-add:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary) 10%,transparent);color:var(--dsw-alias-label-primary)}
 .gs-scan-done{display:flex;align-items:center;justify-content:center;width:22px;height:22px;flex:none;color:var(--dsw-alias-label-tertiary)}
-.gs-scanthumb{display:flex;align-items:center;justify-content:center;width:28px;height:28px;flex:none;border-radius:6px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 5%,var(--dsw-alias-bg-base))}
 .gs-confirm-list{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:3px}
 .gs-confirm-list li{display:flex;align-items:center;gap:5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--dsw-alias-label-secondary);min-width:0}
 .gs-confirm-list li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.gs-pointerlist{display:flex;flex-direction:column;gap:4px}
-.gs-pointerlist ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:1px}
-.gs-pointerlist li{display:flex;align-items:center;gap:5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--dsw-alias-label-secondary);min-width:0}
-.gs-pointerlist li svg{flex:none;opacity:.75}
-.gs-pointerlist li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .gs-pointer{display:flex;align-items:center;gap:5px;min-width:0;cursor:pointer}
 .gs-pointer input{margin:0;width:12px;height:12px;flex:none;accent-color:var(--dsw-alias-brand-primary,#4d6bfe);cursor:pointer}
 .gs-pointer.off{opacity:.45;text-decoration:line-through}
-.gs-detail-foot{display:flex;align-items:center;gap:8px;padding:10px 12px;border-top:1px solid var(--dsw-alias-border-l1)}
 .gs-iconbtn{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border:0;border-radius:6px;background:transparent;color:inherit;cursor:pointer}
 .gs-iconbtn:hover{background:var(--dsw-alias-bg-layer-2)}
 .gs-detail-more{position:relative;display:flex;align-items:center}
 .gs-pop-backdrop{position:fixed;inset:0;z-index:24}
 .gs-iconbtn:disabled{opacity:.4;cursor:default}
 .gs-iconbtn svg{width:16px;height:16px;display:block}
-.gs-sync-text{flex:1;text-align:left}
-.gs-sync-caret{opacity:.6}
-.gs-diff{border-radius:7px;background:var(--dsw-alias-bg-layer-1);margin-bottom:6px}
-.gs-diff.stale{box-shadow:inset 2px 0 0 var(--dsw-alias-state-warning-primary,#f5a623)}
-.gs-diff-head{display:flex;align-items:center;gap:6px;padding:4px 6px}
-.gs-diff-toggle{display:flex;align-items:center;gap:8px;flex:1;min-width:0;border:0;background:transparent;color:inherit;font:inherit;font-size:11px;text-align:left;cursor:pointer}
-.gs-diff-name{font-weight:600;color:var(--dsw-alias-label-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.gs-diff-meta,.gs-diff-state{color:var(--dsw-alias-label-tertiary)}
-.gs-diff-body{padding:0 8px 8px}
-.gs-diff-site{margin-top:4px}
-.gs-diff-where{font-size:10px;color:var(--dsw-alias-label-tertiary);margin-bottom:2px}
-.gs-diff-line{font-size:10px;line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:ui-monospace,monospace;padding:1px 4px;border-radius:4px}
-.gs-diff-line.minus{background:rgba(229,72,77,.12);color:var(--dsw-alias-state-error-primary,#e5484d)}
-.gs-diff-line.plus{background:rgba(48,164,108,.12);color:var(--dsw-alias-state-success-primary,#30a46c)}
-.gs-diff-line.same{color:var(--dsw-alias-label-tertiary)}
 .gs-toast{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:9px;background:var(--dsw-alias-bg-overlay,#181a20);color:var(--dsw-alias-label-primary);border:.5px solid var(--dsw-alias-border-l2,rgba(127,127,127,.3));box-shadow:0 10px 30px rgba(0,0,0,.3);font-size:12px;max-width:80%}
 .gs-toast.err{border-color:var(--dsw-alias-state-error-primary,#e5484d)}
 .gs-toast button{border:0;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;font:inherit;font-size:11px}
 .gs-error{padding:10px;margin:12px;border-radius:8px;border:.5px solid var(--dsw-alias-state-error-primary,#e5484d);color:var(--dsw-alias-label-primary);background:color-mix(in srgb,var(--dsw-alias-state-error-primary,#e5484d) 10%,transparent);font-size:12px}
-.gs-wsid{max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:left;font-size:11px;color:var(--dsw-alias-label-secondary)}
 /* ── right-sidebar layout: one narrow column, inspector under the canvas ── */
 .gs-head{min-height:44px;padding:12px 16px 6px;gap:6px}
-.gs-title{font-size:12px}
 .gs-searchhint{display:flex;align-items:center;gap:5px;min-width:0;flex:0 1 auto;max-width:72%;height:28px;padding:0 6px;border:0;border-radius:999px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:11px;text-align:left;cursor:text;overflow:hidden}
 .gs-searchhint span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.4;transition:opacity .12s}
 .gs-searchhint:hover span{opacity:.8}
@@ -1074,516 +580,12 @@ window.__ModuleLoader__.load({
 .gs-card{padding:10px;border-radius:10px}
 .gs-thumb svg{width:34px;height:34px}
 .gs-thumb .gs-svg-inline,.gs-previewbox .gs-svg-inline{width:auto;height:auto}
-.gs-ehead{display:flex;align-items:center;flex:none;height:40px;padding:0 8px;gap:4px;border-bottom:.5px solid var(--dsw-alias-border-l2,rgba(127,127,127,.2))}
-.gs-name-wrap{position:relative;display:flex;align-items:center;min-width:0;flex:none}
-.gs-name{min-width:60px;max-width:150px;height:24px;font-size:12px}
-.gs-name:disabled{opacity:.7;cursor:progress}
 .gs-iconbtn .gs-spinner{width:13px;height:13px;margin:0;border:1.5px solid currentColor;border-top-color:transparent;border-radius:50%;opacity:.65;animation:gs-spin .7s linear infinite;pointer-events:none}
 @keyframes gs-spin{to{transform:rotate(360deg)}}
-.gs-menu-pop{position:absolute;z-index:12;min-width:132px;padding:4px;border-radius:9px;background:var(--dsw-alias-bg-overlay,rgba(20,20,24,.96));border:.5px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));box-shadow:0 10px 24px rgba(0,0,0,.3)}
-.gs-shape-group{position:relative;display:inline-flex;align-items:center;flex:none}
-.gs-caret,.gs-etools .gs-caret{width:6px!important;min-width:6px!important;max-width:6px!important;flex:0 0 6px!important;padding:0!important;font-size:8px;line-height:1;color:var(--dsw-alias-label-tertiary);overflow:visible}
-.gs-menu-lead{display:inline-flex;align-items:center;justify-content:center;width:16px;flex:none}
-.gs-menu-lead svg{width:14px;height:14px}
-.gs-menu-label{flex:1;margin-left:8px}
-.gs-menu-key{color:var(--dsw-alias-label-tertiary);font-size:10px}
-.gs-menu-row.on{background:color-mix(in srgb,var(--dsw-alias-brand-primary,#0d99ff) 18%,transparent);color:var(--dsw-alias-brand-primary,#0d99ff)}
-.gs-menu-row{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;height:26px;padding:0 8px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:12px;text-align:left;cursor:pointer}
-.gs-menu-row:hover{background:var(--dsw-alias-interactive-bg-hover,var(--dsw-alias-bg-layer-2))}
-.gs-menu-tick{color:var(--dsw-alias-brand-primary,#0d99ff)}
-.gs-menu-row.off{opacity:.4;pointer-events:none}
-.gs-menu-sep{height:1px;margin:4px 6px;background:var(--dsw-alias-border-l2,rgba(127,127,127,.24))}
-.gs-layers-pop{position:absolute;top:34px;right:8px;z-index:9;width:min(240px,72%);max-height:46%;overflow:auto;padding:6px;border-radius:10px;background:var(--dsw-alias-bg-overlay,rgba(20,20,24,.94));border:.5px solid var(--dsw-alias-border-l2,rgba(127,127,127,.28));box-shadow:0 10px 26px rgba(0,0,0,.28)}
-.gs-pane-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 16px 4px;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--dsw-alias-label-secondary)}
-.gs-pane-title{display:flex;align-items:baseline;gap:8px;min-width:0;overflow:hidden}
-.gs-zoomrow{display:inline-flex;align-items:center;gap:4px;flex:none;text-transform:none;letter-spacing:0}
-.gs-status{max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.gs-pane-sub{color:var(--dsw-alias-label-tertiary);text-transform:none;letter-spacing:0}
-.gs-pop-head{font-size:11px;color:var(--dsw-alias-label-tertiary);padding:2px 6px 6px;letter-spacing:.04em;text-transform:uppercase}
-.gs-etools{display:flex;align-items:center;gap:2px;padding:4px 6px;flex-wrap:nowrap;overflow:visible;border-bottom:.5px solid var(--dsw-alias-border-l2,rgba(127,127,127,.2));flex:none}
-.gs-bar-left{display:flex;align-items:center;gap:2px;flex:0 0 auto}
-.gs-bar-center{display:flex;align-items:center;gap:2px;flex:1 1 auto;justify-content:center;min-width:0}
-.gs-bar-center>.gs-tbtn:last-child{margin-left:6px}
-.gs-bar-right{display:flex;align-items:center;gap:2px;flex:0 0 auto;margin-left:auto}
-.gs-tbtn{width:26px;height:24px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:999px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:13px;cursor:pointer;flex:none;padding:0}
-.gs-tbtn:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
-.gs-tbtn.on{background:color-mix(in srgb,var(--dsw-alias-brand-primary,#0d99ff) 20%,transparent);color:var(--dsw-alias-brand-primary,#0d99ff)}
-.gs-tbtn:disabled{opacity:.35;pointer-events:none}
-.gs-tbtn svg{width:14px;height:14px}
-.gs-sep{width:1px;height:16px;margin:0 3px;background:var(--dsw-alias-border-l2,rgba(127,127,127,.28));flex:none}
-.gs-zoomval{min-width:34px;text-align:center;font-size:10px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}
-.gs-canvas{min-height:150px}
-.gs-bottom{display:flex;flex-direction:column;flex:none;height:212px;background:var(--dsw-alias-bg-base)}
-.gs-tabbar{display:flex;align-items:center;gap:2px;padding:4px 6px 0;flex:none;border-bottom:.5px solid var(--dsw-alias-border-l1,rgba(127,127,127,.18))}
-.gs-tab{height:24px;padding:0 9px;border:0;border-radius:6px 6px 0 0;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:11px;cursor:pointer}
-.gs-tab:hover{color:var(--dsw-alias-label-primary)}
-.gs-tab.on{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font-weight:600}
-.gs-tabbody{flex:1;min-height:0;overflow:auto;padding:8px 10px 12px}
-.gs-pane{display:flex;flex-direction:column;gap:5px}
-.gs-plabel{font-size:10px;font-weight:600;color:var(--dsw-alias-label-secondary);text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
-.gs-alignrow{display:flex;flex-wrap:wrap;gap:3px}
-.gs-layers,.gs-insp{width:auto;border:0;padding:0;overflow:visible}
-.gs-layer{height:24px}
 .gs-dialog header{padding:18px 16px 0}
 .gs-dialog .gs-dialog-body{padding:6px 16px 16px;gap:10px}
 .gs-dialog footer{padding:0 16px 18px}
 `
-
-    /* ───────────────────────────── geometry ───────────────────────────── */
-
-    /** Rotate cursor in the system-cursor idiom: black ink with a white halo. */
-    const ROTATE_CURSOR = `url("data:image/svg+xml;utf8,${encodeURIComponent(
-      '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">'
-      + '<g fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">'
-      + '<path d="M19 12a7 7 0 1 1-2.6-5.4"/><path d="M8.6 3.4L16.4 6.6 9.4 9.9z"/></g>'
-      + '<g fill="none" stroke="#111111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'
-      + '<path d="M19 12a7 7 0 1 1-2.6-5.4"/></g>'
-      + '<path d="M8.6 3.4L16.4 6.6 9.4 9.9z" fill="#111111" stroke="#111111" stroke-width="1.2" stroke-linejoin="round"/>'
-      + '</svg>',
-    )}") 12 12, crosshair`
-
-    const IDENTITY = [1, 0, 0, 1, 0, 0]
-
-    const round = (value, digits = 2) => {
-      const factor = 10 ** digits
-      const out = Math.round(value * factor) / factor
-      return Object.is(out, -0) ? 0 : out
-    }
-    const fmt = (value) => String(round(value, 2))
-
-    /** Regular polygon as a closed path: centre, radius, so many sides. */
-    const polygonD = (cx, cy, radius, sides = 5, rotation = -Math.PI / 2) => {
-      const points = []
-      for (let index = 0; index < sides; index += 1) {
-        const angle = rotation + (index * Math.PI * 2) / sides
-        points.push({ x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius })
-      }
-      return points.map((point, index) => `${index === 0 ? 'M' : 'L'}${fmt(point.x)} ${fmt(point.y)}`).join('') + 'Z'
-    }
-
-    /** A closed path paints a shape; anything else is an open stroke path. */
-    /**
-     * Closed unless the path visibly ends away from where it started. `Z` is the
-     * usual signal, but exported icons often close with a plain line back.
-     */
-    const isClosedPath = (d) => {
-      const text = String(d || '').trim()
-      if (text === '') return false
-      if (/[zZ]\s*$/.test(text)) return true
-      const segments = parsePath(text)
-      if (segments.length < 2) return false
-      const first = segments[0]
-      if (!first || first.c !== 'M') return false
-      const start = first.p[0]
-      const last = segments[segments.length - 1]
-      if (!last || last.c === 'Z') return true
-      const end = last.p[last.p.length - 1]
-      return Math.hypot(end[0] - start[0], end[1] - start[1]) < 0.5
-    }
-
-    /** Human name for a freshly drawn shape. */
-    const SHAPE_NAME = (tool, t) => t(`tool${tool.charAt(0).toUpperCase()}${tool.slice(1)}`)
-
-    /** Element kind: explicit when the editor created it, inferred for imports. */
-    const kindOf = (element) => {
-      if (!element) return 'path'
-      if (element.kind === 'shape' || element.kind === 'path' || element.kind === 'text') return element.kind
-      // A filled element is a shape even when its data closes with a line.
-      if (element.fill && element.fill !== 'none') return 'shape'
-      return isClosedPath(element.d) ? 'shape' : 'path'
-    }
-
-    const KIND_LABEL = { shape: '元素/形状', path: '元素/路径', text: '元素/文本', group: '元素/组合', union: '元素/合并' }
-
-    /** Axis-aligned rect from two arbitrary corners. */
-    const normalizeRect = (a, b) => ({
-      x: Math.min(a.x, b.x),
-      y: Math.min(a.y, b.y),
-      width: Math.abs(b.x - a.x),
-      height: Math.abs(b.y - a.y),
-    })
-
-    function matrixMultiply(a, b) {
-      return [
-        a[0] * b[0] + a[2] * b[1],
-        a[1] * b[0] + a[3] * b[1],
-        a[0] * b[2] + a[2] * b[3],
-        a[1] * b[2] + a[3] * b[3],
-        a[0] * b[4] + a[2] * b[5] + a[4],
-        a[1] * b[4] + a[3] * b[5] + a[5],
-      ]
-    }
-    const matrixApply = (m, x, y) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]]
-    const matrixInvert = (m) => {
-      const det = m[0] * m[3] - m[1] * m[2]
-      if (!det) return [...IDENTITY]
-      return [
-        m[3] / det,
-        -m[1] / det,
-        -m[2] / det,
-        m[0] / det,
-        (m[2] * m[5] - m[3] * m[4]) / det,
-        (m[1] * m[4] - m[0] * m[5]) / det,
-      ]
-    }
-    const translateM = (x, y) => [1, 0, 0, 1, x, y]
-    const scaleM = (x, y) => [x, 0, 0, y, 0, 0]
-    const rotateM = (deg, cx = 0, cy = 0) => {
-      const r = (deg * Math.PI) / 180
-      const cos = Math.cos(r)
-      const sin = Math.sin(r)
-      return matrixMultiply(matrixMultiply(translateM(cx, cy), [cos, sin, -sin, cos, 0, 0]), translateM(-cx, -cy))
-    }
-    const matrixAttr = (m) => `matrix(${fmt(m[0])} ${fmt(m[1])} ${fmt(m[2])} ${fmt(m[3])} ${fmt(m[4])} ${fmt(m[5])})`
-    const isIdentity = (m) => Math.abs(m[0] - 1) < 1e-6 && Math.abs(m[1]) < 1e-6 && Math.abs(m[2]) < 1e-6
-      && Math.abs(m[3] - 1) < 1e-6 && Math.abs(m[4]) < 1e-6 && Math.abs(m[5]) < 1e-6
-
-    const ARITY = { M: 2, L: 2, H: 1, V: 1, C: 6, S: 4, Q: 4, T: 2, Z: 0 }
-
-    function parsePath(d) {
-      const segments = []
-      let i = 0
-      let command = null
-      let cx = 0
-      let cy = 0
-      let sx = 0
-      let sy = 0
-      let lastC = null
-      let lastQ = null
-      let first = true
-      const tokens = []
-      const text = String(d || '')
-      let p = 0
-      while (p < text.length) {
-        const ch = text[p]
-        if (ch === ' ' || ch === ',' || ch === '\n' || ch === '\r' || ch === '\t') { p += 1; continue }
-        if (/[a-zA-Z]/.test(ch)) { tokens.push({ cmd: ch }); p += 1; continue }
-        const start = p
-        if (ch === '+' || ch === '-') p += 1
-        let digits = false
-        while (p < text.length && /[0-9]/.test(text[p])) { p += 1; digits = true }
-        if (text[p] === '.') { p += 1; while (p < text.length && /[0-9]/.test(text[p])) { p += 1; digits = true } }
-        if (!digits) { p += 1; continue }
-        if (text[p] === 'e' || text[p] === 'E') { p += 1; if (text[p] === '+' || text[p] === '-') p += 1; while (p < text.length && /[0-9]/.test(text[p])) p += 1 }
-        tokens.push({ num: Number(text.slice(start, p)) })
-      }
-      while (i < tokens.length) {
-        if (tokens[i].cmd) { command = tokens[i].cmd; i += 1 }
-        else if (!command) { i += 1; continue }
-        const upper = command.toUpperCase()
-        const relative = command !== upper
-        if (upper === 'Z') { segments.push({ c: 'Z' }); cx = sx; cy = sy; command = null; lastC = null; lastQ = null; continue }
-        const arity = ARITY[upper]
-        if (arity === undefined) { command = null; continue }
-        if (i + arity > tokens.length) break
-        const values = []
-        for (let k = 0; k < arity; k += 1) {
-          if (tokens[i + k].num === undefined) { values.length = 0; break }
-          values.push(tokens[i + k].num)
-        }
-        if (values.length < arity) break
-        i += arity
-        if (upper === 'M') {
-          const x = relative && !first ? cx + values[0] : values[0]
-          const y = relative && !first ? cy + values[1] : values[1]
-          segments.push({ c: 'M', p: [[x, y]] })
-          cx = x; cy = y; sx = x; sy = y; first = false; lastC = null; lastQ = null
-          command = relative ? 'l' : 'L'
-          continue
-        }
-        first = false
-        if (upper === 'L') { const x = relative ? cx + values[0] : values[0]; const y = relative ? cy + values[1] : values[1]; segments.push({ c: 'L', p: [[x, y]] }); cx = x; cy = y; lastC = null; lastQ = null }
-        else if (upper === 'H') { const x = relative ? cx + values[0] : values[0]; segments.push({ c: 'L', p: [[x, cy]] }); cx = x; lastC = null; lastQ = null }
-        else if (upper === 'V') { const y = relative ? cy + values[0] : values[0]; segments.push({ c: 'L', p: [[cx, y]] }); cy = y; lastC = null; lastQ = null }
-        else if (upper === 'C') {
-          const x1 = relative ? cx + values[0] : values[0]
-          const y1 = relative ? cy + values[1] : values[1]
-          const x2 = relative ? cx + values[2] : values[2]
-          const y2 = relative ? cy + values[3] : values[3]
-          const x = relative ? cx + values[4] : values[4]
-          const y = relative ? cy + values[5] : values[5]
-          segments.push({ c: 'C', p: [[x1, y1], [x2, y2], [x, y]] })
-          lastC = [x2, y2]; lastQ = null; cx = x; cy = y
-        } else if (upper === 'S') {
-          const rx = lastC ? 2 * cx - lastC[0] : cx
-          const ry = lastC ? 2 * cy - lastC[1] : cy
-          const x2 = relative ? cx + values[0] : values[0]
-          const y2 = relative ? cy + values[1] : values[1]
-          const x = relative ? cx + values[2] : values[2]
-          const y = relative ? cy + values[3] : values[3]
-          segments.push({ c: 'C', p: [[rx, ry], [x2, y2], [x, y]] })
-          lastC = [x2, y2]; lastQ = null; cx = x; cy = y
-        } else if (upper === 'Q') {
-          const x1 = relative ? cx + values[0] : values[0]
-          const y1 = relative ? cy + values[1] : values[1]
-          const x = relative ? cx + values[2] : values[2]
-          const y = relative ? cy + values[3] : values[3]
-          segments.push({ c: 'Q', p: [[x1, y1], [x, y]] })
-          lastQ = [x1, y1]; lastC = null; cx = x; cy = y
-        } else if (upper === 'T') {
-          const rx = lastQ ? 2 * cx - lastQ[0] : cx
-          const ry = lastQ ? 2 * cy - lastQ[1] : cy
-          const x = relative ? cx + values[0] : values[0]
-          const y = relative ? cy + values[1] : values[1]
-          segments.push({ c: 'Q', p: [[rx, ry], [x, y]] })
-          lastQ = [rx, ry]; lastC = null; cx = x; cy = y
-        } else if (upper === 'A') {
-          // Host-normalised graphics never contain arcs; approximate for safety.
-          const x = relative ? cx + values[5] : values[5]
-          const y = relative ? cy + values[6] : values[6]
-          const steps = 8
-          for (let k = 1; k <= steps; k += 1) {
-            const t = k / steps
-            segments.push({ c: 'L', p: [[cx + (x - cx) * t, cy + (y - cy) * t]] })
-          }
-          cx = x; cy = y; lastC = null; lastQ = null
-        }
-      }
-      return segments
-    }
-
-    function segmentsToD(segments) {
-      let out = ''
-      for (const segment of segments) {
-        if (segment.c === 'Z') { out += 'Z'; continue }
-        out += segment.c
-        for (const [x, y] of segment.p) out += `${fmt(x)} ${fmt(y)}`
-      }
-      return out
-    }
-
-    function transformD(d, m) {
-      return segmentsToD(parsePath(d).map((segment) => {
-        if (segment.c === 'Z') return segment
-        return { c: segment.c, p: segment.p.map(([x, y]) => matrixApply(m, x, y)) }
-      }))
-    }
-
-    function pathBBox(d) {
-      const segments = parsePath(d)
-      let minX = Infinity
-      let minY = Infinity
-      let maxX = -Infinity
-      let maxY = -Infinity
-      let cx = 0
-      let cy = 0
-      const add = (x, y) => {
-        if (!Number.isFinite(x) || !Number.isFinite(y)) return
-        if (x < minX) minX = x
-        if (y < minY) minY = y
-        if (x > maxX) maxX = x
-        if (y > maxY) maxY = y
-      }
-      const cubic = (p0, p1, p2, p3, t) => {
-        const mt = 1 - t
-        return mt * mt * mt * p0 + 3 * mt * mt * t * p1 + 3 * mt * t * t * p2 + t * t * t * p3
-      }
-      const quad = (p0, p1, p2, t) => {
-        const mt = 1 - t
-        return mt * mt * p0 + 2 * mt * t * p1 + t * t * p2
-      }
-      for (const segment of segments) {
-        if (segment.c === 'Z') continue
-        if (segment.c === 'M' || segment.c === 'L') {
-          const [x, y] = segment.p[0]
-          add(x, y)
-          cx = x; cy = y
-          continue
-        }
-        if (segment.c === 'C') {
-          const [p1, p2, p3] = segment.p
-          add(p3[0], p3[1])
-          for (const axis of [0, 1]) {
-            const p0 = axis === 0 ? cx : cy
-            const q1 = p1[axis]
-            const q2 = p2[axis]
-            const q3 = p3[axis]
-            const A = -p0 + 3 * q1 - 3 * q2 + q3
-            const B = 2 * (p0 - 2 * q1 + q2)
-            const C = q1 - p0
-            const roots = []
-            if (Math.abs(A) < 1e-6) { if (Math.abs(B) > 1e-6) roots.push(-C / B) }
-            else {
-              const disc = B * B - 4 * A * C
-              if (disc >= 0) {
-                const sq = Math.sqrt(disc)
-                roots.push((-B + sq) / (2 * A), (-B - sq) / (2 * A))
-              }
-            }
-            for (const t of roots) {
-              if (!(t > 0 && t < 1)) continue
-              add(cubic(cx, p1[0], p2[0], p3[0], t), cubic(cy, p1[1], p2[1], p3[1], t))
-            }
-          }
-          cx = p3[0]; cy = p3[1]
-          continue
-        }
-        if (segment.c === 'Q') {
-          const [p1, p3] = segment.p
-          add(p3[0], p3[1])
-          const dx = p1[0] - cx
-          const ex = p3[0] - p1[0]
-          const dy = p1[1] - cy
-          const ey = p3[1] - p1[1]
-          for (const t of [dx / (dx - ex), dy / (dy - ey)]) {
-            if (!(t > 0 && t < 1)) continue
-            add(quad(cx, p1[0], p3[0], t), quad(cy, p1[1], p3[1], t))
-          }
-          cx = p3[0]; cy = p3[1]
-        }
-      }
-      if (!Number.isFinite(minX)) return { x: 0, y: 0, width: 0, height: 0 }
-      return { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
-    }
-
-    function bboxCorners(box) {
-      return [
-        [box.x, box.y],
-        [box.x + box.width, box.y],
-        [box.x + box.width, box.y + box.height],
-        [box.x, box.y + box.height],
-      ]
-    }
-
-    function worldQuad(element) {
-      return bboxCorners(element.box).map(([x, y]) => matrixApply(element.m, x, y))
-    }
-
-    function quadBBox(quad) {
-      const xs = quad.map((point) => point[0])
-      const ys = quad.map((point) => point[1])
-      const minX = Math.min(...xs)
-      const minY = Math.min(...ys)
-      const maxX = Math.max(...xs)
-      const maxY = Math.max(...ys)
-      return { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
-    }
-
-    function unionBBox(boxes) {
-      if (boxes.length === 0) return null
-      const minX = Math.min(...boxes.map((box) => box.x))
-      const minY = Math.min(...boxes.map((box) => box.y))
-      const maxX = Math.max(...boxes.map((box) => box.x + box.width))
-      const maxY = Math.max(...boxes.map((box) => box.y + box.height))
-      return { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
-    }
-
-    function rectD(x, y, width, height) {
-      return `M${fmt(x)} ${fmt(y)}L${fmt(x + width)} ${fmt(y)}L${fmt(x + width)} ${fmt(y + height)}L${fmt(x)} ${fmt(y + height)}Z`
-    }
-
-    function ellipseD(cx, cy, rx, ry) {
-      const k = 0.5522847498
-      const ox = rx * k
-      const oy = ry * k
-      return [
-        `M${fmt(cx - rx)} ${fmt(cy)}`,
-        `C${fmt(cx - rx)} ${fmt(cy - oy)} ${fmt(cx - ox)} ${fmt(cy - ry)} ${fmt(cx)} ${fmt(cy - ry)}`,
-        `C${fmt(cx + ox)} ${fmt(cy - ry)} ${fmt(cx + rx)} ${fmt(cy - oy)} ${fmt(cx + rx)} ${fmt(cy)}`,
-        `C${fmt(cx + rx)} ${fmt(cy + oy)} ${fmt(cx + ox)} ${fmt(cy + ry)} ${fmt(cx)} ${fmt(cy + ry)}`,
-        `C${fmt(cx - ox)} ${fmt(cy + ry)} ${fmt(cx - rx)} ${fmt(cy + oy)} ${fmt(cx - rx)} ${fmt(cy)}`,
-        'Z',
-      ].join('')
-    }
-
-    function polyD(points, closed) {
-      if (points.length === 0) return ''
-      const parts = [`M${fmt(points[0].x)} ${fmt(points[0].y)}`]
-      for (let index = 1; index < points.length; index += 1) parts.push(`L${fmt(points[index].x)} ${fmt(points[index].y)}`)
-      if (closed) parts.push('Z')
-      return parts.join('')
-    }
-
-    function penD(points, closed) {
-      if (points.length === 0) return ''
-      const parts = [`M${fmt(points[0].x)} ${fmt(points[0].y)}`]
-      for (let index = 1; index < points.length; index += 1) {
-        const previous = points[index - 1]
-        const point = points[index]
-        const straight = !previous.out && !point.in
-        if (straight) {
-          parts.push(`L${fmt(point.x)} ${fmt(point.y)}`)
-        } else {
-          const c1 = previous.out ? { x: previous.x + previous.out.x, y: previous.y + previous.out.y } : { x: previous.x, y: previous.y }
-          const c2 = point.in ? { x: point.x + point.in.x, y: point.y + point.in.y } : { x: point.x, y: point.y }
-          parts.push(`C${fmt(c1.x)} ${fmt(c1.y)} ${fmt(c2.x)} ${fmt(c2.y)} ${fmt(point.x)} ${fmt(point.y)}`)
-        }
-      }
-      if (closed) {
-        const previous = points[points.length - 1]
-        const first = points[0]
-        const straight = !previous.out && !first.in
-        if (straight) parts.push('Z')
-        else {
-          const c1 = previous.out ? { x: previous.x + previous.out.x, y: previous.y + previous.out.y } : { x: previous.x, y: previous.y }
-          const c2 = first.in ? { x: first.x + first.in.x, y: first.y + first.in.y } : { x: first.x, y: first.y }
-          parts.push(`C${fmt(c1.x)} ${fmt(c1.y)} ${fmt(c2.x)} ${fmt(c2.y)} ${fmt(first.x)} ${fmt(first.y)}Z`)
-        }
-      }
-      return parts.join('')
-    }
-
-    /* ───────────────────────────── elements ───────────────────────────── */
-
-    let uid = 0
-    const nextId = () => {
-      uid += 1
-      return `e${uid}`
-    }
-
-    function withId(raw, index) {
-      const d = typeof raw.d === 'string' ? raw.d : ''
-      const element = {
-        id: nextId(),
-        d,
-        m: Array.isArray(raw.m) && raw.m.length === 6 ? raw.m : [...IDENTITY],
-        fill: raw.fill ?? 'none',
-        stroke: raw.stroke ?? 'none',
-        strokeWidth: typeof raw.strokeWidth === 'number' ? raw.strokeWidth : (raw.stroke ? 1 : 0),
-        linecap: raw.linecap,
-        linejoin: raw.linejoin,
-        fillRule: raw.fillRule,
-        opacity: typeof raw.opacity === 'number' ? raw.opacity : undefined,
-        mask: raw.mask,
-        clipPath: raw.clipPath,
-        defs: Array.isArray(raw.defs) ? raw.defs : undefined,
-        box: raw.box ?? pathBBox(d),
-        name: raw.name ?? (raw.mask
-          ? `蒙版图形 ${index + 1}`
-          : raw.kind === 'shape' || isClosedPath(d)
-            ? `形状 ${index + 1}`
-            : `路径 ${index + 1}`),
-      }
-      return element
-    }
-
-    function serializeElement(element) {
-      const out = { d: element.d }
-      if (element.m && !isIdentity(element.m)) out.m = element.m.map((value) => round(value, 4))
-      if (element.fill && element.fill !== 'none') out.fill = element.fill
-      if (element.stroke && element.stroke !== 'none') {
-        out.stroke = element.stroke
-        out.strokeWidth = element.strokeWidth ?? 1
-        if (element.linecap) out.linecap = element.linecap
-        if (element.linejoin) out.linejoin = element.linejoin
-      }
-      if (element.fillRule) out.fillRule = element.fillRule
-      if (typeof element.opacity === 'number' && element.opacity < 1) out.opacity = element.opacity
-      if (element.mask) out.mask = element.mask
-      if (element.clipPath) out.clipPath = element.clipPath
-      if (Array.isArray(element.defs) && element.defs.length > 0) out.defs = element.defs
-      return out
-    }
-
-    function viewBoxSize(viewBox) {
-      const parts = String(viewBox || '0 0 24 24').trim().split(/\s+/).map(Number)
-      return {
-        x: Number.isFinite(parts[0]) ? parts[0] : 0,
-        y: Number.isFinite(parts[1]) ? parts[1] : 0,
-        width: Number.isFinite(parts[2]) && parts[2] > 0 ? parts[2] : 24,
-        height: Number.isFinite(parts[3]) && parts[3] > 0 ? parts[3] : 24,
-      }
-    }
 
     /* ───────────────────────────── api ───────────────────────────── */
 
@@ -1631,64 +633,15 @@ window.__ModuleLoader__.load({
     const dot = (cx, cy, r = 1.4) => h('circle', { cx, cy, r, fill: 'currentColor', stroke: 'none' })
     const I = {
       arrowLeft: () => svgIcon([h('path', { key: 'p', d: 'M15 5l-7 7 7 7' })]),
-      node: () => svgIcon([
-        h('path', { key: 'c', d: 'M4 18c4 0 4-12 8-12s4 12 8 12' }),
-        h('rect', { key: 'a', x: 2, y: 16, width: 4, height: 4, fill: 'none' }),
-        h('rect', { key: 'b', x: 18, y: 2, width: 4, height: 4, fill: 'none' }),
-      ]),
-      // <ai-magic> from this workspace's library, inlined as the menu glyph.
       aiMagic: () => svgIcon([
         h('path', { key: 'big', d: 'M15 8.86L16.98 13.02L21.14 15L16.98 16.98L15 21.14L13.02 16.98L8.86 15L13.02 13.02L15 8.86Z' }),
         h('path', { key: 'small', d: 'M6.25 2.86L7.45 5.05L9.64 6.25L7.45 7.45L6.25 9.64L5.05 7.45L2.86 6.25L5.05 5.05L6.25 2.86Z' }),
       ], { strokeWidth: 2 }),
-      wand: () => svgIcon([
-        h('path', { key: 'p', d: 'M4 20L14 10M12 3l1.2 2.8L16 7l-2.8 1.2L12 11l-1.2-2.8L8 7l2.8-1.2z' }),
-        h('path', { key: 'q', d: 'M19 13l.8 1.7 1.7.8-1.7.8-.8 1.7-.8-1.7-1.7-.8 1.7-.8z' }),
-      ]),
-      save: () => svgIcon([h('path', { key: 'p', d: 'M5 4h11l3 3v13H5z' }), h('path', { key: 'q', d: 'M8 4v6h7V4M8 20v-6h8v6' })]),
       plus: () => svgIcon([h('path', { key: 'p', d: 'M12 5v14M5 12h14' })]),
       import: () => svgIcon([h('path', { key: 'p', d: 'M12 4v10m0 0l-3.5-3.5M12 14l3.5-3.5M4 17v3h16v-3' })]),
       close: () => svgIcon([h('path', { key: 'p', d: 'M6 6l12 12M18 6L6 18' })]),
-      copy: () => svgIcon([h('rect', { key: 'r', x: 8, y: 8, width: 11, height: 11, rx: 2 }), h('path', { key: 'p', d: 'M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2' })]),
-      layers: () => svgIcon([
-        h('path', { key: 'a', d: 'M12 3l9 5-9 5-9-5z' }),
-        h('path', { key: 'b', d: 'M3 13l9 5 9-5' }),
-      ]),
-      kindShape: () => svgIcon([h('rect', { key: 'r', x: 4.5, y: 4.5, width: 15, height: 15, rx: 2 })]),
-      kindPath: () => svgIcon([h('path', { key: 'c', d: 'M4 18c4 0 4-12 8-12s4 12 8 12' })]),
-      kindText: () => svgIcon([h('path', { key: 't', d: 'M5 6h14M12 6v13M9 19h6' })]),
-      kindGroup: () => svgIcon([
-        h('rect', { key: 'a', x: 3.5, y: 3.5, width: 10, height: 10, rx: 2 }),
-        h('rect', { key: 'b', x: 10.5, y: 10.5, width: 10, height: 10, rx: 2 }),
-      ]),
-      kindUnion: () => svgIcon([
-        h('circle', { key: 'a', cx: 9.5, cy: 12, r: 6 }),
-        h('circle', { key: 'b', cx: 14.5, cy: 12, r: 6 }),
-      ]),
-      grid: () => svgIcon([h('path', { key: 'p', d: 'M4 9h16M4 15h16M9 4v16M15 4v16' })]),
-      snap: () => svgIcon([
-        h('path', { key: 'u', d: 'M5 4v7a7 7 0 0 0 14 0V4' }),
-        h('path', { key: 'l', d: 'M5 4h4.2M14.8 4H19M5 9.5h4.2M14.8 9.5H19' }),
-      ]),
-      undo: () => svgIcon([h('path', { key: 'p', d: 'M4 9h10a5 5 0 0 1 0 10H9M4 9l4-4M4 9l4 4' })]),
-      redo: () => svgIcon([h('path', { key: 'p', d: 'M20 9H10a5 5 0 0 0 0 10h5M20 9l-4-4M20 9l-4 4' })]),
-      select: () => svgIcon([h('path', { key: 'p', d: 'M5 3l14 8-6 1.5L10 19z' })]),
       pen: () => svgIcon([h('path', { key: 'p', d: 'M4 20l3-3M6 18c3-9 9-13 14-14-1 5-5 11-14 14z' }), dot(8, 16)]),
-      rect: () => svgIcon([h('rect', { key: 'r', x: 4, y: 5, width: 16, height: 14, rx: 2 })]),
-      ellipse: () => svgIcon([h('circle', { key: 'c', cx: 12, cy: 12, r: 8 })]),
-      line: () => svgIcon([h('path', { key: 'p', d: 'M5 19L19 5' }), dot(5, 19), dot(19, 5)]),
-      polygon: () => svgIcon([h('path', { key: 'p', d: 'M12 3l8 6-3 10H7L4 9z' })]),
-      delete: () => h('svg', { viewBox: '0 0 1024 1024', width: 16, height: 16, fill: 'currentColor', stroke: 'none' },
-        h('path', {
-          d: 'M360 184L352 184C356.4 184 360 180.4 360 176ZL664 184L664 176C664 180.4 667.6 184 672 184L664 184L664 256L736 256L736 176C736 140.7 707.3 112 672 112L352 112C316.7 112 288 140.7 288 176L288 256L360 256ZM864 256L160 256C142.3 256 128 270.3 128 288L128 320C128 324.4 131.6 328 136 328L196.4 328L221.1 851C222.7 885.1 250.9 912 285 912L739 912C773.2 912 801.3 885.2 802.9 851L827.6 328L888 328C892.4 328 896 324.4 896 320L896 288C896 270.3 881.7 256 864 256M731.3 840L292.7 840L268.5 328L755.5 328Z',
-        })),
-      more: () => h('svg', { viewBox: '0 0 24 24', width: 16, height: 16, fill: 'currentColor', stroke: 'none' },
-        h('circle', { key: 'a', cx: 12, cy: 5.5, r: 1.7 }),
-        h('circle', { key: 'b', cx: 12, cy: 12, r: 1.7 }),
-        h('circle', { key: 'c', cx: 12, cy: 18.5, r: 1.7 })),
       search: () => svgIcon([h('circle', { key: 'c', cx: 11, cy: 11, r: 6.5 }), h('path', { key: 'p', d: 'M16 16l4.5 4.5' })]),
-      zoomIn: () => svgIcon([h('path', { key: 'p', d: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM16 16l4 4M11 8v6M8 11h6' })]),
-      zoomOut: () => svgIcon([h('path', { key: 'p', d: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM16 16l4 4M8 11h6' })]),
     }
 
     /* ───────────────────────────── small pieces ───────────────────────────── */
@@ -1741,26 +694,6 @@ window.__ModuleLoader__.load({
           props.footer ? h('footer', null, props.footer) : null))
     }
 
-    function ColorField(props) {
-      const value = props.value || 'none'
-      const isHex = /^#[0-9a-fA-F]{6}$/.test(value)
-      return h('div', { className: 'gs-color' },
-        h('label', { className: 'gs-swatch', title: value },
-          h('input', {
-            type: 'color',
-            value: isHex ? value : '#000000',
-            onChange: (event) => props.onChange(event.target.value),
-          })),
-        h('input', {
-          className: 'gs-input',
-          value,
-          spellCheck: false,
-          onChange: (event) => props.onChange(event.target.value.trim()),
-        }),
-        h('button', { type: 'button', className: 'gs-mini', title: 'currentColor', onClick: () => props.onChange('currentColor') }, 'auto'),
-        h('button', { type: 'button', className: 'gs-mini', title: props.noneTitle || 'none', onClick: () => props.onChange('none') }, props.noneLabel || '无'))
-    }
-
     /* ───────────────────────────── panel root ───────────────────────────── */
 
     function Panel(props) {
@@ -1798,10 +731,15 @@ window.__ModuleLoader__.load({
           setError('')
         }
         try {
-          const result = await api.get('state', target)
+          // A quiet refresh sends the revision it already has: when the host
+          // answers "unchanged" the panel keeps its state and does not re-render
+          // a single card.
+          const previous = libraryRef.current
+          const since = silent && previous && previous.revision ? previous.revision : ''
+          const result = await api.get('state', since === '' ? target : { ...target, since })
+          if (result.unchanged) return previous
           // Switching workspace swaps the library root underneath the mounted
           // tab: drop the old list/detail state instead of showing stale icons.
-          const previous = libraryRef.current
           if (previous && previous.root && result.root && previous.root !== result.root) {
             setView('list')
             setOpened(null)
@@ -1870,7 +808,9 @@ window.__ModuleLoader__.load({
         }
         if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisible)
         if (typeof window !== 'undefined') window.addEventListener('focus', refresh)
-        const timer = typeof window !== 'undefined' ? window.setInterval(refresh, 15000) : null
+        // 60 s is enough for a second window's edit to show up; the revision
+        // check makes each tick cost a few bytes when nothing changed.
+        const timer = typeof window !== 'undefined' ? window.setInterval(refresh, 60000) : null
         return () => {
           if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisible)
           if (typeof window !== 'undefined') window.removeEventListener('focus', refresh)
@@ -1916,21 +856,6 @@ window.__ModuleLoader__.load({
         setOpened(null)
         load()
       }
-
-      /**
-       * New icons start as a client-side draft: no file, no manifest entry. The
-       * first save (which a drawn element triggers) creates it, so leaving an
-       * untouched blank canvas leaves nothing behind.
-       */
-      const expandMaskElement = (element) => api.post('expand-mask', {
-        mask: element.mask,
-        defs: element.defs,
-        fill: element.fill,
-        stroke: element.stroke,
-        opacity: element.opacity,
-      })
-
-      const suggestName = (name) => api.post('suggest-name', { ...target, name })
 
       const deleteGraphic = async (name) => {
         try {
@@ -2192,10 +1117,12 @@ window.__ModuleLoader__.load({
         const parts = root.split(/[\\/]/u).filter(Boolean)
         return parts.length > 0 ? parts[parts.length - 1] : t('scanBarWorkspace')
       })()
-      const runScan = async () => {
+      // `force` is the explicit "scan again" press; the mount-time probe takes
+      // the host's cached answer, so returning to the list is instant.
+      const runScan = async (force = false) => {
         setScanBusy(true)
         try {
-          const result = await api.post('scan', scanTarget)
+          const result = await api.post('scan', force ? { ...scanTarget, force: true } : scanTarget)
           setScanGroups((Array.isArray(result.groups) ? result.groups : []).filter((group) => !group.existing))
         } catch (_error) {
           setScanGroups((current) => (Array.isArray(current) ? current : []))
@@ -2218,60 +1145,11 @@ window.__ModuleLoader__.load({
           props.say(err && err.message ? err.message : String(err), 'err')
         }
       }
-      const loadSync = async () => {
-        try {
-          setSync(await api.get('sync', { sessionId: props.sessionId }))
-        } catch (_error) {
-          setSync(null)
-        }
-      }
-
-      const pushAll = async (name) => {
-        setSyncBusy(true)
-        try {
-          const body = name ? { name } : {}
-          const result = await api.post('sync-push', { sessionId: props.sessionId, ...body })
-          setSync(result)
-          const rewritten = Number(result.pushCount) || (result.pushed || []).reduce(
-            (sum, item) => sum + (Array.isArray(item.files) ? item.files.length : Number(item.replaced) || 0),
-            0,
-          )
-          if (props.say) props.say(rewritten > 0 ? t('copiesPushed', { n: rewritten }) : t('copiesPushedNone'))
-        } catch (error) {
-          if (props.say) props.say(t('commonError', { msg: error.message || String(error) }), 'err')
-        }
-        setSyncBusy(false)
-      }
-
-      const pullCode = async () => {
-        setSyncBusy(true)
-        try {
-          const result = await api.post('sync-pull', { sessionId: props.sessionId })
-          setSync(result)
-          if (props.onRefresh) props.onRefresh()
-        } catch (_error) { /* ignore */ }
-        setSyncBusy(false)
-      }
-
-      /** Path data of every <path> in an SVG string — the human part of a diff. */
-      const pathsOf = (svg) => [...String(svg || '').matchAll(/<path\b[^>]*?\bd="([^"]+)"/g)].map((match) => match[1])
-      const clip = (text, width = 42) => (text.length <= width ? text : `${text.slice(0, width)}…`)
-
-      // Drift is computed from the project, so it refreshes with the library.
-
-      const [usage, setUsage] = useState(null)
-      const [sync, setSync] = useState(null)
-      const [syncOpen, setSyncOpen] = useState(false)
-      const [syncBusy, setSyncBusy] = useState(false)
-      const [openDiff, setOpenDiff] = useState('')
-      const [applying, setApplying] = useState('')
       // Manual ordering: dragging a card leaves an insertion line in the grid.
       const [orderDrag, setOrderDrag] = useState('')
       const [insert, setInsert] = useState(null)
       const [pendingDelete, setPendingDelete] = useState(null)
       const [cardMenu, setCardMenu] = useState(null)
-      const [pushTarget, setPushTarget] = useState(null)
-      const [pushing, setPushing] = useState(false)
       const gridRef = useRef(null)
       const dragRects = useRef(null)
 
@@ -2279,14 +1157,9 @@ window.__ModuleLoader__.load({
       // remainder, so it is only offered while no search is active.
       const canReorder = query.trim() === ''
 
-      const graphics = useMemo(() => {
-        const list = props.library?.graphics || []
-        return list.slice().sort((left, right) => {
-          const a = typeof left.order === 'number' ? left.order : Number.POSITIVE_INFINITY
-          const b = typeof right.order === 'number' ? right.order : Number.POSITIVE_INFINITY
-          return a === b ? 0 : a - b
-        })
-      }, [props.library])
+      // The host already answers in library order (manual order first, then
+      // creation order), so the grid renders the array as it arrives.
+      const graphics = (props.library && Array.isArray(props.library.graphics)) ? props.library.graphics : []
       const filtered = useMemo(() => {
         const text = query.trim().toLowerCase()
         return graphics.filter((entry) => {
@@ -2347,7 +1220,7 @@ window.__ModuleLoader__.load({
         if (target === from) return
         names.splice(target, 0, dragged)
         try {
-          await api.post('order', { ...target, names })
+          await api.post('order', { ...scanTarget, names })
           if (props.onRefresh) props.onRefresh()
         } catch (error) {
           props.say(t('commonError', { msg: error.message || String(error) }), 'err')
@@ -2365,30 +1238,6 @@ window.__ModuleLoader__.load({
         }
       }
 
-      /** Stale references of one icon, from the last `/sync` snapshot. */
-      const staleSitesOf = (name) => {
-        const row = (sync && Array.isArray(sync.rows) ? sync.rows : []).find((item) => item.name === name)
-        return row ? row.sites.filter((site) => site.stale) : []
-      }
-
-      const pushOne = async (name) => {
-        setPushing(true)
-        try {
-          const result = await api.post('sync-push', { sessionId: props.sessionId, name })
-          const rewritten = Number(result.pushCount) || (result.pushed || []).reduce(
-            (sum, item) => sum + (Array.isArray(item.files) ? item.files.length : Number(item.replaced) || 0),
-            0,
-          )
-          props.say(rewritten > 0 ? t('copiesPushed', { n: rewritten }) : t('copiesPushedNone'))
-          setPushTarget(null)
-          await loadSync()
-          if (props.onRefresh) props.onRefresh()
-        } catch (error) {
-          props.say(t('commonError', { msg: error.message || String(error) }), 'err')
-        }
-        setPushing(false)
-      }
-
       const copyReference = async (name) => {
         const reference = `<${name}>`
         try {
@@ -2396,18 +1245,6 @@ window.__ModuleLoader__.load({
           props.say(t('listCopied', { name: reference }))
         } catch (_) {
           props.say(reference)
-        }
-      }
-
-      const applyUpdate = async (name) => {
-        setApplying(name)
-        try {
-          const result = await api.post('apply', { name })
-          props.say(result.replaced > 0 ? t('listApplied', { n: result.replaced }) : t('listAppliedNone'))
-        } catch (err) {
-          props.say(t('commonError', { msg: err.message }), 'err')
-        } finally {
-          setApplying('')
         }
       }
 
@@ -2562,7 +1399,6 @@ window.__ModuleLoader__.load({
                   ? h('div', { className: 'gs-insert', style: lineStyle() })
                   : null,
                 filtered.map((entry) => {
-                  const used = (usage || []).filter((item) => item.name === entry.name).length
                   return h('div', {
                     key: entry.name,
                     className: `gs-card${dragging === entry.name ? ' drag' : ''}${flashName === entry.name ? ' hit' : ''}`,
@@ -2584,7 +1420,6 @@ window.__ModuleLoader__.load({
                     onDragEnd: () => { setDragging(''); setOrderDrag(''); setInsert(null) },
                     onClick: () => props.onOpen(entry.name),
                   },
-                    used > 0 ? h('span', { className: 'gs-badge', title: `${t('listUsage')}: ${used}` }, String(used)) : null,
                     h('div', { className: 'gs-thumb' }, svgArt(entry.svg, entry.name)),
                     h('span', { className: 'gs-card-name' }, entry.name),
                     h('button', {
@@ -2621,7 +1456,7 @@ window.__ModuleLoader__.load({
               className: 'gs-scanbar-scan',
               title: t('scanBarRescan'),
               disabled: scanBusy,
-              onClick: runScan,
+              onClick: () => runScan(true),
             }, h(ScanSearchMark, { size: 14 })),
             h('span', { className: 'gs-scanbar-text' },
               scanBusy
@@ -2639,101 +1474,6 @@ window.__ModuleLoader__.load({
                 : h(react.Fragment, null,
                   scanGroups.slice(0, 3).map((group) => h('span', { key: group.signature, className: 'gs-scanbar-thumb' }, svgArt(group.svg, group.signature))),
                   h('span', { className: 'gs-scanbar-chev' }, h(I.arrowLeft)))))
-          : null,
-        syncOpen && sync && sync.total > 0
-          ? h(Modal, {
-            title: t('syncTitle'),
-            onClose: () => setSyncOpen(false),
-            footer: h(react.Fragment, null,
-              h('div', { className: 'gs-spacer' }),
-              h('button', { type: 'button', className: 'gs-mini', disabled: syncBusy, onClick: () => pullCode() }, t('syncPull')),
-              h('button', { type: 'button', className: 'gs-mini on', disabled: syncBusy, onClick: () => pushAll() }, t('syncPushAll')),
-              h(Btn, { onClick: () => setSyncOpen(false) }, t('commonClose'))),
-          },
-            h('div', { className: 'gs-sync-body' },
-              (sync.rows || []).map((row) => {
-                const stale = row.sites.filter((site) => site.stale)
-                const open = openDiff === row.name
-                return h('div', { key: row.name, className: `gs-diff${stale.length > 0 ? ' stale' : ''}` },
-                  h('div', { className: 'gs-diff-head' },
-                    h('button', {
-                      type: 'button',
-                      className: 'gs-diff-toggle',
-                      onClick: () => setOpenDiff(open ? '' : row.name),
-                    },
-                      h('span', { className: 'gs-diff-name' }, row.name),
-                      h('span', { className: 'gs-diff-meta' }, t('syncSites', { n: row.sites.length })),
-                      h('span', { className: 'gs-diff-state' }, stale.length > 0 ? t('syncStaleTag') : t('syncCleanTag'))),
-                    stale.length > 0
-                      ? h('button', { type: 'button', className: 'gs-mini on', disabled: syncBusy, onClick: () => pushAll(row.name) }, t('syncPush'))
-                      : null),
-                  open
-                    ? h('div', { className: 'gs-diff-body' },
-                      row.sites.map((site) => {
-                        const before = pathsOf(site.code)
-                        const after = pathsOf(site.source)
-                        return h('div', { key: `${site.file}:${site.line}`, className: 'gs-diff-site' },
-                          h('div', { className: 'gs-diff-where' }, siteLabel(site)),
-                          site.stale
-                            ? h(react.Fragment, null,
-                              h('div', { className: 'gs-diff-line minus' }, `− ${t('syncCode')} ${clip(before.join(' ')) || '—'}`),
-                              h('div', { className: 'gs-diff-line plus' }, `+ ${t('syncSource')} ${clip(after.join(' ')) || '—'}`))
-                            : h('div', { className: 'gs-diff-line same' }, t('syncCleanTag')))
-                      }))
-                    : null)
-              })))
-          : null,
-        pushTarget
-          ? (() => {
-            const entry = graphics.find((item) => item.name === pushTarget)
-            const stale = staleSitesOf(pushTarget)
-            const viewBox = entry && entry.viewBox ? entry.viewBox : '0 0 24 24'
-            // A copy is either a whole <svg> or just the `d` of one tracked path. The
-            // latter only makes sense inside the current drawing, so the old preview is
-            // the source with that path swapped back to its code version.
-            const withCode = stale.find((site) => site.code)
-            const oldSvg = (() => {
-              const code = String(withCode ? withCode.code : '').trim()
-              const source = entry ? String(entry.svg || '') : ''
-              if (code === '') return ''
-              if (code.startsWith('<svg')) return code
-              if (code.startsWith('<path') || code.startsWith('<circle') || code.startsWith('<rect')) {
-                return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}">${code}</svg>`
-              }
-              if (source === '') return ''
-              const matches = [...source.matchAll(/\bd="([^"]*)"/g)]
-              if (matches.length === 0) return source
-              const index = Number.isInteger(withCode.index) && withCode.index < matches.length ? withCode.index : 0
-              const hit = matches[index]
-              const start = hit.index + hit[0].indexOf('d="') + 3
-              return `${source.slice(0, start)}${code}${source.slice(start + hit[1].length)}`
-            })()
-            const before = oldSvg
-            const after = entry ? entry.svg : ''
-            return h(Modal, {
-              title: t('pushTitle'),
-              onClose: () => { if (!pushing) setPushTarget(null) },
-              footer: h(react.Fragment, null,
-                h('div', { className: 'gs-spacer' }),
-                h(Btn, { onClick: () => setPushTarget(null), disabled: pushing }, t('editorConfirmCancel')),
-                h(Btn, { variant: 'primary', onClick: () => pushOne(pushTarget), disabled: pushing }, t('pushConfirm'))),
-            },
-              h('div', { className: 'gs-pushcmp' },
-                h('div', { className: 'gs-pushcol' },
-                  h('span', { className: 'gs-pushcap' }, t('pushOld')),
-                  before === ''
-                    ? h('div', { className: 'gs-pushbox empty' }, t('pushNoPreview'))
-                    : h('div', { className: 'gs-pushbox', dangerouslySetInnerHTML: { __html: scopeIds(before, `${pushTarget}-old`) } })),
-                h('div', { className: 'gs-pushcol' },
-                  h('span', { className: 'gs-pushcap' }, t('pushNew')),
-                  after === ''
-                    ? h('div', { className: 'gs-pushbox empty' }, t('pushNoPreview'))
-                    : h('div', { className: 'gs-pushbox', dangerouslySetInnerHTML: { __html: scopeIds(after, `${pushTarget}-new`) } }))),
-              h('p', { className: 'gs-hint' }, t('pushCount', { n: stale.length })),
-              stale.length > 0
-                ? h('ul', { className: 'gs-pushlist' }, stale.map((site) => h('li', { key: `${site.file}:${site.line}` }, siteLabel(site))))
-                : null)
-          })()
           : null,
         pendingDelete
           ? h(DeleteDialog, {
@@ -2816,7 +1556,6 @@ window.__ModuleLoader__.load({
       const target = workspace ? { sessionId, workspace } : { sessionId }
       const [name, setName] = useState((props.draft && props.draft.name) || props.name || '')
       const [rule, setRule] = useState((props.draft && props.draft.rule) || '')
-      const [parsed, setParsed] = useState(null)
       const [peek, setPeek] = useState(null)
       const [style, setStyle] = useState('outline')
       const [draft, setDraft] = useState(props.draft || null)
@@ -2829,20 +1568,16 @@ window.__ModuleLoader__.load({
         [library],
       )
       const taken = useMemo(() => existing.find((entry) => entry.name === name.trim()), [existing, name])
-      const duplicate = parsed && parsed.duplicate ? existing.find((entry) => entry.name === parsed.duplicate) : null
       const styles = peek && Array.isArray(peek.styles) ? peek.styles : []
       const artwork = mode === 'supply'
         ? (peek && peek.previews ? (peek.previews[style] || peek.previews.outline || '') : '')
         : mode === 'ai'
           ? (draft ? draft.svg : '')
-          : mode === 'workspace' || mode === 'pasted'
-            ? (props.svg || '')
-            : (parsed ? parsed.svg : '')
+          : (props.svg || '')
       const ready = name.trim() !== '' && (
         mode === 'supply' ? Boolean(peek)
           : mode === 'ai' ? Boolean(draft)
-            : mode === 'workspace' || mode === 'pasted' ? Boolean(props.svg)
-              : Boolean(parsed)
+            : Boolean(props.svg)
       )
 
       /** Naming from the model: pasted artwork only needs a name and a rule. */
@@ -2900,7 +1635,9 @@ window.__ModuleLoader__.load({
             else setError(row.message || t('supplyAddFailed'))
             return
           }
-          if (mode === 'pasted' || mode === 'workspace') {
+          if (mode !== 'ai') {
+            // Pasted and workspace artwork keep their own canvas: re-cropping
+            // would change their scale.
             const result = await api.post('save', {
               ...target,
               name: name.trim(),
@@ -2908,23 +1645,20 @@ window.__ModuleLoader__.load({
               viewBox: props.viewBox,
               preserveViewBox: true,
               rule: rule.trim(),
-              source: mode === 'pasted' ? 'pasted-svg' : 'workspace',
+              source: mode === 'workspace' ? 'workspace' : 'pasted-svg',
             })
             if (!result.entry) { setError(t('supplyAddShapeExists', { of: result.of || '' })); return }
             await finish(name.trim())
             return
           }
-          const art = mode === 'ai'
-            ? { svg: draft.svg, viewBox: draft.viewBox }
-            : { svg: parsed.svg || text, viewBox: parsed.viewBox }
+          if (!draft) { setError(t('aiDraftReady')); return }
           const result = await api.post('save', {
             ...target,
             name: name.trim(),
-            svg: art.svg,
-            // Pasted art keeps its own canvas: re-cropping would change its scale.
-            viewBox: art.viewBox,
+            svg: draft.svg,
+            viewBox: draft.viewBox,
             rule: rule.trim(),
-            source: mode === 'ai' ? 'ai-created' : 'pasted-svg',
+            source: 'ai-created',
           })
           if (!result.entry) { setError(t('supplyAddShapeExists', { of: result.of || '' })); return }
           await finish(name.trim())
@@ -2969,15 +1703,6 @@ window.__ModuleLoader__.load({
                 onClick: () => setStyle(option),
               }, option === 'outline' ? t('supplyAddStyleOutline') : t('supplyAddStyleSolid'))))
               : null)
-          : null,
-        duplicate
-          ? h('div', { className: 'gs-warn' },
-            h('b', null, t('importDup', { name: duplicate.name })),
-            duplicate.rule ? h('p', { style: { margin: '4px 0 0' } }, duplicate.rule) : null,
-            h('div', { style: { marginTop: 8 } },
-              h(Btn, {
-                onClick: () => { onClose(); if (props.onOpen) props.onOpen(duplicate.name) },
-              }, t('importUseExisting', { name: duplicate.name }))))
           : null,
         taken && name.trim() !== '' ? h('p', { className: 'gs-warn' }, t('importNameTaken', { name: taken.name })) : null,
         h('div', { className: 'gs-row' },
@@ -4150,15 +2875,6 @@ window.__ModuleLoader__.load({
       })
     }
 
-    function GuideIcon(props) {
-      const size = props && typeof props.size === 'number' ? props.size : 18
-      return h('svg', {
-        viewBox: LOGO.viewBox, width: size, height: size, fill: 'none',
-        'aria-hidden': true,
-        dangerouslySetInnerHTML: { __html: LOGO.markup },
-      })
-    }
-
     function apply(ctx) {
       translate = makeT(ctx)
       // Function entries are local interpolators: the host registry only takes
@@ -4169,19 +2885,6 @@ window.__ModuleLoader__.load({
       try {
         ctx.effect(() => ctx.locale.register(NS, { zh: plain(ZH), en: plain(EN) }), 'dsh-icon-studio: copy')
       } catch (err) { console.warn('[dsh-icon-studio] locale', err) }
-
-      ctx.inject(['sidebarRight'], (scope) => {
-        const sidebarRight = scope.get('sidebarRight')
-        if (!sidebarRight) return
-        openIconTab = (name) => {
-          try {
-            if (typeof sidebarRight.openTab === 'function') sidebarRight.openTab(KIND, { params: { name } })
-            else if (typeof sidebarRight.focus === 'function') sidebarRight.focus()
-          } catch (error) {
-            console.warn('[dsh-icon-studio] could not open the tab', error)
-          }
-        }
-      })
 
       ctx.inject(['sidebarRightTabs'], (scope) => {
         const tabs = scope.get('sidebarRightTabs')
@@ -4219,7 +2922,9 @@ window.__ModuleLoader__.load({
 
     exports.apply = apply
     exports.inject = INJECT
-    exports._test = { parsePath, segmentsToD, isClosedPath, kindOf, pathBBox, transformD, penD, ellipseD, rectD, matrixInvert, ICON_CANVAS, Panel, Detail, ListView, SupplyView, AddIconDialog, AiPromptDialog, DerivationRow, siteLabel, shouldRetryLibrary, InitView, ScanView, GuideIcon, PanelTitle, TabMark, GuideMark, makeT }
+    // The surface the offline suite renders and calls. Geometry helpers are not
+    // here on purpose: nothing in the panel draws paths any more.
+    exports._test = { Panel, Detail, ListView, SupplyView, AddIconDialog, AiPromptDialog, DerivationRow, siteLabel, shouldRetryLibrary, InitView, ScanView, PanelTitle, TabMark, GuideMark, scopeIds, makeT }
     return module.exports
   },
 })

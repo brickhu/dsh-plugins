@@ -11,11 +11,11 @@
  */
 
 import path from 'node:path'
-import { readFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
-import { cascadeRename, applyAsset, scanUsage } from './assets.js'
-import { findShapePointers, pushShapePointers, readDerivations, signature, bodySignature, scanCodeShapes } from './sync.js'
-import { expandMask, normalizeSvg, pathBBox, bakeIconifyTransform, strokeCrossings } from './svg.js'
+import { cascadeRename, applyAsset } from './assets.js'
+import { findShapePointers, pushShapePointers, readDerivations, bodySignature, scanCodeShapes } from './sync.js'
+import { normalizeSvg, pathBBox, bakeIconifyTransform, strokeCrossings } from './svg.js'
 import { parseSupplyRef, seedRule, svgCanvasSize, createIconmcpClient } from './supply.js'
 import { generatedIconIssues } from './shape.js'
 import { readFileSync as readJsonFile } from 'node:fs'
@@ -35,20 +35,29 @@ const PLUGIN_VERSION = (() => {
 	}
 })()
 
-import { createStore, readEntrySvg, entrySvg, LIB_DIR, MANIFEST_FILE, normalizeName, refName } from './store.js'
+import { createStore, readEntrySvg, LIB_DIR, MANIFEST_FILE, normalizeName, refName } from './store.js'
 
 const API = '/api/dsh-icon-studio'
+
+/**
+ * Opaque change token for one workspace's library: the revision from the file,
+ * bound to its root so two identical libraries can never answer each other's
+ * "unchanged" poll.
+ */
+function revisionToken(root, revision) {
+	return createHash('sha1').update(`${root}\u0000${revision}`).digest('hex').slice(0, 16)
+}
 
 /** This package's own directory, so scans never rewrite its docs or fixtures. */
 const PACKAGE_DIR = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 const RULE = [
-	'This workspace has its own icon library in a hidden file `.icons.json` at the project root: names, application rules (应用规则) and inline SVG bodies. Icons the user added there are the first-class choice: prefer them over any generic library.',
-	'Whenever a task needs an icon or glyph — close, chevron, search, trash, empty-state mark — call `icon_list` first and consume a matching icon with `icon_get` instead of writing SVG paths by hand.',
-	'Each icon has an 应用规则 (application rule) instead of a note: when to use it and when NOT to. `icon_list` returns truncated rules and `icon_get` returns the full one, so pick by meaning, not just by name.',
-	'If nothing matches, say so explicitly and list the closest candidates. The user can widen the pool from the Icons panel (it imports from Iconify and IconMCP into this same library) — ask for that instead of substituting a generic icon or an invented path.',
-	'In conversation a name is written in angle brackets — `<删除>` means the icon named 删除 (names may be Chinese or English). Strip the brackets, then resolve that name with `icon_get`; never treat the brackets as part of the name.  Business code consumes an icon by inlining the SVG that `icon_get` returns (single-colour, so it inherits `currentColor`; never `<img src="*.svg">`). Do not add markers to code: the library indexes shapes and rewrites every occurrence when the icon changes.',
-	'When a used icon taught you something durable (a better name for its job, a case to avoid), call `icon_annotate` to improve its 应用规则.',
-	'Pasting SVG markup into the chat is just text: do not import it unless the user explicitly asks. Importing belongs to the Icons panel.',
+	'This workspace has its own icon library in `.icons.json` at the project root: names, 应用规则 (when to use / when not to) and inline SVG bodies. Prefer it over any generic icon library.',
+	'For any icon or glyph need — close, chevron, search, trash, empty state — call `icon_list` first, then `icon_get` for the SVG. Pick by meaning from the rule, not by name.',
+	// The two failure modes worth spelling out: inventing a glyph, and copying
+	// markup out of a chat message instead of the library.
+	'If nothing matches, say so and list the closest candidates; the user can widen the pool from the Icons panel, so ask for that instead of inventing paths. SVG pasted into the chat is text: do not import it unless asked.',
+	'A name is written `<名字>` in conversation (brackets are syntax, not part of the name). Inline the returned SVG so it inherits currentColor; never `<img src="*.svg">`, and do not add markers to code — the library rewrites every use when the icon changes.',
+	'After using an icon, call `icon_annotate` if you learned something durable about when to use it.',
 ].join(' ')
 
 /* ───────────────────────────── HTTP helpers ───────────────────────────── */
@@ -185,64 +194,6 @@ export function apply(ctx, config = {}) {
 			if (name.length >= 2) return name
 		}
 		return ''
-	}
-
-	/** One model round-trip: returns the answer text, or `!code` on failure. */
-	async function streamName(scope, route, sessionId, svg, maxTokens) {
-		const llm = scope.get('llm')
-		const controller = new AbortController()
-		const timer = setTimeout(() => controller.abort(), 15000)
-		let text = ''
-		try {
-			const stream = llm.stream({
-				provider: route.provider,
-				model: route.model,
-				system: 'You name icons. Reply with exactly one short name in the user\'s language (Chinese or English), no spaces, no punctuation, no angle brackets, and nothing else. No explanation, no code fences.',
-				messages: [{
-					role: 'user',
-					content: [{ type: 'text', text: `This is an SVG icon:\n\n${String(svg).slice(0, 6000)}\n\nWhat is it? Reply with only its name.` }],
-				}],
-				maxTokens,
-				signal: controller.signal,
-				...(typeof sessionId === 'string' && sessionId !== '' ? { sessionId } : {}),
-			})
-			for await (const chunk of stream) {
-				if (!chunk) continue
-				if (chunk.type === 'text-delta' && typeof chunk.text === 'string') text += chunk.text
-				if (chunk.type === 'block-end' && text === '' && chunk.block && chunk.block.type === 'text' && typeof chunk.block.text === 'string') text = chunk.block.text
-				if (chunk.type === 'finish' && chunk.reason && chunk.reason.kind === 'error') {
-					return `!${chunk.reason.failure && chunk.reason.failure.message ? chunk.reason.failure.message : 'error'}`
-				}
-				if (chunk.type === 'finish' && chunk.reason && chunk.reason.kind === 'max-tokens' && text === '') {
-					return '!max-tokens'
-				}
-			}
-		} catch (error) {
-			return `!${error && error.message ? error.message : 'stream-failed'}`
-		} finally {
-			clearTimeout(timer)
-		}
-		return text
-	}
-
-	/**
-	 * Ask the configured model what the shape is. Reasoning models can spend the
-	 * first budget on reasoning, so one max-tokens finish retries with more room.
-	 */
-	async function inferNameFromModel(scope, sessionId, svg) {
-		const llm = scope.get('llm')
-		if (!llm || typeof llm.stream !== 'function') return ''
-		const route = resolveModelRoute(scope, sessionId)
-		if (!route) return ''
-		for (const budget of [1500, 4000]) {
-			const answer = await streamName(scope, route, sessionId, svg, budget)
-			if (answer === '!max-tokens') continue
-			if (answer.startsWith('!')) return answer
-			const name = cleanName(String(answer).trim().split(/\s+/u)[0] || '')
-			if (name !== '') return name
-			return answer === '' ? '' : '!unreadable'
-		}
-		return '!max-tokens'
 	}
 
 	/** One model round-trip for the paste dialog: a name and an application rule. */
@@ -546,51 +497,35 @@ export function apply(ctx, config = {}) {
 		return list
 	}
 
-	/** Walk up from `start` to the project that owns .icons.json (or .git/). */
-	async function projectRoot(io, start) {
+	/**
+	 * Walk up from `start` to the project that owns .icons.json (or .git/).
+	 *
+	 * The io port is root-bound, so every step needs its own port: the previous
+	 * version asked the *same* relative path 40 times, which found nothing above
+	 * the start directory and made a session cwd below its project root miss the
+	 * library. Results are memoised briefly because this runs on every request.
+	 */
+	const projectRootMemo = new Map()
+	async function projectRoot(scope, start) {
 		if (typeof start !== 'string' || start === '') return ''
-		const seen = new Set()
+		const memo = projectRootMemo.get(start)
+		if (memo && Date.now() - memo.at < 5000) return memo.root
 		let current = start
-		for (let depth = 0; depth < 40; depth += 1) {
-			if (seen.has(current)) break
-			seen.add(current)
-			const hasManifest = await io.stat(`${MANIFEST_FILE}`)
-			const hasGraphics = hasManifest
-			if (hasGraphics || hasManifest) return current
+		for (let depth = 0; depth < 12; depth += 1) {
+			const io = makeIo(scope, current)
 			try {
-				if (await io.stat('.git')) return current
+				if (await io.stat(`${MANIFEST_FILE}`)) { projectRootMemo.set(start, { at: Date.now(), root: current }); return current }
+				if (await io.stat(`${LIB_DIR}/manifest.json`)) { projectRootMemo.set(start, { at: Date.now(), root: current }); return current }
+				if (await io.stat('.git')) { projectRootMemo.set(start, { at: Date.now(), root: current }); return current }
 			} catch (_error) {
-				/* ignore */
+				/* an unreadable ancestor is not a project marker */
 			}
 			const parent = path.dirname(current)
 			if (!parent || parent === current) break
 			current = parent
 		}
+		projectRootMemo.set(start, { at: Date.now(), root: start })
 		return start
-	}
-
-	/**
-	 * Remove one workspace file. The Host filesystem service only reads and
-	 * writes, so deletion goes through the managed subprocess with an argv list
-	 * (no shell interpolation) under the same workspace.
-	 */
-	async function removeFile(scope, root, relative) {
-		const fs = scope.get('fs')
-		const subprocess = scope.get('subprocess')
-		if (!fs || !subprocess) return false
-		const target = await fs.resolve(relative, { cwd: root })
-		const path = fs.processPath(target)
-		const argv = process.platform === 'win32'
-			? ['cmd', '/c', 'del', '/f', '/q', path]
-			: ['rm', '--', path]
-		const handle = subprocess.spawn({
-			argv,
-			cwd: root,
-			stdio: { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' },
-			graceMs: 2000,
-		})
-		const outcome = await handle.done
-		return outcome.exitCode === 0
 	}
 
 	/**
@@ -622,8 +557,8 @@ export function apply(ctx, config = {}) {
 	 * Explicit `workspace` wins (validated against the allowed roots), then the
 	 * caller's session cwd, then the most recent workspace.
 	 */
-	async function resolveRoot(scope, { workspace, sessionId, walkUp = true } = {}) {
-		const all = await candidates(scope)
+	async function resolveRoot(scope, { workspace, sessionId, walkUp = true } = {}, known = null) {
+		const all = known || await candidates(scope)
 		if (all.length === 0) throw Object.assign(new Error('no workspace available'), { code: 'unknown-workspace' })
 		let base = ''
 		if (typeof workspace === 'string' && workspace !== '') {
@@ -650,8 +585,7 @@ export function apply(ctx, config = {}) {
 			base = all[0]
 		}
 		if (!walkUp) return base
-		const io = makeIo(scope, base)
-		return projectRoot(io, base)
+		return projectRoot(scope, base)
 	}
 
 	function storeFor(scope, root) {
@@ -676,6 +610,47 @@ export function apply(ctx, config = {}) {
 			if (bodySignature(text) === wanted) out.push({ name: entry.name, rule: entry.rule })
 		}
 		return out
+	}
+
+	/**
+	 * Workspace scans are the one expensive thing here: they read every UI file,
+	 * so the result is shared instead of recomputed per click.
+	 *
+	 *   scanCache    the shape groups the "add from workspace" view lists
+	 *   pointerCache where one icon's drawing already lives, keyed by shape
+	 *
+	 * Both are bounded by a short TTL and dropped whenever the library changes;
+	 * an explicit rescan bypasses them.
+	 */
+	const SCAN_TTL = 60 * 1000
+	const scanCache = new Map()
+	const pointerCache = new Map()
+
+	function forgetScans(root) {
+		scanCache.delete(root)
+		for (const key of [...pointerCache.keys()]) {
+			if (key.startsWith(`${root}\u0000`)) pointerCache.delete(key)
+		}
+	}
+
+	async function workspaceScan(io, root, { force = false } = {}) {
+		const hit = scanCache.get(root)
+		if (!force && hit && Date.now() - hit.at < SCAN_TTL) return hit.groups
+		const groups = await scanCodeShapes(io, { exclude: excludeFor(root) })
+		scanCache.set(root, { at: Date.now(), groups })
+		return groups
+	}
+
+	/** Pointer sites for one drawing, from cache when the shape was just scanned. */
+	async function scanPointers(io, root, svg) {
+		const key = `${root}\u0000${bodySignature(svg)}`
+		const hit = pointerCache.get(key)
+		if (hit && Date.now() - hit.at < SCAN_TTL) return hit
+		const stats = {}
+		const pointers = await findShapePointers(io, svg, { exclude: excludeFor(root), stats })
+		const value = { at: Date.now(), pointers, files: stats.files ?? 0 }
+		pointerCache.set(key, value)
+		return value
 	}
 
 	/* ───────────────────────────── agent tools ───────────────────────────── */
@@ -711,19 +686,17 @@ export function apply(ctx, config = {}) {
 		const listTool = {
 			name: 'icon_list',
 			description: [
-				"List this workspace's own icon library (`.icons.json`) as a compact index.",
-				'Call it FIRST for any icon or glyph need — close, chevron, search, trash, empty-state mark — before writing SVG paths by hand.',
-				'Returns name, viewBox and a truncated rule (应用规则); never SVG bodies.',
-				'Search matches name and rule, so `关闭` and `close` can both hit the same graphic when the rule says so.',
-				'If nothing matches, say so explicitly and list the closest candidates; never silently substitute a generic icon library.',
-				'Then call `icon_get` with the chosen name to receive the SVG and the full rule.',
+				"List this workspace's own icon library (`.icons.json`) as a compact index: name, viewBox and a truncated 应用规则, never SVG bodies.",
+				'Call it first for any icon need — close, chevron, search, trash, empty state — before writing SVG paths by hand.',
+				'Search matches name and rule, so `关闭` and `close` can both hit one graphic. If nothing matches, report the miss and list the closest candidates; never substitute a generic icon silently.',
+				'Then call `icon_get` with the chosen name for the SVG and the full rule.',
 			].join(' '),
 			parameters: {
 				type: 'object',
 				additionalProperties: false,
 				properties: {
 					query: { type: 'string', description: 'Free text matched against name and rule (case-insensitive; Chinese or English).' },
-					limit: { type: 'integer', minimum: 1, maximum: 200, description: 'Maximum rows to return (default 40).' },
+					limit: { type: 'integer', minimum: 1, maximum: 200, description: 'Maximum rows to return (default 20).' },
 				},
 			},
 			output: {
@@ -752,7 +725,7 @@ export function apply(ctx, config = {}) {
 				}
 				const rawQuery = args && typeof args.query === 'string' ? refName(args.query) : ''
 				const queryText = rawQuery.trim().toLowerCase()
-				const limit = Math.max(1, Math.min(200, Number(args && args.limit) || 40))
+				const limit = Math.max(1, Math.min(200, Number(args && args.limit) || 20))
 				const scored = []
 				for (const entry of entries) {
 					let score = 0
@@ -793,10 +766,9 @@ export function apply(ctx, config = {}) {
 		const getTool = {
 			name: 'icon_get',
 			description: [
-				"Fetch one icon from this workspace's `.icons.json` library by name (English or Chinese).",
-				'Returns the clean SVG source, the full rule (何时用 / 何时别用) and palette.',
-				'Call `icon_list` first to find the name. Icons must be inlined so they inherit currentColor; never consume an icon through `<img src="*.svg">`.',
-				'`format`: svg (default) returns markup; inline returns markup ready to paste; file returns the repo path; datauri returns a data: URL for large artwork; module returns an ESM export.',
+				"Fetch one icon from this workspace's `.icons.json` by name (English or Chinese): clean SVG source, full 应用规则 and palette.",
+				'Call `icon_list` first. Inline the SVG so it inherits currentColor; never `<img src="*.svg">`.',
+				'`format`: svg (default), inline, file (repo path), datauri (large artwork), module (ESM export).',
 			].join(' '),
 			parameters: {
 				type: 'object',
@@ -814,7 +786,6 @@ export function apply(ctx, config = {}) {
 					properties: {
 						text: { type: 'string' },
 						name: { type: 'string' },
-						viewBox: { type: 'string' },
 						viewBox: { type: 'string' },
 					},
 					required: ['text'],
@@ -877,11 +848,9 @@ export function apply(ctx, config = {}) {
 		const saveTool = {
 			name: 'icon_save',
 			description: [
-				"Save an icon into this workspace's `.icons.json` library (create or overwrite by name).",
-				'Stores the SVG (IconifyIcon semantics: authored body + viewBox), dedupes by content hash and name, and updates `.icons.json`.',
-				'`name` is required and must be unique in this library: it is the identity the agent and the business code refer to.',
-				'`rule` is optional and recommended: the 应用规则 — what the icon means, when to use it and when NOT to. That text is how later agents choose correctly.',
-				'Saving identical artwork under another name is refused; the reply points at the existing name and its rule.',
+				"Save an icon into this workspace's `.icons.json` (create or overwrite by name). Dedupes by content hash.",
+				'`name` is the identity, unique in the library. `rule` (应用规则: what it is, when to use it, when not to) is how later agents pick it — write one.',
+				'Identical artwork under another name is refused and the reply names the existing icon.',
 			].join(' '),
 			parameters: {
 				type: 'object',
@@ -937,11 +906,12 @@ export function apply(ctx, config = {}) {
 				let pointers = 0
 				try {
 					const io = makeIo(scope, root)
-					const pasted = typeof args?.svg === 'string' && args.svg.trim() !== '' ? args.svg : (result.svg ?? '')
-					const found = [
-						...(await findShapePointers(io, result.svg ?? '', { exclude: excludeFor(root) })),
-						...(result.created ? await findShapePointers(io, pasted, { exclude: excludeFor(root) }) : []),
-					]
+					// One walk, one read of each file: a create matches the artwork as
+					// it was pasted (normalisation moves coordinates), an edit matches
+					// the stored drawing the workspace copies now follow.
+					const pasted = typeof args?.svg === 'string' && args.svg.trim() !== '' ? args.svg : ''
+					const wanted = result.created && pasted !== '' ? pasted : (result.svg ?? '')
+					const found = await findShapePointers(io, wanted, { exclude: excludeFor(root) })
 					const merged = new Map()
 					for (const pointer of [...(await store.pointers(result.entry.name)), ...found]) {
 						merged.set(`${pointer.kind}:${pointer.file}:${pointer.index}`, pointer)
@@ -950,6 +920,7 @@ export function apply(ctx, config = {}) {
 					await store.setPointers(result.entry.name, list)
 					pointers = list.length
 					if (!result.created) await pushShapePointers(io, result.svg ?? '', list)
+					forgetScans(root)
 				} catch (_error) { pointers = 0 }
 				const lines = []
 				lines.push(result.status === 'unchanged'
@@ -971,9 +942,8 @@ export function apply(ctx, config = {}) {
 		const annotateTool = {
 			name: 'icon_annotate',
 			description: [
-				'Rewrite only the 应用规则 of an existing icon; the SVG is not touched.',
-				'Use it after consuming an icon when you learned something durable: a better name for its job, an alias someone will search for, or a case where it must NOT be used.',
-				'This is the mechanism that makes the library get better as it is used — prefer it over leaving the 应用规则 stale.',
+				'Rewrite only the 应用规则 of an existing icon; the SVG is untouched.',
+				'Use it after consuming an icon when you learned something durable: a better name for its job, an alias people will search for, or a case where it must NOT be used.',
 			].join(' '),
 			parameters: {
 				type: 'object',
@@ -1031,33 +1001,24 @@ export function apply(ctx, config = {}) {
 			)
 		}
 
-		route('workspaces', async (req, res) => {
-			if (req.method !== 'GET') return json(res, 405, { status: 'error', error: { code: 'method-not-allowed' } })
-			const all = await candidates(scope)
-			const list = []
-			for (const candidate of all) {
-				const io = makeIo(scope, candidate)
-				const base = path.basename(candidate) || candidate
-				let library = false
-				try {
-					library = !!(await io.stat(`${MANIFEST_FILE}`))
-				} catch (_error) {
-					library = false
-				}
-				list.push({ path: candidate, title: base, library })
-			}
-			ok(res, { workspaces: list })
-		})
-
 		route('state', async (req, res) => {
 			if (req.method !== 'GET') return json(res, 405, { status: 'error', error: { code: 'method-not-allowed' } })
 			const params = query(req)
 			const workspace = params.get('workspace') ?? undefined
 			const sessionId = params.get('sessionId') ?? undefined
-			const root = await resolveRoot(scope, { workspace, sessionId })
+			const all = await candidates(scope)
+			const root = await resolveRoot(scope, { workspace, sessionId }, all)
 			const io = makeIo(scope, root)
 			const store = createStore(io)
-			const { exists, entries } = await store.list()
+			const { exists, entries, revision: libraryRevision } = await store.list()
+			const revision = revisionToken(root, libraryRevision)
+			// A poll carries the revision it already has. When nothing changed the
+			// answer is a few bytes instead of every drawing, and the panel keeps
+			// the state it rendered — no re-render, no re-parse.
+			const since = params.get('since') ?? ''
+			if (exists && since !== '' && since === revision) {
+				return ok(res, { root, libraryExists: true, unchanged: true, revision, target: 'inline', version: PLUGIN_VERSION })
+			}
 			const graphics = []
 			for (const entry of entries) {
 				let svg = ''
@@ -1066,16 +1027,32 @@ export function apply(ctx, config = {}) {
 				} catch (_error) {
 					svg = ''
 				}
-				graphics.push({ ...entry, svg })
+				// Only what the grid draws. `pointers` is the largest per-icon
+				// record and belongs to the detail view, which asks for it.
+				graphics.push({
+					name: entry.name,
+					viewBox: entry.viewBox,
+					rule: entry.rule,
+					source: entry.source,
+					origin: entry.origin,
+					hash: entry.hash,
+					version: entry.version,
+					pushed: entry.pushed,
+					createdAt: entry.createdAt,
+					updatedAt: entry.updatedAt,
+					// Where the shape is used, without the tracked path data: the
+					// grid needs the sites for the delete confirmation, and `literal`
+					// (a full `d`) is fetched only by the detail view.
+					pointers: entry.pointers.map((pointer) => ({ file: pointer.file, kind: pointer.kind, line: pointer.line, index: pointer.index })),
+					svg,
+				})
 			}
-			const all = await candidates(scope)
 			ok(res, {
 				root,
 				libraryExists: exists,
-				target: 'inline',
+				revision,
 				version: PLUGIN_VERSION,
 				graphics,
-				workspaces: all.map((candidate) => ({ path: candidate, title: path.basename(candidate) || candidate })),
 			})
 		})
 
@@ -1086,21 +1063,27 @@ export function apply(ctx, config = {}) {
 			const io = makeIo(scope, root)
 			const store = createStore(io)
 			const graphic = await store.get(params.get('name') ?? '')
-			// Opening an icon is the check: link every place that already draws this
-			// shape (read-only for the code) and report same-shape names in the
-			// library. Nothing here asks the user to push anything.
+			// Opening an icon used to re-index the whole workspace and rewrite the
+			// manifest on every click. The pointer list is already recorded when the
+			// icon is saved, so it is served from the entry: the scan only runs for
+			// a legacy entry that has never been indexed, or when asked explicitly
+			// (`?rescan=1`).
 			let pointers = Array.isArray(graphic.entry.pointers) ? graphic.entry.pointers : []
-			let duplicates = []
 			const stats = {}
-			try {
-				const found = await findShapePointers(io, graphic.svg, { exclude: excludeFor(root), stats })
-				// The scan is the truth: replace the recorded list instead of merging,
-				// otherwise stale or duplicated entries from older scans live forever.
-				await store.setPointers(graphic.entry.name, found)
-				pointers = found
-			} catch (error) {
-				console.warn('[dsh-icon-studio] pointer scan failed', error)
+			const wantScan = params.get('rescan') === '1' || !graphic.entry.scannedAt
+			if (wantScan) {
+				try {
+					const found = await scanPointers(io, root, graphic.svg)
+					stats.files = found.files
+					// The scan is the truth: replace the recorded list instead of
+					// merging, so stale entries from older scans cannot linger.
+					await store.setPointers(graphic.entry.name, found.pointers)
+					pointers = found.pointers
+				} catch (error) {
+					console.warn('[dsh-icon-studio] pointer scan failed', error)
+				}
 			}
+			let duplicates = []
 			try {
 				duplicates = await sameShapeEntries(io, store, graphic)
 			} catch (_error) { duplicates = [] }
@@ -1109,7 +1092,7 @@ export function apply(ctx, config = {}) {
 				entry: { ...graphic.entry, pointers },
 				svg: graphic.svg,
 				elements: graphic.elements,
-				draft: graphic.draft ?? null,
+				draft: null,
 				duplicates,
 				scan: { files: stats.files ?? 0, found: pointers.length, root },
 			})
@@ -1124,21 +1107,13 @@ export function apply(ctx, config = {}) {
 			ok(res, result)
 		})
 
-		route('create', async (req, res) => {
-			if (req.method !== 'POST') return json(res, 405, { status: 'error', error: { code: 'method-not-allowed' } })
-			const body = await readBody(req)
-			const root = await resolveRoot(scope, { workspace: body.workspace, sessionId: body.sessionId })
-			const store = storeFor(scope, root)
-			const result = await store.create({ name: body.name, width: body.width, height: body.height })
-			ok(res, { root, entry: result.entry, svg: result.svg, elements: result.elements })
-		})
-
 		route('init', async (req, res) => {
 			if (req.method !== 'POST') return json(res, 405, { status: 'error', error: { code: 'method-not-allowed' } })
 			const body = await readBody(req)
 			const root = await resolveRoot(scope, { workspace: body.workspace, sessionId: body.sessionId })
 			const store = storeFor(scope, root)
 			const result = await store.init()
+			forgetScans(root)
 			ok(res, { root, created: result.created, file: MANIFEST_FILE })
 		})
 
@@ -1196,14 +1171,13 @@ export function apply(ctx, config = {}) {
 				// usually comes from there). Link it, and keep every linked site in
 				// step with the library, so an edit never has to be repeated by hand.
 				try {
-					// Match against the artwork as it was pasted: normalisation crops
-					// the canvas, so the exported SVG no longer has the coordinates the
-					// project's copies still use.
-					const pasted = typeof body.svg === 'string' && body.svg.trim() !== '' ? body.svg : (result.svg ?? '')
-					const found = [
-						...(await findShapePointers(io, result.svg ?? '', { exclude: excludeFor(root) })),
-						...(result.created ? await findShapePointers(io, pasted, { exclude: excludeFor(root) }) : []),
-					]
+					// One walk: a create matches the artwork as it was pasted
+					// (normalisation crops the canvas, so the exported SVG no longer
+					// has the coordinates the project's copies still use); an edit
+					// matches the stored drawing the copies now follow.
+					const pasted = typeof body.svg === 'string' && body.svg.trim() !== '' ? body.svg : ''
+					const wanted = result.created && pasted !== '' ? pasted : (result.svg ?? '')
+					const found = await findShapePointers(io, wanted, { exclude: excludeFor(root) })
 					// Existing pointers survive an edit: they follow the icon, not the
 					// old shape, and the new artwork is pushed into them below.
 					const merged = new Map()
@@ -1211,8 +1185,9 @@ export function apply(ctx, config = {}) {
 						merged.set(`${pointer.kind}:${pointer.file}:${pointer.index}`, pointer)
 					}
 					pointers = [...merged.values()]
-					await store.setPointers(result.entry.name, pointers)
-					result.entry.pointers = pointers
+					const recorded = await store.setPointers(result.entry.name, pointers)
+					result.entry.pointers = recorded.pointers
+					result.entry.scannedAt = recorded.scannedAt
 					// Only an edit pushes: creating an icon must never rewrite code.
 					if (!result.created) {
 						// The panel lets the user uncheck references: those sites keep
@@ -1224,6 +1199,7 @@ export function apply(ctx, config = {}) {
 					}
 				} catch (_error) { /* scanning is best-effort */ }
 			}
+			forgetScans(root)
 			ok(res, {
 				root,
 				status: result.status,
@@ -1240,65 +1216,14 @@ export function apply(ctx, config = {}) {
 			})
 		})
 
-		route('annotate', async (req, res) => {
-			if (req.method !== 'POST') return json(res, 405, { status: 'error', error: { code: 'method-not-allowed' } })
-			const body = await readBody(req)
-			const root = await resolveRoot(scope, { workspace: body.workspace, sessionId: body.sessionId })
-			const store = storeFor(scope, root)
-			const result = await store.annotate({ name: refName(body.name), rule: body.rule ?? body.note })
-			ok(res, { root, entry: result.entry })
-		})
-
 		route('order', async (req, res) => {
 			if (req.method !== 'POST') return json(res, 405, { status: 'error', error: { code: 'method-not-allowed' } })
 			const body = await readBody(req)
 			const root = await resolveRoot(scope, { workspace: body.workspace, sessionId: body.sessionId })
 			const store = storeFor(scope, root)
 			const result = await store.reorder(body.names)
+			forgetScans(root)
 			ok(res, { root, entries: result.entries })
-		})
-
-		route('expand-mask', async (req, res) => {
-			if (req.method !== 'POST') return json(res, 405, { status: 'error', error: { code: 'method-not-allowed' } })
-			const body = await readBody(req)
-			const elements = expandMask({
-				defs: body.defs,
-				mask: body.mask,
-				fill: body.fill,
-				stroke: body.stroke,
-				opacity: body.opacity,
-			})
-			ok(res, { elements })
-		})
-
-		route('suggest-name', async (req, res) => {
-			if (req.method !== 'POST') return json(res, 405, { status: 'error', error: { code: 'method-not-allowed' } })
-			const body = await readBody(req)
-			const root = await resolveRoot(scope, { workspace: body.workspace, sessionId: body.sessionId })
-			const store = storeFor(scope, root)
-			const graphic = await store.get(body.name)
-			let sessionId = typeof body.sessionId === 'string' ? body.sessionId : ''
-			if (sessionId === '') {
-				try {
-					const sessions = scope.get('sessions')
-					const live = sessions && typeof sessions.list === 'function' ? sessions.list() : []
-					const last = live[live.length - 1]
-					if (last && typeof last.id === 'string') sessionId = last.id
-				} catch (_error) { /* no live session */ }
-			}
-			const suggestion = await inferNameFromModel(scope, sessionId, graphic.svg)
-			if (suggestion === '' || suggestion.startsWith('!')) {
-				ok(res, { root, suggestion: '', error: suggestion.startsWith('!') ? suggestion.slice(1) : 'no-answer' })
-				return
-			}
-			const { entries } = await store.list()
-			let candidate = suggestion
-			let index = 2
-			while (entries.some((entry) => entry.name === candidate && entry.name !== graphic.entry.name)) {
-				candidate = `${suggestion}-${index}`
-				index += 1
-			}
-			ok(res, { root, suggestion: candidate })
 		})
 
 		route('scan', async (req, res) => {
@@ -1307,7 +1232,10 @@ export function apply(ctx, config = {}) {
 			const root = await resolveRoot(scope, { workspace: body.workspace, sessionId: body.sessionId })
 			const io = makeIo(scope, root)
 			const store = createStore(io)
-			const groups = await scanCodeShapes(io, { exclude: excludeFor(root) })
+			// Walking the workspace is the expensive part; the host keeps the
+			// answer for a minute and every caller shares it. `force` is the
+			// panel's explicit "scan again" press.
+			const groups = await workspaceScan(io, root, { force: body.force === true })
 			const excluded = typeof groups.excluded === 'number' ? groups.excluded : 0
 			const { entries } = await store.list()
 			const known = new Map()
@@ -1396,7 +1324,7 @@ export function apply(ctx, config = {}) {
 			return { viewBox }
 		}
 
-		function iconifySvg(prefix, item, width, height) {
+		function iconifySvg(item, width, height) {
 			const left = Number(item.left) || 0
 			const top = Number(item.top) || 0
 			const body = bakeIconifyTransform(item.body, width, height, {
@@ -1598,7 +1526,7 @@ export function apply(ctx, config = {}) {
 						for (const icon of list) {
 							const item = data.icons && data.icons[icon]
 							if (!item || typeof item.body !== 'string') continue
-							icons[`${prefix}:${icon}`] = iconifySvg(prefix, item, width, height)
+							icons[`${prefix}:${icon}`] = iconifySvg(item, width, height)
 						}
 					}
 				})().catch(() => {}),
@@ -1665,7 +1593,7 @@ export function apply(ctx, config = {}) {
 			const width = data.width || 24
 			const height = data.height || 24
 			return {
-				svg: iconifySvg(ref.prefix, item, width, height),
+				svg: iconifySvg(item, width, height),
 				width,
 				height,
 				rule: '',
@@ -1927,16 +1855,14 @@ export function apply(ctx, config = {}) {
 			const root = await resolveRoot(scope, { workspace: body.workspace, sessionId: body.sessionId })
 			const store = storeFor(scope, root)
 			const result = await store.remove({ name: body.name })
-			const fileRemoved = true
-			// Layer 1 goes with the icon; a stale draft would resurrect the drawing.
-			try {
-				await removeFile(scope, root, draftPath(result.entry.name))
-			} catch (_error) { /* no draft */ }
+			forgetScans(root)
 			ok(res, {
 				root,
 				name: result.entry.name,
 				file: `${MANIFEST_FILE}`,
-				fileRemoved,
+				// Artwork lives inline in the manifest since format v3: deleting the
+				// entry removes the drawing with it, so there is no loose file left.
+				fileRemoved: true,
 			})
 		})
 
@@ -1964,29 +1890,6 @@ export function apply(ctx, config = {}) {
 			})
 		})
 
-		route('usage', async (req, res) => {
-			if (req.method !== 'GET') return json(res, 405, { status: 'error', error: { code: 'method-not-allowed' } })
-			const params = query(req)
-			const root = await resolveRoot(scope, { workspace: params.get('workspace') ?? undefined, sessionId: params.get('sessionId') ?? undefined })
-			const io = makeIo(scope, root)
-			const store = createStore(io)
-			const { entries } = await store.list()
-			const usages = await scanUsage(io, entries.map((entry) => entry.name), { exclude: excludeFor(root) })
-			ok(res, { root, usages })
-		})
-
-		route('apply', async (req, res) => {
-			if (req.method !== 'POST') return json(res, 405, { status: 'error', error: { code: 'method-not-allowed' } })
-			const body = await readBody(req)
-			const root = await resolveRoot(scope, { workspace: body.workspace, sessionId: body.sessionId })
-			const io = makeIo(scope, root)
-			const store = createStore(io)
-			const name = normalizeName(body.name)
-			const graphic = await store.get(name)
-			const warnings = []
-			const result = await applyAsset(io, name, graphic.svg, warnings, { exclude: excludeFor(root), hash: shortHash(graphic.entry?.hash) })
-			ok(res, { root, name, replaced: result.replaced, files: result.files, warnings })
-		})
 	})
 
 	/* ───────────────────────────── prompt rule ───────────────────────────── */

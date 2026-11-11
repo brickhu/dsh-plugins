@@ -1346,66 +1346,35 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 		assert.ok(io.files.get('notes.md').includes('@asset alpha'), 'prose must not be rewritten')
 	})
 
-	console.log('client geometry')
+	console.log('client panel')
 
-	await test('client helpers round-trip path data and boxes', async () => {
+	await test('inline previews scope gradient ids', async () => {
 		const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
 		let factory = null
 		globalThis.window = { __ModuleLoader__: { load: (entry) => { factory = entry.factory } } }
 		new Function('window', source)(globalThis.window)
 		assert.ok(typeof factory === 'function', 'client.js must register a lazy factory')
-		const fakeReact = {
-			createElement: () => null,
-			Fragment: 'fragment',
-			useState: (value) => [value, () => {}],
-			useEffect: () => {},
-			useRef: (value) => ({ current: value }),
-			useCallback: (fn) => fn,
-			useMemo: (fn) => fn(),
-		}
-		const module = factory((name) => (name === 'react' ? fakeReact : undefined))
+		const module = factory((name) => (name === 'react' ? { createElement: () => null, Fragment: 'f' } : undefined))
 		assert.ok(module.apply)
 		assert.deepEqual(module.inject, ['slots', 'locale'])
-		const { parsePath: clientParse, segmentsToD, pathBBox: clientBox, penD, ellipseD, transformD } = module._test
-		const segments = clientParse('M0 0L10 0L10 10Z')
-		assert.equal(segmentsToD(segments), 'M0 0L10 0L10 10Z')
-		const box = clientBox('M0 0L10 0L10 10Z')
-		assert.deepEqual([box.x, box.y, box.width, box.height], [0, 0, 10, 10])
-		const moved = transformD('M0 0L10 0', [1, 0, 0, 1, 5, 5])
-		assert.equal(moved, 'M5 5L15 5')
-		const curved = penD([{ x: 0, y: 0, out: { x: 2, y: 0 } }, { x: 10, y: 10, in: { x: -2, y: 0 } }], false)
-		assert.ok(curved.startsWith('M0 0C2 0'))
-		const circle = clientBox(ellipseD(10, 10, 5, 5))
-		assert.ok(Math.abs(circle.width - 10) < 0.05)
-		const { ICON_CANVAS } = module._test
-		assert.equal(ICON_CANVAS, 24, 'new icons start on the 24-unit grid')
 		// the client file must stay self-contained for the browser module loader
 		assert.ok(source.includes("window.__ModuleLoader__.load"))
 		assert.ok(!/^\s*import\s/m.test(source), 'client.js must not use ESM imports')
+		const { scopeIds } = module._test
+		assert.equal(scopeIds('', 'x'), '')
+		const scoped = scopeIds('<svg><defs><linearGradient id="paint0"/></defs><path fill="url(#paint0)"/></svg>', 'close')
+		assert.ok(scoped.includes('id="close-paint0"'), 'gradient ids are prefixed')
+		assert.ok(scoped.includes('url(#close-paint0)'), 'and so are their references')
+		assert.ok(!scoped.includes('url(#paint0)'), 'the bare reference is gone')
 	})
 
-	await test('node editing rewrites one anchor and keeps the path valid', async () => {
+	await test('the client carries no drawing editor any more', () => {
 		const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
-		let factory = null
-		globalThis.window = { __ModuleLoader__: { load: (entry) => { factory = entry.factory } } }
-		new Function('window', source)(globalThis.window)
-		const fakeReact = { createElement: () => null, Fragment: 'fragment' }
-		const module = factory((name) => (name === 'react' ? fakeReact : undefined))
-		const { parsePath, segmentsToD } = module._test
-
-		const segments = parsePath('M0 0L10 0L10 10')
-		assert.equal(segments.length, 3)
-		segments[1].p[0] = [4, 2]
-		assert.equal(segmentsToD(segments), 'M0 0L4 2L10 10')
-
-		const cubic = parsePath('M0 0C2 4 6 8 10 10')
-		assert.equal(cubic[1].c, 'C')
-		assert.equal(cubic[1].p.length, 3, 'two controls and one anchor')
+		for (const gone of ['function parsePath(', 'function penD(', 'function ellipseD(', 'function withId(', 'SHAPE_TOOLS', 'TOOL_GROUPS', 'gs-editor', 'gs-canvas', 'gs-layers']) {
+			assert.ok(!source.includes(gone), `removed editor code is back: ${gone}`)
+		}
+		assert.ok(!source.includes("t('editorUntitled')"), 'editor copy is gone')
 	})
-
-
-
-
 
 	await test('only plain strings reach the host locale registry', () => {
 		const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
@@ -1425,10 +1394,10 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 		}
 		const module = factory((name) => (name === 'react' ? react : undefined))
 		const t = module._test.makeT(null)
-		const stale = t('syncStale', { n: 3 })
-		assert.equal(typeof stale, 'string', 'function entries must be called')
-		assert.ok(stale.includes('3'), 'and receive their variables')
-		assert.equal(typeof t('syncClean'), 'string')
+		const counted = t('listCount', { n: 3 })
+		assert.equal(typeof counted, 'string', 'function entries must be called')
+		assert.ok(counted.includes('3'), 'and receive their variables')
+		assert.equal(typeof t('commonClose'), 'string', 'plain entries stay strings')
 	})
 
 
@@ -1647,40 +1616,13 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 		assert.ok(source.includes('openGraphicByNameRef.current(requested)'), 'tab params still open one icon')
 	})
 
-	await test('inline previews scope their gradient ids', () => {
-		const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
-		assert.ok(source.includes('function scopeIds('), 'the helper exists')
-		assert.ok(source.includes('url(#${id})'), 'references are rewritten')
-		assert.ok(source.includes('svgArt(entry.svg, entry.name)'), 'cards render through the scoping/embedding helper')
-	})
-
 	await test('the mounted tab refreshes the library when it becomes visible', () => {
 		const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
 		assert.ok(source.includes("addEventListener('visibilitychange'"), 'listens for visibility')
 		assert.ok(source.includes("addEventListener('focus'"), 'listens for focus')
-		assert.ok(source.includes('setInterval(refresh, 15000)'), 'polls while mounted')
-	})
-
-	await test('closure detection decides shape vs path', () => {
-		const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
-		let factory = null
-		globalThis.window = { __ModuleLoader__: { load: (entry) => { factory = entry.factory } } }
-		new Function('window', source)(globalThis.window)
-		const module = factory((name) => (name === 'react' ? { createElement: () => null, Fragment: 'f' } : undefined))
-		const { isClosedPath, kindOf } = module._test
-
-		assert.equal(isClosedPath('M4 4h16v16H4z'), true, 'explicit close')
-		assert.equal(isClosedPath('M0 0L10 0L10 10L0 10L0 0'), true, 'line back to start')
-		assert.equal(isClosedPath('M0 0L10 0'), false, 'open path')
-		assert.equal(kindOf({ d: 'M0 0L10 0', fill: 'currentColor' }), 'shape', 'filled art is a shape')
-		assert.equal(kindOf({ d: 'M0 0L10 0', fill: 'none', stroke: 'currentColor' }), 'path')
-	})
-
-	await test('geometry helpers used by the canvas are defined', () => {
-		const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
-		const needed = ['normalizeRect', 'quadBBox', 'worldQuad', 'unionBBox', 'viewBoxSize', 'withId', 'matrixMultiply', 'matrixInvert', 'translateM', 'pathBBox', 'segmentsToD', 'parsePath']
-		const missing = needed.filter((name) => !new RegExp(`(?:function|const)\\s+${name}\\s*[=(]`).test(source))
-		assert.deepEqual(missing, [], `undefined helpers: ${missing.join(', ')}`)
+		assert.ok(source.includes('setInterval(refresh, 60000)'), 'polls while mounted, once a minute')
+		assert.ok(source.includes('result.unchanged'), 'and skips the re-render when the revision matches')
+		assert.ok(source.includes("api.get('state', since === '' ? target : { ...target, since })"), 'sends the revision it already has')
 	})
 
 	await test('every icon reference exists in the icon map', () => {
@@ -1692,17 +1634,6 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 		const missing = [...used].filter((name) => !keys.has(name))
 		assert.deepEqual(missing, [], `unknown icon keys: ${missing.join(', ')}`)
 	})
-
-	await test('every icon reference exists in the icon map', () => {
-		const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
-		const start = source.indexOf('const I = {')
-		const end = source.indexOf('\n    }', start)
-		const keys = new Set([...source.slice(start, end).matchAll(/\n\s+([a-zA-Z]+):/g)].map((match) => match[1]))
-		const used = new Set([...source.slice(end).matchAll(/\bI\.([a-zA-Z]+)\b/g)].map((match) => match[1]))
-		const missing = [...used].filter((name) => !keys.has(name))
-		assert.deepEqual(missing, [], `unknown icon keys: ${missing.join(', ')}`)
-	})
-
 
 	await test('panel and detail render a first frame without throwing', async () => {
 		const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
@@ -1890,11 +1821,112 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 		const start = source.indexOf('const CSS = `')
 		const end = source.indexOf('\n`', start)
 		const css = source.slice(start, end)
-		for (const cls of ['gs-ehead', 'gs-etools', 'gs-head', 'gs-bottom', 'gs-tabbar', 'gs-editor']) {
+		for (const cls of ['gs-root', 'gs-head', 'gs-listfoot', 'gs-cardmenu', 'gs-scanbar']) {
 			const rule = new RegExp(`\\.${cls}\\{([^}]*)\\}`).exec(css)
 			assert.ok(rule, `missing .${cls} rule`)
 			assert.ok(rule[1].includes('display:'), `.${cls} lost its display rule`)
 		}
+	})
+
+	await test('the poll and an icon open stop paying for the workspace scan', async () => {
+		const workspace = '/w/proj'
+		const files = new Map()
+		const dirs = new Set(['/', '/w', workspace, `${workspace}/src`])
+		const writes = []
+		const fsPort = {
+			async resolve(rel, options = {}) { return path.isAbsolute(rel) ? rel : path.resolve(options.cwd || '/', rel) },
+			async stat(abs) {
+				if (files.has(abs)) return { type: 'file', size: files.get(abs).length }
+				if (dirs.has(abs)) return { type: 'directory' }
+				return null
+			},
+			async readText(abs) { return files.get(abs) ?? null },
+			async writeText(abs, text) { files.set(abs, text); writes.push(abs) },
+			async listDir(abs) {
+				const out = []
+				for (const key of files.keys()) if (path.dirname(key) === abs) out.push({ name: path.basename(key), type: 'file', size: files.get(key).length })
+				for (const dir of dirs) if (dir !== abs && path.dirname(dir) === abs) out.push({ name: path.basename(dir), type: 'directory' })
+				return out
+			},
+		}
+		files.set(`${workspace}/src/a.tsx`, '<svg viewBox="0 0 24 24"><path d="M4 4L20 20"/></svg>\n')
+		const routes = new Map()
+		const services = {
+			webServer: { register: (spec) => { routes.set(spec.path, spec.handler); return () => {} } },
+			fs: fsPort,
+			sessions: { get: () => undefined, list: () => [] },
+			workspaceRegistry: { list: () => [{ path: workspace, updatedAt: 'z' }] },
+			workingDirectory: { defaultDirectory: workspace },
+			sandboxPolicy: { resolve: () => ({ mode: 'workspace-write', workspaceRoot: workspace }) },
+			tools: undefined,
+			systemPrompt: { section: () => () => {} },
+			locale: { register: () => () => {} },
+			slots: {},
+		}
+		const scope = {
+			get: (name) => services[name],
+			effect: (fn) => { fn() },
+			inject: (_deps, run) => run(scope),
+			systemPrompt: services.systemPrompt,
+		}
+		const { apply } = await import('../lib/index.js')
+		apply({ inject: (_deps, run) => run(scope), effect: (fn) => { fn() } })
+		const call = (name, { method = 'GET', search = '', body } = {}) => new Promise((resolve) => {
+			const handler = routes.get(`/api/dsh-icon-studio/${name}`)
+			assert.ok(handler, `route ${name} is not mounted`)
+			const chunks = body === undefined ? [] : [Buffer.from(JSON.stringify(body))]
+			const req = { method, url: `/api/dsh-icon-studio/${name}${search}`, async *[Symbol.asyncIterator]() { yield* chunks } }
+			const res = {
+				statusCode: 0,
+				headersSent: false,
+				setHeader() {},
+				end(payload) { this.headersSent = true; resolve({ status: this.statusCode, data: JSON.parse(payload), size: payload.length }) },
+			}
+			handler(req, res)
+		})
+		const q = `?workspace=${encodeURIComponent(workspace)}`
+		await call('init', { method: 'POST', body: { workspace } })
+		const saved = await call('save', {
+			method: 'POST',
+			body: { workspace, name: 'route', svg: '<svg viewBox="0 0 24 24"><path d="M4 4L20 20"/></svg>' },
+		})
+		assert.equal(saved.status, 200)
+		assert.equal(saved.data.entry.pointers.length, 1, 'a create links the copy it was pasted from')
+		assert.ok(saved.data.entry.scannedAt, 'and records that the workspace was indexed')
+
+		const state = await call('state', { search: q })
+		assert.ok(state.data.revision, 'the state carries a revision')
+		assert.equal(state.data.graphics[0].name, 'route')
+		assert.ok(Array.isArray(state.data.graphics[0].pointers), 'the compact pointer list rides along')
+		assert.ok(!('literal' in state.data.graphics[0].pointers[0]), 'but not the tracked path data')
+		const writesBeforePoll = writes.length
+		const poll = await call('state', { search: `${q}&since=${state.data.revision}` })
+		assert.equal(poll.data.unchanged, true, 'an unchanged library answers "unchanged"')
+		assert.ok(poll.size < 400, `the poll is a few bytes, not the whole library (${poll.size})`)
+		assert.equal(writes.length, writesBeforePoll, 'a poll never writes the manifest')
+
+		// A library written before `scannedAt` existed must scan once, then trust it.
+		const manifestPath = `${workspace}/.icons.json`
+		const manifest = JSON.parse(files.get(manifestPath))
+		delete manifest.metadata.route.scannedAt
+		delete manifest.metadata.route.pointers
+		files.set(manifestPath, JSON.stringify(manifest, null, 2))
+		writes.length = 0
+		const firstOpen = await call('graphic', { search: `${q}&name=route` })
+		assert.ok(firstOpen.data.scan.files > 0, 'the first open of a legacy entry indexes the workspace')
+		assert.equal(firstOpen.data.entry.pointers.length, 1)
+		assert.ok(writes.some((file) => file === manifestPath), 'and records the result once')
+		writes.length = 0
+		const secondOpen = await call('graphic', { search: `${q}&name=route` })
+		assert.equal(secondOpen.data.scan.files, 0, 'the second open does not walk the workspace again')
+		assert.equal(writes.length, 0, 'and does not rewrite the manifest on every click')
+
+		const firstScan = await call('scan', { method: 'POST', body: { workspace } })
+		assert.equal(firstScan.status, 200)
+		const cachedScan = await call('scan', { method: 'POST', body: { workspace } })
+		assert.equal(cachedScan.data.groups.length, firstScan.data.groups.length, 'the cached scan answers the same list')
+		const forced = await call('scan', { method: 'POST', body: { workspace, force: true } })
+		assert.equal(forced.data.groups.length, firstScan.data.groups.length, 'and an explicit rescan agrees with it')
 	})
 
 	console.log('')

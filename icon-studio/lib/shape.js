@@ -336,12 +336,6 @@ const REACT_ATTR = {
 	fillRule: 'fill-rule',
 }
 
-function attrValue(attrs, name) {
-	const match = new RegExp(`\\b${name}\\s*:\\s*(?:'([^']*)'|"([^"]*)"|(-?[\\d.]+))`, 'u').exec(attrs)
-	if (!match) return ''
-	return match[1] ?? match[2] ?? match[3] ?? ''
-}
-
 /**
  * `h('svg', {…}, h('path', {…}), …)` blocks. Many codebases (including this
  * one) never write raw `<svg>` markup, so the scanner must read React calls.

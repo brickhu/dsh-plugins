@@ -98,12 +98,18 @@ iconmcp-generic:trash   # IconMCP：前缀带集合
       // left/top/width/height 省略时取顶层默认（0,0,24,24）
       "rule": "删除动作…",                                // 应用规则，选填
       "pointers": [{ "file": "src/a.tsx", "kind": "inline", "index": 0, "line": 3 }],
-      "order": 3, "hash": "sha256:…",
+      "scannedAt": "…",                                     // 上次在工作区里找过引用
+      "hash": "sha256:…",
       "createdAt": "…", "updatedAt": "…", "version": 1, "pushed": 1
     }
-  }
+  },
+  "updatedAt": "…"
 }
 ```
+
+- 顶层 `updatedAt` 是库的修订号来源：面板轮询带上它，未变化时只回 ~160 字节并跳过重渲染。
+- `metadata.<name>.scannedAt` 记录"这个图形在 workspace 里查过引用"；为空只意味着要扫一次，
+  扫过之后（哪怕没找到）不再每次打开都重扫，显式重新扫描除外。
 
 - `note` 是 v1 字段，读入时迁移为 `rule`，写出只有 `rule`。
 - `body` / `left` / `top` / `width` / `height` 即 IconifyIcon；其余字段是本库扩展。

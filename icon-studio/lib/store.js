@@ -26,22 +26,30 @@ export const LEGACY_DIR = '.icon-studio'
 export const LIB_DIR = LEGACY_DIR
 /** Single source of truth: a hidden JSON file at the workspace root. */
 export const MANIFEST_FILE = '.icons.json'
-/**
- * Layer 1: editor drafts. They carry the element model (local geometry plus a
- * matrix), which the exported SVG has already baked away, so they are the only
- * place an in-progress drawing lives. Nothing downstream reads them.
- */
-/** Blobs are addressed relative to the library root, like every `entry.file`. */
-export const DRAFT_FORMAT = 'dsh-icon-draft'
+// Older libraries lived under `.icon-studio/`; the hidden JSON file at the root
+// is the current layout. Both stay readable.
 export const FORMAT = 'dsh-icon-library'
 /** v2: `note` became `rule`, entries carry `history` and `pointers`. */
 export const FORMAT_VERSION = 11
+
+/**
+ * Cheap change token for the whole library: the world outside this file (the
+ * panel's poll, the workspace scan cache) only needs to know *that* something
+ * changed, not what. Timestamp plus every name/version/hash is enough, and it
+ * costs one pass over an array that is already in memory.
+ */
+export function revisionOf(manifest) {
+	const parts = [manifest.updatedAt ?? '', String(manifest.graphics.length)]
+	for (const entry of manifest.graphics) parts.push(`${entry.name}:${entry.version}:${entry.hash ?? ''}`)
+	return createHash('sha1').update(parts.join('\n')).digest('hex').slice(0, 16)
+}
 
 const SAFE_SEGMENT = /^[a-z0-9][a-z0-9-]*$/
 
 /**
  * `close.svg` (current layout) or `icons/close.svg` (libraries created before
  * kinds were dropped) both stay readable; nothing outside those shapes does.
+ * Legacy blobs are still migrated on read, so the guard stays.
  */
 function safeFile(file) {
 	if (typeof file !== 'string' || file === '') return false
@@ -54,15 +62,6 @@ function safeFile(file) {
 }
 const MAX_NAME = 64
 
-/**
- * Layer 2 lives in a content-addressed blob store: the file name *is* the hash of
- * the exported SVG, so equal artwork is one file and every edit produces a new,
- * immutable blob the old one can always be recovered from.
- */
-/**
- * Layer 1 is keyed by the icon's identity (its name), never by the blob name:
- * a draft must survive every content change.
- */
 export function fail(code, message) {
 	return Object.assign(new Error(message ?? code), { code })
 }
@@ -107,47 +106,10 @@ export function slugify(name) {
 	return ascii
 }
 
-export function fileFor(name, taken = new Set()) {
-	let stem = slugify(name)
-	if (stem === '') {
-		for (let index = 1; index < 10000; index += 1) {
-			const candidate = `graphic-${index}`
-			if (!taken.has(`${candidate}.svg`)) {
-				stem = candidate
-				break
-			}
-		}
-	} else if (taken.has(`${stem}.svg`)) {
-		for (let index = 2; index < 10000; index += 1) {
-			const candidate = `${stem}-${index}`
-			if (!taken.has(`${candidate}.svg`)) {
-				stem = candidate
-				break
-			}
-		}
-	}
-	return `${stem}.svg`
-}
-
 /* ───────────────────────────── manifest ───────────────────────────── */
 
 function emptyManifest() {
 	return { format: FORMAT, formatVersion: FORMAT_VERSION, updatedAt: new Date().toISOString(), graphics: [] }
-}
-
-function cleanKeywords(raw) {
-	if (!Array.isArray(raw)) return []
-	const seen = new Set()
-	const out = []
-	for (const item of raw) {
-		if (typeof item !== 'string') continue
-		const value = item.trim()
-		if (value === '' || seen.has(value)) continue
-		seen.add(value)
-		out.push(value)
-		if (out.length >= 12) break
-	}
-	return out
 }
 
 const POINTER_KINDS = new Set(['file', 'inline', 'literal', 'jsx', 'markup'])
@@ -233,6 +195,10 @@ function cleanEntry(raw, defaults = { width: 24, height: 24 }) {
 		palette: Array.isArray(raw.palette) ? raw.palette.filter((value) => typeof value === 'string').slice(0, 24) : [],
 		createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : new Date().toISOString(),
 		updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : new Date().toISOString(),
+		// When the workspace was last indexed for this drawing. An empty value
+		// means "never scanned", which is how the panel knows it may scan once —
+		// and how it knows not to scan again after finding nothing.
+		scannedAt: typeof raw.scannedAt === 'string' ? raw.scannedAt : '',
 		// `version` bumps on every source edit; `pushed` remembers the version that
 		// was last copied into code. They differ only while a push is pending.
 		version: typeof raw.version === 'number' && raw.version > 0 ? raw.version : 1,
@@ -333,7 +299,12 @@ export function createStore(io) {
 			format: FORMAT,
 			formatVersion: FORMAT_VERSION,
 			aliases,
-			updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : new Date().toISOString(),
+			// A library written before `updatedAt` existed still needs a stable
+			// revision: fall back to Iconify's second-resolution `lastModified`
+			// instead of "now", which would make every poll look like a change.
+			updatedAt: typeof parsed.updatedAt === 'string'
+				? parsed.updatedAt
+				: (Number.isFinite(Number(parsed.lastModified)) ? new Date(Number(parsed.lastModified) * 1000).toISOString() : new Date().toISOString()),
 			graphics: unique,
 		}
 		// Never rewrite a file written by a newer plugin: an older process must not
@@ -354,6 +325,7 @@ export function createStore(io) {
 			const extra = {}
 			if (entry.rule) extra.rule = entry.rule
 			if (Array.isArray(entry.pointers) && entry.pointers.length > 0) extra.pointers = entry.pointers
+			if (entry.scannedAt) extra.scannedAt = entry.scannedAt
 			if (entry.hash) extra.hash = entry.hash
 			if (entry.source) extra.source = entry.source
 			if (entry.origin) extra.origin = entry.origin
@@ -373,6 +345,9 @@ export function createStore(io) {
 			icons,
 			...(manifest.aliases && typeof manifest.aliases === 'object' && Object.keys(manifest.aliases).length > 0 ? { aliases: manifest.aliases } : {}),
 			lastModified: Math.floor(Date.now() / 1000),
+			// Kept in the file: the panel polls with it, and a reload must answer
+			// "unchanged" instead of re-sending every drawing.
+			updatedAt: manifest.updatedAt,
 			...(Object.keys(metadata).length > 0 ? { metadata } : {}),
 			formatVersion: FORMAT_VERSION,
 		}
@@ -409,7 +384,7 @@ export function createStore(io) {
 		 */
 		async list() {
 			const { exists, manifest } = await readManifestFile()
-			return { exists, entries: manifest.graphics.slice() }
+			return { exists, entries: manifest.graphics.slice(), revision: revisionOf(manifest), updatedAt: manifest.updatedAt }
 		},
 
 		/**
@@ -433,17 +408,6 @@ export function createStore(io) {
 		},
 
 		/** Alternate names (Iconify aliases) that resolve to this icon. */
-		async aliasesFor(name) {
-			const { manifest } = await readManifestFile()
-			const canonical = resolveName(manifest, normalizeName(name))
-			const out = []
-			for (const alias of Object.keys(manifest.aliases || {})) {
-				if (resolveName(manifest, alias) === canonical) out.push(alias)
-			}
-			return out
-		},
-
-		/** Mark an icon's current source version as copied into code. */
 		async markPushed(name) {
 			const { manifest } = await readManifestFile()
 			const entry = find(manifest, normalizeName(name))
@@ -576,6 +540,8 @@ export function createStore(io) {
 				license: typeof input?.license === 'string' && input.license !== '' ? input.license : (target.license ?? 'unknown'),
 				palette: normalized.palette,
 				updatedAt: now,
+				// New artwork moves: the pointer list must be discovered again.
+				scannedAt: '',
 			}
 			if (existing) {
 				const index = manifest.graphics.indexOf(existing)
@@ -758,9 +724,10 @@ export function createStore(io) {
 			const entry = find(manifest, normalizeName(name))
 			if (!entry) throw fail('not-found', `no graphic named ${name}`)
 			entry.pointers = cleanPointers(list)
-			entry.updatedAt = new Date().toISOString()
+			entry.scannedAt = new Date().toISOString()
+			entry.updatedAt = entry.scannedAt
 			await writeManifestFile(manifest)
-			return entry.pointers
+			return entry
 		},
 
 	}

@@ -5,10 +5,9 @@
  * inside `@asset <name>` blocks. This module compares those copies against the
  * library version, so the panel can show a real diff (and push it in one step).
  */
-import { scanUsage, applyAsset, walkProject, scanPathCopies } from './assets.js'
+import { walkProject } from './assets.js'
 import { LIB_DIR } from './store.js'
-import { parsePath, round } from './svg.js'
-import { signature, bodySignature, shapeSignature, mergeInner, isIconCandidate, isSquareCanvas, svgBlocks, jsxSvgBlocks, markupBlocks, pathLiterals, quotedRanges, splitSvg, canonSubpaths, canonicalD } from './shape.js'
+import { signature, bodySignature, shapeSignature, mergeInner, isIconCandidate, isSquareCanvas, svgBlocks, jsxSvgBlocks, markupBlocks, pathLiterals, quotedRanges, splitSvg, canonicalD } from './shape.js'
 
 export { signature, bodySignature, shapeSignature, svgBlocks, splitSvg } from './shape.js'
 

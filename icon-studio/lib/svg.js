@@ -71,10 +71,6 @@ export function rotateMatrix(degrees, cx = 0, cy = 0) {
 	return multiply(multiply(translateMatrix(cx, cy), rotate), translateMatrix(-cx, -cy))
 }
 
-export function matrixToString(m) {
-	if (isIdentity(m)) return ''
-	return `matrix(${fmt(m[0])} ${fmt(m[1])} ${fmt(m[2])} ${fmt(m[3])} ${fmt(m[4])} ${fmt(m[5])})`
-}
 
 export function isIdentity(m) {
 	return Math.abs(m[0] - 1) < EPS && Math.abs(m[1]) < EPS && Math.abs(m[2]) < EPS
@@ -676,9 +672,6 @@ export function transformPath(d, matrix) {
 	return segmentsToString(transformSegments(parsePath(d), matrix))
 }
 
-export function translatePath(d, dx, dy) {
-	return transformPath(d, translateMatrix(dx, dy))
-}
 
 /* ───────────────────────────── bbox ───────────────────────────── */
 
@@ -1145,11 +1138,6 @@ const CONTAINERS = new Set(['svg', 'g', 'symbol', 'a', 'switch'])
 const GRADIENT_TAGS = new Set(['linearGradient', 'radialGradient', 'pattern'])
 
 /* ───────────────────────────── normalise ───────────────────────────── */
-
-export const GRAPHIC_ATTRS = [
-	'fill', 'stroke', 'strokeWidth', 'linecap', 'linejoin', 'miterlimit', 'dasharray',
-	'dashoffset', 'fillRule', 'fillOpacity', 'strokeOpacity', 'opacity', 'paintOrder',
-]
 
 /**
  * Normalise an SVG document into one graphic.
