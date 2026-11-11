@@ -2936,18 +2936,14 @@ window.__ModuleLoader__.load({
 
       const sourceLine = mode === 'supply'
         ? [peek && peek.source, peek && peek.license].filter(Boolean).join(' · ')
-        : mode === 'pasted' ? t('pasteSource')
-          : mode === 'workspace' ? t('workspaceSource')
-            : t('aiSource')
+        : ''
       const sourceBlock = mode === 'supply'
         ? h('div', { className: 'gs-field' },
           peek && peek.supplier === 'iconmcp' && !styles.includes('solid')
             ? h('p', { className: 'gs-hint' }, t('supplyAddStyleOnly'))
             : null)
-        : mode === 'workspace'
-          ? h('p', { className: 'gs-hint' }, t('scanAddHint'))
-          : h('div', null,
-              h('p', { className: 'gs-hint' }, t('aiDraftReady')),
+        : mode === 'ai'
+          ? h('div', null,
               Array.isArray(draft && draft.references) && draft.references.length > 0
                 ? h('p', { className: 'gs-hint' }, t('aiRefs', {
                   n: draft.references.length,
@@ -2957,6 +2953,7 @@ window.__ModuleLoader__.load({
               draft && draft.crossings > 0
                 ? h('p', { className: 'gs-warn' }, t('aiWarnCrossing', { n: draft.crossings }))
                 : null)
+          : null
 
       return h(Modal, {
         title: t('supplyAddTitle'),
