@@ -73,6 +73,22 @@ The first time you use a workspace, the panel shows an initialise screen. **Init
 
 One file per workspace: `.icons.json` at the project root. It is readable JSON (IconifyJSON shape), diffable, and can be committed with the repository; business code never imports it.
 
+## Checking for duplicates
+
+```bash
+node scripts/check-icons.mjs --root=. --strict --max-sites=3
+```
+
+Read-only: it rewrites nothing. It counts four things — how many copies of each drawing live outside the library, pointers that no longer match their icon, drawings the library does not have, and copies it cannot read at all. `--strict` turns drift into a non-zero exit code, so it drops straight into CI.
+
+What is readable depends on how the copy was written:
+
+| Copy form | Readable | Why |
+|---|---|---|
+| inline `<svg>` / JSX / markup constant / shared `d=` | ✅ | matched by geometry signature |
+| `data:image/svg+xml` (base64 or percent, code or CSS) | ✅ | decoded, then normalised the same way |
+| `data:image/png` / webp and friends | ❌ | reported as unreadable, never guessed at |
+
 ## Development
 
 ```bash

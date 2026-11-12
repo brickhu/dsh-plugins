@@ -54,12 +54,16 @@ function revisionToken(root, revision) {
 /** This package's own directory, so scans never rewrite its docs or fixtures. */
 const PACKAGE_DIR = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 const RULE = [
-	'This workspace has its own icon library in `.icons.json` at the project root: names, 应用规则 (when to use / when not to) and inline SVG bodies. Prefer it over any generic icon library.',
+	'This workspace has its own icon library in `.icons.json` at the project root: names, 应用规则 (when to use / when not to) and the SVG body of each icon. Prefer it over any generic icon library.',
 	'For any icon or glyph need — close, chevron, search, trash, empty state — call `icon_list` first, then `icon_get` for the SVG. Pick by meaning from the rule, not by name.',
 	// The two failure modes worth spelling out: inventing a glyph, and copying
 	// markup out of a chat message instead of the library.
 	'If nothing matches, say so and list the closest candidates; the user can widen the pool from the Icons panel, so ask for that instead of inventing paths. SVG pasted into the chat is text: do not import it unless asked.',
-	'A name is written `<名字>` in conversation (brackets are syntax, not part of the name). Inline the returned SVG so it inherits currentColor; never `<img src="*.svg">`, and do not add markers to code — the library rewrites every use when the icon changes.',
+	// Form belongs to the project; only the paint rule belongs to this library.
+	// An icon component, an inline `<svg>`, a sprite `<use>` and an asset are all
+	// valid landings — prescribing one here would override the workspace's own
+	// convention (AGENTS.md, or the pattern its existing icon code already sets).
+	'A name is written `<名字>` in conversation (brackets are syntax, not part of the name). Whether the shape becomes a component, an inline `<svg>`, a sprite reference or an asset belongs to the project, not to this library: follow what the workspace already does — its AGENTS.md, or the nearest existing icon code — rather than introducing a form of your own. Whichever form it takes, `currentColor` must reach the shape: never `<img src="*.svg">`. Do not add markers to code — the library rewrites every use when the icon changes.',
 	'After using an icon, call `icon_annotate` if you learned something durable about when to use it.',
 ].join(' ')
 
@@ -779,7 +783,7 @@ export function apply(ctx, config = {}) {
 			name: 'icon_get',
 			description: [
 				"Fetch one icon from this workspace's `.icons.json` by name (English or Chinese): clean SVG source, full 应用规则 and palette.",
-				'Call `icon_list` first. Inline the SVG so it inherits currentColor; never `<img src="*.svg">`.',
+				'Call `icon_list` first. This returns the shape, not the form: land it the way this project already lands icons — its AGENTS.md, or the nearest existing icon code. Whichever form it takes, `currentColor` must reach the shape: never `<img src="*.svg">`.',
 				'`format`: svg (default), inline, file (repo path), datauri (large artwork), module (ESM export).',
 			].join(' '),
 			parameters: {
@@ -829,9 +833,10 @@ export function apply(ctx, config = {}) {
 				}
 				const { entry, svg } = graphic
 				const format = typeof args?.format === 'string' ? args.format : 'svg'
+				// Form is the project's call; only the paint rule is this library's.
 				const usage = entry.palette.length <= 1
-					? 'Single-colour art: inline it so `currentColor` follows the text colour; never `<img src="...svg">`.'
-					: 'Multi-colour art: inline or load it as a file/image; it keeps its own colours.'
+					? 'Single-colour art: it carries no paint of its own, so `currentColor` must reach the shape — inline markup, a component, a sprite `<use>`, a CSS mask or a font all qualify, `<img src="...svg">` does not. Which one to use is up to the project.'
+					: 'Multi-colour art: it keeps its own colours, so an `<img>`, a component or a file all work. Which one to use is up to the project.'
 				let body = svg
 				if (format === 'datauri') {
 					body = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
@@ -841,7 +846,7 @@ export function apply(ctx, config = {}) {
 					body = `${MANIFEST_FILE}`
 				}
 				const lines = []
-				lines.push(`<${entry.name}> · ${entry.viewBox} · inline (${MANIFEST_FILE})`)
+				lines.push(`<${entry.name}> · ${entry.viewBox} · ${MANIFEST_FILE}`)
 				lines.push(entry.rule === '' ? '应用规则: (none yet — call icon_annotate once you know what it is for)' : `应用规则: ${entry.rule}`)
 				if (entry.palette.length > 0) lines.push(`Palette: ${entry.palette.join(', ')}`)
 				lines.push(`Usage: ${usage}`)

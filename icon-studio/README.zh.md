@@ -73,6 +73,22 @@ npx --yes --package dsh-icon-library dsh-icon-library-install --dry-run
 
 一个 workspace 一个文件：项目根目录的 `.icons.json`。它是可读的 JSON（IconifyJSON 结构），可以 diff、可以提交进 Git；业务代码里不需要 import 它。
 
+## 检查重复
+
+```bash
+node scripts/check-icons.mjs --root=. --strict --max-sites=3
+```
+
+只读扫描，不改代码。它数四件事：每个图形在业务代码里被复制了几处、有没有已经对不上的旧指针、有没有画了但没进库的图形、以及有没有读不出来的副本。`--strict` 让漂移变成非零退出码，可以直接挂 CI。
+
+能读到什么，取决于副本的形态：
+
+| 副本形态 | 能读 | 说明 |
+|---|---|---|
+| 内联 `<svg>` / JSX / markup 常量 / 共享 `d=` | ✅ | 按几何签名认 |
+| `data:image/svg+xml`（base64 或 percent，代码或 CSS） | ✅ | 解码后按同一套归一化比签名 |
+| `data:image/png` / webp 等位图 | ❌ | 只报“读不出来”，不猜 |
+
 ## 开发
 
 ```bash

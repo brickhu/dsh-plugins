@@ -71,6 +71,8 @@ window.__ModuleLoader__.load({
     const ZH = {
       panelTitle: 'Icons',
       guideDesc: '当前项目的图标库，存放在根目录 `.icons.json`；点开任意图标管理名称与应用规则，或粘贴新 SVG 替换图形',
+      shortcutOpen: '打开图标面板',
+      shortcutNoSession: '请先选择一个会话',
       listSearch: '搜索名称与应用规则',
       listNew: '添加',
       listLibrary: '从图标库导入',
@@ -214,6 +216,8 @@ window.__ModuleLoader__.load({
     const EN = {
       panelTitle: 'Icons',
       guideDesc: 'This project\'s icon library in `.icons.json` at the root; open an icon to manage its name and application rule, or paste a new SVG to replace the artwork',
+      shortcutOpen: 'Open the icon panel',
+      shortcutNoSession: 'Select a session first',
       listSearch: 'Search name and rule',
       listNew: 'Add',
       listLibrary: 'Add from library',
@@ -412,8 +416,7 @@ window.__ModuleLoader__.load({
 @keyframes gs-hit{0%{box-shadow:0 0 0 3px color-mix(in srgb,var(--dsw-alias-brand-primary,#4d6bfe) 40%,transparent)}100%{box-shadow:0 0 0 0 transparent}}
 .gs-thumb{display:flex;align-items:center;justify-content:center;width:100%;height:100%;padding:0;background:transparent;color:var(--dsw-alias-label-primary)}
 .gs-thumb svg{width:40px;height:40px;flex:none;max-width:100%;max-height:100%}
-.gs-svg-inline{display:flex;align-items:center;justify-content:center;width:100%;height:100%}
-.gs-svg-art{display:block;object-fit:contain;max-width:100%;max-height:100%}
+.gs-svg-inline{display:flex;align-items:center;justify-content:center;width:100%;height:100%}.gs-svg-art{display:block;object-fit:contain;max-width:100%;max-height:100%}
 .gs-thumb .gs-svg-art{width:34px;height:34px}
 .gs-previewbox .gs-svg-art{width:96px;height:96px}
 .gs-set-sample .gs-svg-art{width:16px;height:16px}
@@ -432,13 +435,10 @@ window.__ModuleLoader__.load({
 /* Insertion line while a card is dragged between two others. */
 .gs-insert{position:absolute;width:2px;border-radius:1px;background:var(--dsw-alias-brand-primary,#0d99ff);pointer-events:none;z-index:3}
 /* Drop-to-delete: a soft red glow on the bottom edge, not a solid bar. */
-.gs-init{position:relative;flex:1;display:flex;align-items:center;justify-content:center;padding:32px 20px;overflow:hidden}
-.gs-init-bg{position:absolute;inset:0;overflow:hidden;perspective:900px;perspective-origin:50% 45%;pointer-events:none;transform-style:preserve-3d}
-.gs-init-tile{position:absolute;display:flex;align-items:center;justify-content:center;border-radius:11px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 6%,var(--dsw-alias-bg-base));border:.5px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);transform-origin:50% 50%;transform-style:preserve-3d;backface-visibility:hidden}
-.gs-init-tile svg{width:56%;height:56%}
-.gs-init-card{position:relative;display:flex;flex-direction:column;align-items:center;gap:10px;max-width:380px;text-align:center}
-.gs-init-kicker{margin:0;font-size:11px;line-height:1.4;letter-spacing:.02em;color:var(--dsw-alias-label-tertiary)}
-.gs-init-slogan{margin:0;font-size:30px;line-height:1.18;font-weight:600;color:var(--dsw-alias-label-primary)}
+.gs-init{position:relative;flex:1;display:flex;align-items:center;justify-content:center;padding:40px 32px;overflow:hidden;max-width:540px}
+.gs-init-card{position:relative;display:flex;flex-direction:column;align-items:center;gap:10px;width:100%;max-width:none;text-align:center}
+.gs-init-kicker{margin:0;width:100%;font-size:28px;line-height:1.22;font-weight:600;letter-spacing:-.01em;color:var(--dsw-alias-label-primary)}
+.gs-init-slogan{margin:0;font-size:12px;line-height:1.5;font-weight:400;color:var(--dsw-alias-label-tertiary)}
 .gs-init-features{list-style:none;margin:10px 0 4px;padding:0;display:flex;flex-direction:column;gap:16px;width:100%;text-align:left}
 .gs-init-feature{display:flex;align-items:flex-start;gap:12px}
 .gs-init-feature-icon{flex:none;display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:999px;border:.5px solid var(--dsw-alias-border-l2,rgba(127,127,127,.3));color:var(--dsw-alias-brand-primary,#4d6bfe)}
@@ -700,6 +700,12 @@ window.__ModuleLoader__.load({
       // library: one file, one name, and a checked link.
       file: glyph('0 0 19.61 19.61', '<g fill="none"><path d="M4.3 0.8L11.3 0.8L15.3 4.8L15.3 18.8L4.3 18.8Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M11.3 0.8L11.3 4.8L15.3 4.8" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></g>'),
       text: glyph('0 0 24 24', '<path d="M13 19L15 19L15 21L9 21L9 19L11 19L11 6L4 6L4 4L20 4L20 6L13 6L13 19Z" fill="currentColor"/>'),
+      // <semantic-version-outline-thin> from this workspace's library.
+      semantic: glyph('0 0 24 24', '<g fill="none"><path d="M3 12L10 5H21.6667V19H10L3 12Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M11.1667 9.08325V14.9166" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.6667 9.08325V14.9166" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.1667 9.08325V14.9166" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></g>'),
+      // <source-fork> from this workspace's library.
+      source: glyph('0 0 24 24', '<path fill="currentColor" d="M6 2a3 3 0 0 1 3 3c0 1.28-.81 2.38-1.94 2.81c.09.46.33 1.02.94 1.82c1 1.29 3 3.2 4 4.54c1-1.34 3-3.25 4-4.54c.61-.8.85-1.36.94-1.82A3.015 3.015 0 0 1 15 5a3 3 0 0 1 3-3a3 3 0 0 1 3 3c0 1.32-.86 2.45-2.05 2.85c-.08.52-.31 1.15-.95 1.98c-1 1.34-3 3.25-4 4.55c-.61.79-.85 1.35-.94 1.81C14.19 16.62 15 17.72 15 19a3 3 0 0 1-3 3a3 3 0 0 1-3-3c0-1.28.81-2.38 1.94-2.81c-.09-.46-.33-1.02-.94-1.81c-1-1.3-3-3.21-4-4.55c-.64-.83-.87-1.46-.95-1.98A3.015 3.015 0 0 1 3 5a3 3 0 0 1 3-3m0 2a1 1 0 0 0-1 1a1 1 0 0 0 1 1a1 1 0 0 0 1-1a1 1 0 0 0-1-1m12 0a1 1 0 0 0-1 1a1 1 0 0 0 1 1a1 1 0 0 0 1-1a1 1 0 0 0-1-1m-6 14a1 1 0 0 0-1 1a1 1 0 0 0 1 1a1 1 0 0 0 1-1a1 1 0 0 0-1-1"/>'),
+      // <sync-outlined> from this workspace's library.
+      syncOutlined: glyph('0 0 1024 1024', '<path fill="currentColor" d="M168 504.2c1-43.7 10-86.1 26.9-126c17.3-41 42.1-77.7 73.7-109.4S337 212.3 378 195c42.4-17.9 87.4-27 133.9-27s91.5 9.1 133.8 27A341.5 341.5 0 0 1 755 268.8c9.9 9.9 19.2 20.4 27.8 31.4l-60.2 47a8 8 0 0 0 3 14.1l175.7 43c5 1.2 9.9-2.6 9.9-7.7l.8-180.9c0-6.7-7.7-10.5-12.9-6.3l-56.4 44.1C765.8 155.1 646.2 92 511.8 92C282.7 92 96.3 275.6 92 503.8a8 8 0 0 0 8 8.2h60c4.4 0 7.9-3.5 8-7.8m756 7.8h-60c-4.4 0-7.9 3.5-8 7.8c-1 43.7-10 86.1-26.9 126c-17.3 41-42.1 77.8-73.7 109.4A342.45 342.45 0 0 1 512.1 856a342.24 342.24 0 0 1-243.2-100.8c-9.9-9.9-19.2-20.4-27.8-31.4l60.2-47a8 8 0 0 0-3-14.1l-175.7-43c-5-1.2-9.9 2.6-9.9 7.7l-.7 181c0 6.7 7.7 10.5 12.9 6.3l56.4-44.1C258.2 868.9 377.8 932 512.2 932c229.2 0 415.5-183.7 419.8-411.8a8 8 0 0 0-8-8.2"/>'),
       linkChecked: glyph('0 0 12.64 12.64', '<g fill="none"><path d="M2.67 4.46L1.08 6.05C0.2 6.93 0.2 8.35 1.08 9.23C1.96 10.11 3.38 10.11 4.26 9.23L5.85 7.64" stroke="currentColor" stroke-width="0.83" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.09 3.04L5.68 1.45C6.56 0.57 7.98 0.57 8.86 1.45C9.74 2.33 9.74 3.75 8.86 4.63L7.27 6.22" stroke="currentColor" stroke-width="0.83" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.38 6.93L6.56 3.75" stroke="currentColor" stroke-width="0.83" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.47 10.09L9.22 11.84L12.22 8.59" stroke="currentColor" stroke-width="0.83" stroke-linecap="round" stroke-linejoin="round"/></g>'),
     }
 
@@ -1875,27 +1881,6 @@ window.__ModuleLoader__.load({
         h('span', null, t('commonLoading')))
     }
 
-    /** Cards scattered in a frozen 3D space: near and strong at the edges, far and faint in the middle. */
-    const INIT_SCATTER = [
-      { icon: 'import', x: 1, y: 4, size: 56, z: 140, rx: 8, ry: -32, rz: -14, opacity: 0.66 },
-      { icon: 'file', x: 17, y: 1, size: 46, z: 60, rx: -6, ry: 26, rz: 6, opacity: 0.6 },
-      { icon: 'text', x: 33, y: 5, size: 42, z: -50, rx: 14, ry: -20, rz: -6, opacity: 0.48 },
-      { icon: 'search', x: 55, y: 1, size: 50, z: 90, rx: 6, ry: 18, rz: 10, opacity: 0.62 },
-      { icon: 'pen', x: 76, y: 5, size: 46, z: 50, rx: -8, ry: -26, rz: -8, opacity: 0.58 },
-      { icon: 'linkChecked', x: 94, y: 9, size: 58, z: 150, rx: 10, ry: 34, rz: 14, opacity: 0.68 },
-      { icon: 'aiMagic', x: 97, y: 38, size: 50, z: 110, rx: -4, ry: -30, rz: 18, opacity: 0.6 },
-      { icon: 'plus', x: 92, y: 66, size: 56, z: 140, rx: 12, ry: 24, rz: -16, opacity: 0.64 },
-      { icon: 'close', x: 79, y: 88, size: 48, z: 70, rx: -10, ry: -18, rz: 8, opacity: 0.58 },
-      { icon: 'arrowLeft', x: 59, y: 94, size: 46, z: 40, rx: 8, ry: 22, rz: -10, opacity: 0.56 },
-      { icon: 'import', x: 37, y: 92, size: 54, z: 120, rx: -6, ry: -34, rz: 12, opacity: 0.64 },
-      { icon: 'file', x: 13, y: 87, size: 50, z: 90, rx: 10, ry: 20, rz: -6, opacity: 0.6 },
-      { icon: 'aiMagic', x: -1, y: 63, size: 58, z: 160, rx: -8, ry: -24, rz: 16, opacity: 0.66 },
-      { icon: 'search', x: 1, y: 33, size: 46, z: 60, rx: 6, ry: 28, rz: -4, opacity: 0.54 },
-      // The middle stays sparse and distant so the copy reads cleanly.
-      { icon: 'linkChecked', x: 44, y: 40, size: 24, z: -320, rx: 16, ry: 22, rz: 8, opacity: 0.14, blur: 1.2 },
-      { icon: 'close', x: 57, y: 55, size: 26, z: -300, rx: -12, ry: -20, rz: -6, opacity: 0.16, blur: 1 },
-    ]
-
     /**
      * The four things this plugin is, in one list. Shown on the first-run card
      * and again whenever the library has no icons, so both empty screens say
@@ -1904,10 +1889,10 @@ window.__ModuleLoader__.load({
     function FeatureList(props) {
       const t = props.t
       const features = [
-        { icon: 'text', title: t('initFeature1Title'), desc: t('initFeature1Desc') },
-        { icon: 'file', title: t('initFeature2Title'), desc: t('initFeature2Desc') },
+        { icon: 'semantic', title: t('initFeature1Title'), desc: t('initFeature1Desc') },
+        { icon: 'source', title: t('initFeature2Title'), desc: t('initFeature2Desc') },
         { icon: 'import', title: t('initFeature3Title'), desc: t('initFeature3Desc') },
-        { icon: 'linkChecked', title: t('initFeature4Title'), desc: t('initFeature4Desc') },
+        { icon: 'syncOutlined', title: t('initFeature4Title'), desc: t('initFeature4Desc') },
       ]
       return h('ul', { className: props.className || 'gs-init-features' },
         features.map((feature) => h('li', { key: feature.title, className: 'gs-init-feature' },
@@ -1921,26 +1906,12 @@ window.__ModuleLoader__.load({
     function InitView(props) {
       const { t, onInit, busy } = props
       return h('div', { className: 'gs-init' },
-        h('div', { className: 'gs-init-bg', 'aria-hidden': true },
-          INIT_SCATTER.map((spec) => h('span', {
-            key: spec.icon + spec.x,
-            className: 'gs-init-tile',
-            style: {
-              left: `${spec.x}%`,
-              top: `${spec.y}%`,
-              width: spec.size,
-              height: spec.size,
-              opacity: spec.opacity,
-              transform: `translateZ(${spec.z}px) rotateX(${spec.rx}deg) rotateY(${spec.ry}deg) rotateZ(${spec.rz}deg)`,
-              filter: spec.blur ? `blur(${spec.blur}px)` : undefined,
-            },
-          }, h(I[spec.icon])))),
         h('div', { className: 'gs-init-card' },
           h('div', { className: 'gs-init-name' },
             h('span', { className: 'gs-init-logo' }, h(LogoMark, { size: 24 })),
             h('h2', { className: 'gs-init-title' }, t('initName'))),
-          h('p', { className: 'gs-init-kicker' }, t('initKicker')),
-          h('h1', { className: 'gs-init-slogan' }, t('initSlogan')),
+          h('h1', { className: 'gs-init-kicker' }, t('initKicker')),
+          h('p', { className: 'gs-init-slogan' }, t('initSlogan')),
           h(FeatureList, { t }),
           h(Btn, { variant: 'primary', className: 'gs-init-action', onClick: onInit, disabled: busy },
             busy ? t('commonLoading') : t('initAction')),
@@ -3018,6 +2989,97 @@ window.__ModuleLoader__.load({
       })
     }
 
+    /**
+     * The right sidebar service, captured when it becomes available. The Start
+     * card can be clicked before any other panel code runs.
+     */
+    let sidebarRightRef = null
+
+    /** Open this tab in the right column. Returns whether a sidebar answered. */
+    function openIconPanel() {
+      const sidebar = sidebarRightRef
+      if (!sidebar || typeof sidebar.openTab !== 'function') return false
+      try {
+        sidebar.openTab(KIND, {})
+        return true
+      } catch (_error) {
+        return false
+      }
+    }
+
+    /** Cmd+I on Apple platforms, Ctrl+I elsewhere. */
+    function guideChordLabel() {
+      let platform = ''
+      try {
+        const nav = typeof navigator === 'undefined' ? null : navigator
+        if (nav) platform = String((nav.userAgentData && nav.userAgentData.platform) || nav.platform || nav.userAgent || '')
+      } catch (_error) {
+        platform = ''
+      }
+      return /mac|iphone|ipad/i.test(platform) ? '⌘I' : 'Ctrl+I'
+    }
+
+    /**
+     * The Start card for this tab.
+     *
+     * Two reasons this is a card of its own instead of the shipped one: the
+     * shipped card prints a command's keys only when that command has an
+     * effective binding (the Web runtime refuses a bare primary chord), and it
+     * renders inside the sidebar column, where the panel's own stylesheet is not
+     * mounted. So the layout is inline and the chord is printed here.
+     */
+    function GuideEntry(props) {
+      const { title, description, useTabInfo } = props || {}
+      const [hover, setHover] = useState(false)
+      const open = () => {
+        try {
+          const info = typeof useTabInfo === 'function' ? useTabInfo() : null
+          const actions = info && info.tab && info.tab.actions
+          if (actions && typeof actions.openTab === 'function') {
+            actions.openTab(KIND, { replaceTab: true })
+            if (typeof actions.close === 'function') actions.close()
+            return
+          }
+        } catch (_error) {
+          /* fall through to the service */
+        }
+        openIconPanel()
+      }
+      const label = typeof title === 'function' ? title() : title
+      const hint = typeof description === 'function' ? description() : description
+      return h('button', {
+        type: 'button',
+        'aria-keyshortcuts': 'Meta+I',
+        title: `${label} · ${guideChordLabel()}`,
+        onClick: open,
+        onMouseEnter: () => setHover(true),
+        onMouseLeave: () => setHover(false),
+        style: {
+          boxSizing: 'border-box',
+          width: '100%',
+          minHeight: 56,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 14,
+          padding: '14px 20px',
+          textAlign: 'left',
+          font: 'inherit',
+          cursor: 'pointer',
+          border: '0.5px solid var(--dsw-alias-border-l3, var(--dsw-alias-border-l2))',
+          borderRadius: 'var(--dsw-radius-xl, 20px)',
+          background: hover ? 'var(--dsw-alias-interactive-bg-hover)' : 'var(--dsw-alias-bg-layer-1)',
+          color: 'var(--dsw-alias-label-primary)',
+        },
+      },
+        h('span', {
+          style: { width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none', color: 'var(--dsw-alias-label-secondary)' },
+        }, h(GuideMark, { size: 26 })),
+        h('span', { style: { display: 'flex', flexDirection: 'column', gap: 3, flex: '1 1 auto', minWidth: 0 } },
+          h('span', { style: { fontSize: 14, lineHeight: 1.4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, label),
+          hint ? h('span', { style: { fontSize: 11, lineHeight: 1.4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--dsw-alias-label-tertiary)' } }, hint) : null),
+        h('span', { style: { flex: 'none', fontSize: 11, lineHeight: 1.4, color: 'var(--dsw-alias-label-tertiary)', fontVariantNumeric: 'tabular-nums' } }, guideChordLabel()))
+    }
+
     function apply(ctx) {
       translate = makeT(ctx)
       // Function entries are local interpolators: the host registry only takes
@@ -3075,6 +3137,78 @@ window.__ModuleLoader__.load({
           key: TAB_ID,
           locale: NS,
         }, PanelTitle)), 'dsh-icon-studio: tab title')
+
+        // Our own Start card, so the chord shows on every runtime.
+        scope.effect(() => scope.slots.inject('sidebar.right.tab.guide.entry', () => scope.slots.register({
+          name: 'sidebar.right.tab.guide.entry',
+          key: TAB_ID,
+          locale: NS,
+        }, GuideEntry)), 'dsh-icon-studio: guide entry')
+      })
+
+      // Cmd/Ctrl + I opens this panel from anywhere in the conversation.
+      ctx.inject(['shortcuts', 'sidebarRight'], (scope) => {
+        const sidebarOf = () => (scope.get ? scope.get('sidebarRight') : null) || scope.sidebarRight || ctx.sidebarRight || null
+        sidebarRightRef = sidebarOf()
+        // The card can be clicked before this inject fires; keep it current.
+        scope.effect(() => {
+          sidebarRightRef = sidebarOf()
+          return () => {}
+        }, 'dsh-icon-studio: sidebar reference')
+        const openPanel = openIconPanel
+        // The registry declines when no session is open or when the runtime
+        // reserves the chord, so a direct listener keeps the accelerator working
+        // from the conversation. It only swallows the chord once the panel opened.
+        scope.effect(() => {
+          if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return () => {}
+          const onKeyDown = (event) => {
+            // `code` is layout-independent, so a Dvorak or AZERTY layout still hits
+            // the same physical key. Only `primary` (Cmd/Ctrl) is allowed alongside.
+            if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return
+            if (event.code !== 'KeyI') return
+            if (!openPanel()) return
+            event.preventDefault()
+            event.stopPropagation()
+          }
+          window.addEventListener('keydown', onKeyDown, true)
+          return () => window.removeEventListener('keydown', onKeyDown, true)
+        }, 'dsh-icon-studio: shortcut listener')
+        const chord = { code: 'KeyI', modifiers: ['primary'] }
+        const shortcuts = (scope.get ? scope.get('shortcuts') : null) || scope.shortcuts || null
+        if (!shortcuts || typeof shortcuts.register !== 'function') return
+        scope.effect(() => {
+          // A rejected registration (duplicate id, an overlapping default) must not
+          // take the panel down with it: the listener above still opens the tab.
+          try {
+            return shortcuts.register({
+              id: 'dsh-icon-library.open',
+              label: () => translate('shortcutOpen'),
+              aliases: ['icons', 'icon library', '图标', '图标库'],
+              // Desktop only: `isWebBindingAllowed` rejects a bare primary chord on
+              // Web and a rejected registration drops the whole command. There the
+              // keydown listener and the Start card still open the panel.
+              defaults: {
+                'desktop:macos': chord,
+                'desktop:windows': chord,
+                'desktop:linux': chord,
+              },
+              regions: ['page', 'editable', 'terminal'],
+              modals: [],
+              resolve: () => {
+                const sidebar = sidebarOf()
+                const canOpen = Boolean(sidebar) && typeof sidebar.openTab === 'function'
+                if (!canOpen) return { status: 'blocked', reason: translate('shortcutNoSession') }
+                if (typeof sidebar.commandTarget === 'function' && sidebar.commandTarget(null) === undefined) {
+                  return { status: 'blocked', reason: translate('shortcutNoSession') }
+                }
+                return { status: 'handled', run: () => { openPanel() } }
+              },
+            })
+          } catch (error) {
+            console.warn('[dsh-icon-studio] shortcut not registered', error)
+            return () => {}
+          }
+        }, 'dsh-icon-studio: shortcut')
       })
     }
 
