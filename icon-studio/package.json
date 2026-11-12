@@ -1,6 +1,6 @@
 {
   "name": "dsh-icon-library",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "description": "A workspace icon library for DeepSeek Harness: drag icons into the chat as <name>, let agents pick icons by meaning, and edit an SVG once to update every place it is used. 项目级图标库。",
   "license": "MIT",
   "type": "module",
@@ -26,6 +26,7 @@
     "DESIGN.md",
     "LICENSE",
     "scripts/install.mjs",
+    "scripts/check-icons.mjs",
     "README.zh.md"
   ],
   "engines": {
@@ -55,6 +56,7 @@
   ],
   "scripts": {
     "test": "node test/run.mjs",
+    "check": "node scripts/check-icons.mjs",
     "sync-logo": "node scripts/sync-logo.mjs",
     "build-mask-icon": "node scripts/build-mask-icon.mjs icon-studio-logo-colorful"
   },

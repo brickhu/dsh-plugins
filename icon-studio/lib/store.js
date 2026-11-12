@@ -112,7 +112,10 @@ function emptyManifest() {
 	return { format: FORMAT, formatVersion: FORMAT_VERSION, updatedAt: new Date().toISOString(), graphics: [] }
 }
 
-const POINTER_KINDS = new Set(['file', 'inline', 'literal', 'jsx', 'markup'])
+// `path` is a shared `d="…"` literal, `datauri` an encoded copy in code or CSS.
+// Both used to fall through to `inline`, which made the rewrite target the wrong
+// block; the kinds are stored as written so the push can pick its own branch.
+const POINTER_KINDS = new Set(['file', 'inline', 'literal', 'jsx', 'markup', 'path', 'datauri'])
 
 /** Where an icon is referenced in the workspace: the sync targets. */
 function cleanPointers(raw) {

@@ -5,9 +5,10 @@
  * inside `@asset <name>` blocks. This module compares those copies against the
  * library version, so the panel can show a real diff (and push it in one step).
  */
-import { walkProject } from './assets.js'
+import { walkProject, SCAN_FILE } from './assets.js'
 import { LIB_DIR } from './store.js'
 import { normalizeSvg } from './svg.js'
+import { dataUriBlocks, countBlob, encodeLike } from './datauri.js'
 import { signature, bodySignature, shapeSignature, mergeInner, isIconCandidate, isSquareCanvas, svgBlocks, jsxSvgBlocks, markupBlocks, pathLiterals, quotedRanges, splitSvg, canonicalD } from './shape.js'
 
 export { signature, bodySignature, shapeSignature, svgBlocks, splitSvg } from './shape.js'
@@ -30,6 +31,37 @@ export function isUiSource(file) {
 	return !parts.slice(0, -1).some((segment) => NON_UI_SEGMENT.test(segment))
 }
 
+/**
+ * Stylesheets: read for `mask-image` / `background-image` copies, never rewritten
+ * behind the caller's back. Reading them is the only way to see an icon that was
+ * inlined by a build step or a CSS author instead of a component.
+ */
+const STYLE_SOURCE = /\.(?:css|scss|sass|less|styl)$/iu
+
+export function isStyleSource(file) {
+	const normalized = String(file || '').replace(/\\/gu, '/')
+	if (normalized === '' || !STYLE_SOURCE.test(normalized)) return false
+	const parts = normalized.split('/')
+	return !parts.slice(0, -1).some((segment) => NON_UI_SEGMENT.test(segment))
+}
+
+/**
+ * The signature of a drawing after the library's own normalisation.
+ *
+ * A data URI carries whatever the pipeline that wrote it left behind: a `class`
+ * attribute, a bounding-box path, `fill="#000"` for a mask. Comparing those raw
+ * bytes against a normalised library entry always misses, so both sides are put
+ * through `normalizeSvg` before the geometry is read.
+ */
+export function decodedShapeSignature(text) {
+	try {
+		const normalized = normalizeSvg(String(text || ''))
+		return shapeSignature(normalized && typeof normalized.svg === 'string' ? normalized.svg : '')
+	} catch (_error) {
+		return ''
+	}
+}
+
 
 /**
  * Find every place in the workspace that already draws this exact shape.
@@ -42,16 +74,21 @@ export function isUiSource(file) {
 export async function findShapePointers(io, svg, { exclude = [], stats = null } = {}) {
 	const wanted = shapeSignature(svg)
 	if (wanted === '') return []
+	// Encoded copies are compared after the library's own normalisation: a blob
+	// written by a mask pipeline still carries a `class`, a bounding-box path and
+	// `fill="#000"`, none of which the library keeps.
+	const wantedDecoded = decodedShapeSignature(svg)
 	const files = []
 	try {
-		await walkProject(io, '', files, { files: 0 }, [...exclude, LIB_DIR])
+		await walkProject(io, '', files, { files: 0 }, [...exclude, LIB_DIR], SCAN_FILE)
 	} catch (_error) {
 		return []
 	}
 	if (stats) stats.files = files.length
 	const pointers = []
 	for (const file of files) {
-		if (!isUiSource(file)) continue
+		const style = isStyleSource(file)
+		if (!isUiSource(file) && !style) continue
 		let text = null
 		try {
 			text = await io.readText(file)
@@ -59,9 +96,20 @@ export async function findShapePointers(io, svg, { exclude = [], stats = null } 
 			continue
 		}
 		if (text === null) continue
-		if (!text.includes('<svg') && !/h\(\s*['"]svg['"]/u.test(text) && !/\bmarkup\s*:/u.test(text) && !/['"`][Mm][^'"`\n]{12,}Z['"`]/u.test(text)) continue
-		if (file.toLowerCase().endsWith('.svg')) {
+		if (!style && !text.includes('<svg') && !/h\(\s*['"]svg['"]/u.test(text) && !/\bmarkup\s*:/u.test(text) && !/['"`][Mm][^'"`\n]{12,}Z['"`]/u.test(text) && !text.includes('data:image/')) continue
+		if (!style && file.toLowerCase().endsWith('.svg')) {
 			if (shapeSignature(text) === wanted) pointers.push({ file, kind: 'file', index: 0, line: 1 })
+			continue
+		}
+		if (style) {
+			// A stylesheet holds no `<svg>` markup, only encoded copies.
+			const uris = dataUriBlocks(text)
+			for (let index = 0; index < uris.length; index += 1) {
+				if (!uris[index].vector) continue
+				if (wantedDecoded === '' || decodedShapeSignature(uris[index].text) !== wantedDecoded) continue
+				const line = text.slice(0, uris[index].start).split('\n').length
+				pointers.push({ file, kind: 'datauri', index, line })
+			}
 			continue
 		}
 		const strings = quotedRanges(text)
@@ -70,6 +118,15 @@ export async function findShapePointers(io, svg, { exclude = [], stats = null } 
 			if (shapeSignature(blocks[index].text) !== wanted) continue
 			const line = text.slice(0, blocks[index].start).split('\n').length
 			pointers.push({ file, kind: 'inline', index, line })
+		}
+		// Encoded copies inside code: `<img src="data:…">`, `background-image`, a
+		// constant holding a blob. Same drawing, one decoder away.
+		const uris = dataUriBlocks(text)
+		for (let index = 0; index < uris.length; index += 1) {
+			if (!uris[index].vector) continue
+			if (wantedDecoded === '' || decodedShapeSignature(uris[index].text) !== wantedDecoded) continue
+			const line = text.slice(0, uris[index].start).split('\n').length
+			pointers.push({ file, kind: 'datauri', index, line })
 		}
 		// React code writes h('svg', …), not raw markup. Same icon, other syntax.
 		const jsxCalls = jsxSvgBlocks(text)
@@ -121,7 +178,8 @@ export async function pushShapePointers(io, svg, pointers = []) {
 	let rewritten = 0
 	const files = []
 	for (const [file, list] of byFile) {
-		if (!isUiSource(file) && !file.toLowerCase().endsWith('.svg')) continue
+		const styleOnly = isStyleSource(file)
+		if (!isUiSource(file) && !styleOnly && !file.toLowerCase().endsWith('.svg')) continue
 		let text = null
 		try {
 			text = await io.readText(file)
@@ -129,6 +187,30 @@ export async function pushShapePointers(io, svg, pointers = []) {
 			continue
 		}
 		if (text === null) continue
+		// Encoded copies are rewritten first, in place: replacing one blob keeps
+		// every other offset in the file valid for the branches below.
+		const uriTargets = list.filter((pointer) => pointer.kind === 'datauri')
+		if (uriTargets.length > 0) {
+			let working = text
+			const uris = dataUriBlocks(working)
+			for (const pointer of [...uriTargets].sort((left, right) => (uris[right.index]?.start ?? -1) - (uris[left.index]?.start ?? -1))) {
+				const uri = uris[pointer.index]
+				if (!uri || !uri.vector) continue
+				// A blob the file uses more than once is a shared constant: rewriting
+				// it would change sites nobody pointed at. Report, do not touch.
+				if (countBlob(working, uri.blob) > 1) continue
+				const payload = encodeLike(uri, svg)
+				if (payload === `${uri.head}${uri.blob}`) continue
+				working = `${working.slice(0, uri.start)}${payload}${working.slice(uri.end)}`
+				rewritten += 1
+			}
+			if (working !== text) {
+				await io.writeText(file, working)
+				if (!files.includes(file)) files.push(file)
+				text = working
+			}
+		}
+		if (styleOnly) continue
 		const source = splitSvg(svg)
 		const inner = source ? source.inner : svg
 		// Only the inner code is ours; `viewBox`/`width`/`height` stay as the site
@@ -244,7 +326,7 @@ export async function pushShapePointers(io, svg, pointers = []) {
 			files.push(file)
 		}
 	}
-	return { rewritten, files }
+	return { rewritten, files: [...new Set(files)] }
 }
 
 /**
@@ -266,6 +348,7 @@ export async function readDerivations(io, pointers = [], iconSvg = '') {
 	// icon was redrawn. Reading each site back lets the panel show only the ones
 	// that still draw this shape instead of an empty frame.
 	const wanted = iconSvg === '' ? '' : shapeSignature(iconSvg)
+	const wantedDecoded = iconSvg === '' ? '' : decodedShapeSignature(iconSvg)
 	const byFile = new Map()
 	for (const pointer of pointers) {
 		if (!pointer || typeof pointer.file !== 'string' || pointer.file === '') continue
@@ -284,6 +367,7 @@ export async function readDerivations(io, pointers = [], iconSvg = '') {
 		const blocks = text === null || isFile ? null : svgBlocks(text)
 		const calls = text === null ? [] : jsxSvgBlocks(text)
 		const marks = text === null ? [] : markupBlocks(text)
+		const uris = text === null ? [] : dataUriBlocks(text)
 		for (const pointer of list) {
 			let svg = ''
 			if (text !== null) {
@@ -291,12 +375,17 @@ export async function readDerivations(io, pointers = [], iconSvg = '') {
 				else if (pointer.kind === 'inline') svg = blocks && blocks[pointer.index] ? blocks[pointer.index].text : ''
 				else if (pointer.kind === 'jsx') svg = calls[pointer.index] ? calls[pointer.index].text : ''
 				else if (pointer.kind === 'markup') svg = marks[pointer.index] ? marks[pointer.index].text : ''
+				else if (pointer.kind === 'datauri') svg = uris[pointer.index] ? uris[pointer.index].text : ''
 			}
 			// A shared path constant has no drawing of its own to read; it stays a
 			// site even though this call cannot resolve its surroundings.
 			const stale = pointer.kind === 'path'
 				? false
-				: svg === '' || (wanted !== '' && shapeSignature(svg) !== wanted)
+				// A decoded blob is un-normalised (class, bbox path, `#000`), so it is
+				// compared the same way it was matched.
+				: pointer.kind === 'datauri'
+					? svg === '' || (wantedDecoded === '' || decodedShapeSignature(svg) !== wantedDecoded)
+					: svg === '' || (wanted !== '' && shapeSignature(svg) !== wanted)
 			out.push({
 				file: pointer.file,
 				kind: pointer.kind || 'inline',

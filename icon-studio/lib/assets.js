@@ -20,6 +20,11 @@ const SKIP_DIRS = new Set([
 // assets are left alone so a rename cannot rewrite prose or fixtures.
 const TEXT_FILE = /\.(?:[cm]?[jt]sx?|vue|svelte|astro|html?|svg)$/i
 
+// Stylesheets are read, never rewritten: a `mask-image` data URI is a real copy
+// of an icon, but editing CSS on the strength of a scan is not a rewrite the
+// caller asked for.
+export const SCAN_FILE = /\.(?:[cm]?[jt]sx?|vue|svelte|astro|html?|svg|css|scss|sass|less|styl)$/i
+
 const MAX_FILES = 4000
 const MAX_BYTES = 512 * 1024
 
@@ -27,7 +32,7 @@ const MAX_BYTES = 512 * 1024
 // content signature stays authoritative, so a reformatted copy is still in sync.
 const ASSET_MARKER = /@asset\s+([^\s*/<>"']+)(?:\s+([0-9a-f]{8,64}))?/g
 
-export async function walkProject(io, directory, out, budget, exclude) {
+export async function walkProject(io, directory, out, budget, exclude, accept = TEXT_FILE) {
 	if (out.length >= MAX_FILES || budget.files >= MAX_FILES) return
 	let entries
 	try {
@@ -41,11 +46,11 @@ export async function walkProject(io, directory, out, budget, exclude) {
 		if (entry.type === 'directory') {
 			if (SKIP_DIRS.has(entry.name) || entry.name.startsWith('.')) continue
 			if (exclude && exclude.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))) continue
-			await walkProject(io, path, out, budget, exclude)
+			await walkProject(io, path, out, budget, exclude, accept)
 			continue
 		}
 		if (entry.type !== 'file') continue
-		if (!TEXT_FILE.test(entry.name)) continue
+		if (!accept.test(entry.name)) continue
 		if (typeof entry.size === 'number' && entry.size > MAX_BYTES) continue
 		out.push(path)
 		budget.files += 1

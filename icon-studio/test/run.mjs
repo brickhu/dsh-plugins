@@ -13,7 +13,9 @@ import path from 'node:path'
 import { normalizeSvg, pathBBox, parsePath, serializeGraphic, transformPath, bakeIconifyTransform } from '../lib/svg.js'
 import { createStore, MANIFEST_FILE, slugify, normalizeName, refName } from '../lib/store.js'
 import { applyAsset, cascadeRename, scanUsage } from '../lib/assets.js'
-import { findShapePointers, pushShapePointers, readDerivations, isUiSource, scanCodeShapes } from '../lib/sync.js'
+import { findShapePointers, pushShapePointers, readDerivations, isUiSource, isStyleSource, scanCodeShapes, decodedShapeSignature } from '../lib/sync.js'
+import { dataUriBlocks, encodeLike, countBlob } from '../lib/datauri.js'
+import { audit, scanSites, violations } from '../lib/report.js'
 import { bodySignature, shapeSignature, mergeInner, isSquareCanvas, generatedIconIssues } from '../lib/shape.js'
 import { parseSupplyRef, seedRule, svgCanvasSize, isImportedSource, createIconmcpClient } from '../lib/supply.js'
 import { isNewer, latestPublished } from '../lib/update.js'
@@ -2146,6 +2148,110 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 		assert.equal(cachedScan.data.groups.length, firstScan.data.groups.length, 'the cached scan answers the same list')
 		const forced = await call('scan', { method: 'POST', body: { workspace, force: true } })
 		assert.equal(forced.data.groups.length, firstScan.data.groups.length, 'and an explicit rescan agrees with it')
+	})
+
+	console.log('data URIs and the copy audit')
+
+	// A real mask pipeline output: a class attribute, a `#000` fill and the
+	// bounding-box path Clarity leaves behind. None of that is geometry.
+	const MASK_BLOB = '<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><path fill="#000" d="M2 2h32v32H2z" class="clr-i-solid"/><path fill="none" d="M0 0h36v36H0z"/></svg>'
+	const box24 = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 4h16v16H4z" fill="currentColor"/></svg>'
+	const star24 = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2l3 7h7l-6 4 2 7-6-4-6 4 2-7-6-4h7z" fill="currentColor"/></svg>'
+	const blobUri = (svg, params = ';base64') => `data:image/svg+xml${params},${params === ';base64' ? Buffer.from(svg).toString('base64') : encodeURIComponent(svg)}`
+
+	await test('a masked CSS data URI is a site, not an invisible copy', async () => {
+		const io = memIo({
+			'package.json': '{}',
+			'styles/icons.css': `.ui-icon-box{-webkit-mask-image:url("${blobUri(MASK_BLOB)}")}`,
+		})
+		const library = normalizeSvg(MASK_BLOB).svg
+		assert.notEqual(shapeSignature(MASK_BLOB), shapeSignature(library), 'the raw blob would never match the library entry')
+		assert.equal(decodedShapeSignature(MASK_BLOB), shapeSignature(library), 'normalising both sides does match')
+		const pointers = await findShapePointers(io, library)
+		assert.deepEqual(pointers.map((pointer) => `${pointer.kind}:${pointer.file}`), ['datauri:styles/icons.css'])
+		assert.equal(isStyleSource('styles/icons.css'), true)
+		assert.equal(isUiSource('styles/icons.css'), false)
+	})
+
+	await test('a percent-encoded data URI is decoded too', async () => {
+		const io = memIo({ 'src/App.tsx': `const ICON = "${blobUri(box24, ';charset=utf-8')}"` })
+		const pointers = await findShapePointers(io, normalizeSvg(box24).svg)
+		assert.equal(pointers.length, 1)
+		assert.equal(pointers[0].kind, 'datauri')
+	})
+
+	await test('a raster data URI is reported, never guessed at', async () => {
+		const io = memIo({ 'src/a.css': '.a{-webkit-mask-image:url("data:image/png;base64,iVBORw0KGgo=")}' })
+		assert.equal((await findShapePointers(io, normalizeSvg(box24).svg)).length, 0, 'a PNG has no geometry to compare')
+		const result = await audit(io, [{ name: 'box', svg: box24 }])
+		assert.equal(result.raster.length, 1)
+		assert.equal(result.raster[0].mime, 'png')
+		assert.equal(result.raster[0].line, 1)
+		assert.equal(result.counts.datauri, 0)
+	})
+
+	await test('pushing to a data URI keeps the encoding and the CSS around it', async () => {
+		const next = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 5h14v14H5z" fill="currentColor"/></svg>'
+		const io = memIo({ 'styles/a.css': `.a{-webkit-mask-image:url("${blobUri(box24)}")}` })
+		const pushed = await pushShapePointers(io, next, [{ file: 'styles/a.css', kind: 'datauri', index: 0, line: 1 }])
+		assert.equal(pushed.rewritten, 1)
+		const after = io.files.get('styles/a.css')
+		assert.ok(after.startsWith('.a{-webkit-mask-image:url("data:image/svg+xml;base64,'), 'the wrapper survives the edit')
+		assert.ok(after.endsWith('")}'), 'and so does the tail')
+		assert.equal(shapeSignature(dataUriBlocks(after)[0].text), shapeSignature(next))
+	})
+
+	await test('a blob the file uses twice is a shared constant and is left alone', async () => {
+		const next = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 5h14v14H5z" fill="currentColor"/></svg>'
+		const uri = blobUri(box24)
+		const before = `.a{mask-image:url("${uri}")}.b{mask-image:url("${uri}")}`
+		const io = memIo({ 'styles/a.css': before })
+		const pushed = await pushShapePointers(io, next, [{ file: 'styles/a.css', kind: 'datauri', index: 0, line: 1 }])
+		assert.equal(pushed.rewritten, 0, 'a copy nobody pointed at is not rewritten')
+		assert.equal(io.files.get('styles/a.css'), before)
+		assert.equal(countBlob(before, dataUriBlocks(before)[0].blob), 2)
+	})
+
+	await test('the audit groups copies per icon and names what it cannot read', async () => {
+		const io = memIo({
+			'package.json': '{}',
+			'src/a.tsx': `export const A = () => (${box24})`,
+			'src/b.tsx': `export const B = () => (${box24})`,
+			'styles/c.css': `.x{-webkit-mask-image:url("${blobUri(box24)}")}`,
+			'src/d.tsx': `export const D = () => (${star24})`,
+		})
+		const result = await audit(io, [{ name: 'box', svg: box24 }])
+		assert.equal(result.counts.inline, 2)
+		assert.equal(result.counts.datauri, 1)
+		assert.equal(result.icons[0].name, 'box')
+		assert.equal(result.icons[0].sites, 3, 'three copies of one drawing')
+		assert.equal(result.unregistered.length, 1, 'the star is drawn but the library does not have it')
+		assert.equal(result.unregistered[0].file, 'src/d.tsx')
+		assert.equal(result.scanned.style, 1)
+	})
+
+	await test('a recorded pointer that no longer draws its icon is drift', async () => {
+		const io = memIo({ 'src/a.tsx': `export const A = () => (${star24})` })
+		const result = await audit(io, [{ name: 'box', svg: box24, pointers: [{ file: 'src/a.tsx', kind: 'inline', index: 0, line: 1 }] }])
+		assert.equal(result.stale.length, 1)
+		assert.equal(result.stale[0].name, 'box')
+		assert.equal(violations(result, { maxSites: 0 }).clear, false)
+	})
+
+	await test('the site budget decides what a strict check fails on', () => {
+		const result = { icons: [{ name: 'box', sites: 4, list: [] }], stale: [], raster: [], unregistered: [], counts: {}, scanned: {} }
+		assert.equal(violations(result, { maxSites: 3 }).clear, false)
+		assert.equal(violations(result, { maxSites: 4 }).clear, true)
+		assert.equal(violations(result, { maxSites: 0 }).clear, true, 'no budget means no failure')
+	})
+
+	await test('check-icons parses its flags and refuses nonsense', async () => {
+		const { parseArgs } = await import('../scripts/check-icons.mjs')
+		assert.equal(parseArgs([]).maxSites, 0)
+		assert.equal(parseArgs(['--max-sites=2', '--strict']).strict, true)
+		assert.equal(parseArgs(['--json']).json, true)
+		assert.throws(() => parseArgs(['--max-sites=oops']))
+		assert.throws(() => parseArgs(['--nope']))
 	})
 
 	console.log('')
