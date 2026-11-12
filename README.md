@@ -6,6 +6,9 @@ DeepSeek Harness 插件的本地宏仓库。每个子目录是一个独立插件
 ```
 dsh-plugins/
   references/      # 右栏「链接」面板：汇总当前对话里的所有 URL，分三类 + 提及次数
+  highlights/      # 左栏全局面板「高亮」：消息块 emoji 反应 + 中心栏跨会话汇总页
+  design/          # 右栏「设计规范」：项目 designspec/ + 自由布局 canvas；frame 可提升为 component
+  icon-studio/     # 右栏「Icons」：项目图标库 .icons.json + 粘贴/供应商导入 + agent 取图工具
   <next-plugin>/   # 新插件按同样结构加入
 ```
 
@@ -14,6 +17,9 @@ dsh-plugins/
 | 目录 | 包名 | 面板 | 状态 |
 |---|---|---|---|
 | [references](references/) | `@local/dsh-links` | 右栏 tab「链接」 | v0.13.0 已装（pin 置顶 / 无分类筛选 / 全局 URL 元数据缓存 / 线性请求 / 只隐藏死链 / 根域名相邻 / ⋮ 菜单） |
+| [highlights](highlights/) | `dsh-highlights` | 左侧全局面板行「高亮」+ 中心栏汇总页 | v0.6.0 已装（消息块 emoji 反应 / 每块一个分类 / 按 session 存储 / **跨会话汇总**：扁平时间线、块文本卡片、会话标题 + 轮次、复制 / 删除 / 跳块闪烁、分类筛选 + 搜索、二级菜单清空 / 版本与更新提示） |
+| [design](design/) | `dsh-design-specs` | 会话右侧 tab「设计规范 / Design Specs」 | v0.2.0 已装（右栏改为**设计系统管理器**：变量 / 组件 / 模式 / 问题；变量改名级联 + 删除保护；组件 props 与代码映射；`patterns.json` 交互与动效；`@` 引用 Canvas / Components / Tokens / Patterns；画布降级到面板底部入口，后续移到输入框 `+`） |
+| [icon-studio](icon-studio/) | `dsh-icon-library` | 会话右侧 tab「Icons」 | v0.19.0 已装（项目级**图标**库 `.icons.json`：列表预览 / 搜索 / 粘贴导入 / 从 Iconify·IconMCP 导入 / 扫描工作区收编；agent 工具 `icon_list` `icon_get` `icon_save` `icon_annotate`；几何签名追踪代码引用，data URI（base64 / percent）副本同样可识别，`check-icons` 出重复与漂移审计并带 CI 退出码；⌘I 打开面板；改名级联、内联更新） |
 
 ## 插件工程约定
 
