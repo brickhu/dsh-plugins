@@ -40,6 +40,14 @@ Requires DSH `>=0.2.1-rc.5 <0.3.0`.
 
 ### Option 2: command line
 
+Add the bundle to a DSH profile:
+
+```bash
+dsh plugin --profile web add dsh-icon-library
+```
+
+Or run the installer directly (it edits the profile itself):
+
 ```bash
 npx --yes --package dsh-icon-library dsh-icon-library-install
 ```

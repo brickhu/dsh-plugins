@@ -40,6 +40,14 @@
 
 ### 方式二：命令行
 
+把 bundle 装进某个 DSH profile：
+
+```bash
+dsh plugin --profile web add dsh-icon-library
+```
+
+或者直接运行安装器（它会自己改 profile）：
+
 ```bash
 npx --yes --package dsh-icon-library dsh-icon-library-install
 ```
