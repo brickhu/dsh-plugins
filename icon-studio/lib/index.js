@@ -934,9 +934,9 @@ export function apply(ctx, config = {}) {
 						merged.set(`${pointer.kind}:${pointer.file}:${pointer.index}`, pointer)
 					}
 					const list = [...merged.values()]
+					if (!result.created) await pushShapePointers(io, result.svg ?? '', list)
 					await store.setPointers(result.entry.name, list)
 					pointers = list.length
-					if (!result.created) await pushShapePointers(io, result.svg ?? '', list)
 					forgetScans(root)
 				} catch (_error) { pointers = 0 }
 				const lines = []
@@ -1225,9 +1225,6 @@ export function apply(ctx, config = {}) {
 						merged.set(`${pointer.kind}:${pointer.file}:${pointer.index}`, pointer)
 					}
 					pointers = [...merged.values()]
-					const recorded = await store.setPointers(result.entry.name, pointers)
-					result.entry.pointers = recorded.pointers
-					result.entry.scannedAt = recorded.scannedAt
 					// Only an edit pushes: creating an icon must never rewrite code.
 					if (!result.created) {
 						// The panel lets the user uncheck references: those sites keep
@@ -1237,6 +1234,11 @@ export function apply(ctx, config = {}) {
 						const pushed = await pushShapePointers(io, result.svg ?? '', targets)
 						synced = { replaced: synced.replaced + pushed.rewritten, files: [...synced.files, ...pushed.files] }
 					}
+					// Record after the push: a rewritten path constant now names its new
+					// literal, and that is the one the next edit has to find.
+					const recorded = await store.setPointers(result.entry.name, pointers)
+					result.entry.pointers = recorded.pointers
+					result.entry.scannedAt = recorded.scannedAt
 				} catch (_error) { /* scanning is best-effort */ }
 			}
 			forgetScans(root)

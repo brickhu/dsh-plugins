@@ -580,7 +580,7 @@ const PATH_ONLY = /^\s*[Mm][\d\s.,+\-LlHhVvCcSsQqTtAaZzMm]*$/u
 export function pathLiterals(text) {
 	const source = String(text || '')
 	const out = []
-	const re = /(['"`])([Mm][^'"`\n]{12,}Z)\1/gu
+	const re = /(['"`])([Mm][^'"`\n]{12,}[Zz])\1/gu
 	let match
 	while ((match = re.exec(source)) !== null) {
 		const value = match[2]

@@ -372,6 +372,24 @@ async function main() {
 		const next = library.replace('M4 4L20 4L20 20L4 20Z', 'M2 2L22 2L22 22L2 22Z')
 		await pushShapePointers(io, next, pointers)
 		assert.ok(io.files.get('src/icons.ts').includes("'M2 2L22 2L22 22L2 22Z'"), 'the constant is rewritten')
+		assert.equal(pointers[0].literal, 'M2 2L22 2L22 22L2 22Z', 'the pointer names the literal the code now holds')
+		const third = next.replace('M2 2L22 2L22 22L2 22Z', 'M3 3L21 3L21 21L3 21Z')
+		await pushShapePointers(io, third, pointers)
+		assert.ok(io.files.get('src/icons.ts').includes('M3 3L21 3L21 21L3 21Z'), 'a second edit still lands')
+	})
+
+	await test('a constant ending in a lowercase z is still a reference', async () => {
+		const io = memIo({
+			'package.json': '{}',
+			'src/icons.ts': "const P = 'M4 4L20 4L20 20L4 20z'\nexport const Icon = () => h('path', { d: P })",
+		})
+		const library = '<svg viewBox="0 0 24 24"><path d="M4 4L20 4L20 20L4 20z" fill="currentColor"/></svg>'
+		const pointers = await findShapePointers(io, library)
+		assert.equal(pointers.length, 1, 'a lowercase close-path is a valid constant')
+		assert.equal(pointers[0].kind, 'path')
+		const next = library.replace('M4 4L20 4L20 20L4 20z', 'M2 2L22 2L22 22L2 22z')
+		await pushShapePointers(io, next, pointers)
+		assert.ok(io.files.get('src/icons.ts').includes('M2 2L22 2L22 22L2 22z'), 'the constant is rewritten')
 	})
 
 	await test('a shared path constant counts once across several SVGs', async () => {

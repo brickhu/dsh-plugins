@@ -96,7 +96,7 @@ export async function findShapePointers(io, svg, { exclude = [], stats = null } 
 			continue
 		}
 		if (text === null) continue
-		if (!style && !text.includes('<svg') && !/h\(\s*['"]svg['"]/u.test(text) && !/\bmarkup\s*:/u.test(text) && !/['"`][Mm][^'"`\n]{12,}Z['"`]/u.test(text) && !text.includes('data:image/')) continue
+		if (!style && !text.includes('<svg') && !/h\(\s*['"]svg['"]/u.test(text) && !/\bmarkup\s*:/u.test(text) && !/['"`][Mm][^'"`\n]{12,}[Zz]['"`]/u.test(text) && !text.includes('data:image/')) continue
 		if (!style && file.toLowerCase().endsWith('.svg')) {
 			if (shapeSignature(text) === wanted) pointers.push({ file, kind: 'file', index: 0, line: 1 })
 			continue
@@ -259,6 +259,9 @@ export async function pushShapePointers(io, svg, pointers = []) {
 				if (typeof replacement !== 'string' || replacement === '') continue
 				if (typeof pointer.literal !== 'string' || !next.includes(pointer.literal)) continue
 				next = next.split(pointer.literal).join(replacement)
+				// The stored pointer has to name the literal the code now holds, or
+				// the next edit looks for a string that is no longer there.
+				pointer.literal = replacement
 				rewritten += 1
 			}
 			if (next !== text) {
@@ -276,6 +279,7 @@ export async function pushShapePointers(io, svg, pointers = []) {
 				if (typeof replacement !== 'string' || replacement === '') continue
 				if (typeof pointer.literal !== 'string' || !next.includes(pointer.literal)) continue
 				next = next.split(pointer.literal).join(replacement)
+				pointer.literal = replacement
 				rewritten += 1
 			}
 			if (next !== text) {
@@ -436,7 +440,7 @@ export async function scanCodeShapes(io, { exclude = [] } = {}) {
 			continue
 		}
 		if (text === null) continue
-		if (!text.includes('<svg') && !/h\(\s*['"]svg['"]/u.test(text) && !/\bmarkup\s*:/u.test(text) && !/['"`][Mm][^'"`\n]{12,}Z['"`]/u.test(text)) continue
+		if (!text.includes('<svg') && !/h\(\s*['"]svg['"]/u.test(text) && !/\bmarkup\s*:/u.test(text) && !/['"`][Mm][^'"`\n]{12,}[Zz]['"`]/u.test(text)) continue
 		const isFile = file.toLowerCase().endsWith('.svg')
 		const blocks = isFile ? [{ start: 0, end: text.length, text, kind: 'file' }] : [
 			...svgBlocks(text).map((block) => ({ ...block, kind: 'inline' })),
