@@ -29,8 +29,12 @@ export const MANIFEST_FILE = '.icons.json'
 // Older libraries lived under `.icon-studio/`; the hidden JSON file at the root
 // is the current layout. Both stay readable.
 export const FORMAT = 'dsh-icon-library'
-/** v2: `note` became `rule`, entries carry `history` and `pointers`. */
-export const FORMAT_VERSION = 11
+/**
+ * v2: `note` became `rule`, entries carry `history` and `pointers`.
+ * v12: a single-colour body is stored as `currentColor` (older libraries are
+ * upgraded on read; multi-colour bodies are untouched).
+ */
+export const FORMAT_VERSION = 12
 
 /**
  * Cheap change token for the whole library: the world outside this file (the
@@ -247,7 +251,11 @@ function identityOf(input, normalized) {
 	}
 }
 
-export function createStore(io) {
+export function createStore(io, options = {}) {
+	// A tool that only reads the library (the audit CLI) must not upgrade it on
+	// open: old paint stays on disk until something actually saves.
+	const migrate = options.migrate !== false
+
 	async function readManifestFile() {
 		let text = await io.readText(MANIFEST_FILE)
 		let fromLegacy = false
@@ -320,6 +328,24 @@ export function createStore(io) {
 				migrated = true
 			} catch (_error) { /* keep the legacy pointer */ }
 		}
+		// Libraries written before the paint rule may still store a single-colour
+		// drawing in the colour it was made in. Rewrite just that paint, once, on
+		// read: structure, ids, canvas and multi-colour art stay byte-identical.
+		const newer = typeof parsed.formatVersion === 'number' && parsed.formatVersion > FORMAT_VERSION
+		if (migrate && !newer && parsed.formatVersion !== FORMAT_VERSION) {
+			for (const entry of unique) {
+				if (entry.body === '' || !/(?:fill|stroke|style|class)/iu.test(entry.body)) continue
+				try {
+					const svg = entrySvg(entry)
+					if (normalizeSvg(svg).tintable !== true) continue
+					const preserved = preserveSvg(svg, { viewBox: entry.viewBox, tint: true })
+					if (preserved.body === entry.body) continue
+					entry.body = preserved.body
+					entry.hash = preserved.hash
+					migrated = true
+				} catch (_error) { /* unreadable art is left for its owner */ }
+			}
+		}
 		const aliases = parsed.aliases && typeof parsed.aliases === 'object' && !Array.isArray(parsed.aliases) ? parsed.aliases : {}
 		const manifest = {
 			format: FORMAT,
@@ -335,9 +361,8 @@ export function createStore(io) {
 		}
 		// Never rewrite a file written by a newer plugin: an older process must not
 		// clobber fields it does not understand.
-		const newer = typeof parsed.formatVersion === 'number' && parsed.formatVersion > FORMAT_VERSION
 		const legacyShape = Array.isArray(parsed.graphics) || parsed.copies !== undefined || parsed.formatVersion !== FORMAT_VERSION
-		if (!newer && (migrated || fromLegacy || legacyShape)) await writeManifestFile(manifest)
+		if (migrate && !newer && (migrated || fromLegacy || legacyShape)) await writeManifestFile(manifest)
 		return { exists: true, manifest }
 	}
 
@@ -490,11 +515,14 @@ export function createStore(io) {
 				? normalizeElements(input.elements, { name, viewBox: pinned })
 				: normalizeSvg(input?.svg, { name, viewBox: pinned })
 			// Storage keeps the authored markup (IconifyIcon body + canvas); the
-			// flattened normalisation above is only used to compare shapes.
+			// flattened normalisation above is only used to compare shapes. Single-
+			// colour art still gets its paint rewritten: an icon must follow the text
+			// colour, not the colour it happened to be drawn in.
+			const tint = normalized.tintable === true
 			const authored = !Array.isArray(input?.elements)
 				&& (typeof pinned === 'string' || /viewBox\s*=/iu.test(String(input?.svg ?? '')))
 			const stored = authored
-				? preserveSvg(input?.svg, { viewBox: pinned || normalized.viewBox })
+				? preserveSvg(input?.svg, { viewBox: pinned || normalized.viewBox, tint })
 				: normalized
 
 			const manifest = current
@@ -696,9 +724,12 @@ export function createStore(io) {
 		/** Dry-run normalisation used by the paste-SVG import dialog. */
 		async inspect(input) {
 			const normalized = normalizeSvg(input?.svg, { preserveViewBox: input?.preserveViewBox === true })
+			// The preview is the artwork that would be stored: a single-colour paste
+			// is shown (and later saved) with `currentColor`, not its baked paint.
+			const tint = normalized.tintable === true
 			const authored = typeof input?.viewBox === 'string' || /viewBox\s*=/iu.test(String(input?.svg ?? ''))
 			const stored = authored
-				? preserveSvg(input?.svg, { viewBox: input?.viewBox || normalized.viewBox })
+				? preserveSvg(input?.svg, { viewBox: input?.viewBox || normalized.viewBox, tint })
 				: normalized
 			const { manifest } = await readManifestFile()
 			let duplicate = manifest.graphics.find((entry) => entry.hash === stored.hash)

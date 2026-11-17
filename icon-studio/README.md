@@ -75,6 +75,8 @@ Quit and reopen DSH afterwards, as above.
 | delete an icon | card `⋯` → Delete; it warns how many sites would break |
 | update the plugin | When a newer release exists, **Update x.y.z** appears next to the version in the panel footer; clicking it opens this plugin's page in the Plugins panel |
 
+Single-colour artwork is stored as `currentColor`: only the paint changes (`fill`/`stroke`, `style`, `<style>` rules), while structure, ids and canvas stay exactly as authored. Multi-colour art keeps its own palette. Older libraries are upgraded the same way on first open.
+
 The first time you use a workspace, the panel shows an initialise screen. **Initialise icon library** only creates `.icons.json` at the project root — it never touches business code.
 
 ## Where the data lives

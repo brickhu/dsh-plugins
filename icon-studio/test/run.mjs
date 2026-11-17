@@ -10,8 +10,8 @@
 import assert from 'node:assert/strict'
 import { readFileSync, existsSync } from 'node:fs'
 import path from 'node:path'
-import { normalizeSvg, pathBBox, parsePath, serializeGraphic, transformPath, bakeIconifyTransform } from '../lib/svg.js'
-import { createStore, MANIFEST_FILE, slugify, normalizeName, refName } from '../lib/store.js'
+import { normalizeSvg, pathBBox, parsePath, preserveSvg, serializeGraphic, transformPath, bakeIconifyTransform } from '../lib/svg.js'
+import { createStore, FORMAT_VERSION, MANIFEST_FILE, slugify, normalizeName, refName } from '../lib/store.js'
 import { applyAsset, cascadeRename, scanUsage } from '../lib/assets.js'
 import { findShapePointers, pushShapePointers, readDerivations, isUiSource, isStyleSource, scanCodeShapes, decodedShapeSignature } from '../lib/sync.js'
 import { dataUriBlocks, encodeLike, countBlob } from '../lib/datauri.js'
@@ -171,6 +171,40 @@ async function main() {
 		const graphic = normalizeSvg('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 12L10 18L20 6" fill="none" stroke="#1A1A1A" stroke-width="2"/></svg>')
 		assert.deepEqual(graphic.elements.map((element) => element.stroke), ['currentColor'])
 		assert.deepEqual(graphic.palette, ['#1a1a1a'])
+		assert.equal(graphic.tintable, true)
+	})
+
+	test('an authored single-colour document is tinted without flattening it', () => {
+		const source = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#111"><g transform="translate(2 2)"><path d="M2 2h16v16H2z" fill="#111"/><path d="M4 4h4v4H4z" style="stroke:#111;stroke-width:2;fill:none"/></g><style>.dot{fill:#111}</style></svg>'
+		assert.ok(preserveSvg(source).svg.includes('#111'), 'nothing changes without the option')
+		const cleaned = preserveSvg(source, { tint: true })
+		assert.ok(!/#111/iu.test(cleaned.svg), 'the baked colour is gone')
+		assert.ok(cleaned.svg.includes('transform="translate(2 2)"'), 'the structure is untouched')
+		assert.ok(cleaned.svg.includes('fill="currentColor"'), 'a presentation attribute is rewritten')
+		assert.ok(cleaned.svg.includes('style="stroke:currentColor;stroke-width:2;fill:none"'), 'a style attribute is rewritten in place')
+		assert.ok(cleaned.svg.includes('.dot{fill:currentColor}'), 'a stylesheet rule is rewritten in place')
+	})
+
+	test('tinting leaves mask paint literal', () => {
+		const source = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><defs><mask id="m"><circle cx="12" cy="12" r="10" fill="#fff"/></mask></defs><path d="M0 0h24v24H0z" fill="#111" mask="url(#m)"/></svg>'
+		const cleaned = preserveSvg(source, { tint: true })
+		assert.ok(cleaned.svg.includes('fill="#fff"'), 'a mask keeps the luminance it was drawn with')
+		assert.ok(cleaned.svg.includes('fill="currentColor" mask="url(#m)"'))
+	})
+
+	test('only a document that mentions one paint is flattened', () => {
+		// The normaliser cannot match every selector; a colour it never saw is
+		// still a reason to leave the authored document alone.
+		const twoPaints = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><style>.a .b{fill:#111}</style><path class="b" d="M2 2h20v20H2z" fill="#222"/></svg>'
+		const kept = preserveSvg(twoPaints, { tint: true })
+		assert.ok(kept.svg.includes('#111') && kept.svg.includes('#222'), 'a second paint keeps the document multi-colour')
+	})
+
+	test('art painted with a gradient is never single-colour', () => {
+		const gradient = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><defs><linearGradient id="g"><stop stop-color="#f00"/><stop offset="1" stop-color="#00f"/></linearGradient></defs><path d="M2 2h20v20H2z" fill="url(#g)"/><path d="M4 4h4v4H4z" fill="#333"/></svg>'
+		const graphic = normalizeSvg(gradient)
+		assert.equal(graphic.tintable, false)
+		assert.ok(graphic.svg.includes('fill="#333333"'), 'the solid paint beside the gradient is left alone')
 	})
 
 	test('an icon that already mixes currentColor with a colour keeps both', () => {
@@ -742,7 +776,7 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 		assert.equal(renamed.entry.body, saved.entry.body, 'a rename keeps the same body')
 
 		const manifest = JSON.parse(io.files.get(MANIFEST_FILE))
-		assert.equal(manifest.formatVersion, 11)
+		assert.equal(manifest.formatVersion, FORMAT_VERSION)
 		assert.equal(Object.keys(manifest.icons).length, 1)
 		// The `icons` map holds IconData only; metadata lives beside it.
 		assert.deepEqual(Object.keys(Object.values(manifest.icons)[0]).sort(), ['body'])
@@ -759,6 +793,45 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 		assert.equal(after.icons.small.width, 16, 'a different size is written explicitly')
 		assert.equal(after.icons.small.height, 16)
 		assert.equal(after.icons.small.left, undefined, 'zero offsets stay implicit')
+	})
+
+	await test('an older library has its single-colour paint cleaned once', async () => {
+		const source = JSON.stringify({
+			width: 24,
+			height: 24,
+			icons: {
+				box: { body: '<path d="M2 2h12v12H2z" fill="#1A1A1A"/>' },
+				duo: { body: '<path d="M2 2h4v4H2z" fill="#ff0000"/><path d="M8 8h4v4H8z" fill="#0000ff"/>' },
+			},
+			metadata: { box: { hash: 'sha256:old' } },
+			formatVersion: 11,
+		})
+		const io = memIo({ [MANIFEST_FILE]: source })
+		const store = createStore(io)
+		const listed = await store.list()
+		const box = listed.entries.find((entry) => entry.name === 'box')
+		const duo = listed.entries.find((entry) => entry.name === 'duo')
+		assert.ok(box.body.includes('currentColor'), 'single-colour art follows the text colour')
+		assert.ok(!/1a1a1a/iu.test(box.body), 'the baked colour is gone')
+		assert.ok(duo.body.includes('#ff0000') && duo.body.includes('#0000ff'), 'multi-colour art keeps its paint')
+		const written = JSON.parse(io.files.get(MANIFEST_FILE))
+		assert.equal(written.formatVersion, FORMAT_VERSION)
+		assert.ok(written.icons.box.body.includes('currentColor'), 'the cleaned body is what the file now holds')
+		assert.ok(written.metadata.box.hash.startsWith('sha256:'), 'the content hash is refreshed')
+	})
+
+	await test('an audit store never rewrites the old paint', async () => {
+		const source = JSON.stringify({
+			width: 24,
+			height: 24,
+			icons: { box: { body: '<path d="M2 2h12v12H2z" fill="#1A1A1A"/>' } },
+			formatVersion: 11,
+		})
+		const io = memIo({ [MANIFEST_FILE]: source })
+		const store = createStore(io, { migrate: false })
+		const { entries } = await store.list()
+		assert.ok(entries[0].body.includes('#1A1A1A'), 'the audit still reads the authored paint')
+		assert.equal(io.files.get(MANIFEST_FILE), source, 'and leaves the manifest byte-identical')
 	})
 
 	await test('Iconify aliases resolve to their canonical icon', async () => {
@@ -1640,6 +1713,35 @@ export const B = () => h('svg', { viewBox: '0 0 24 24', fill: 'none' }, h('path'
 		const saved = await store.save({ name: 'pasted', svg: kept.svg, viewBox: kept.viewBox, preserveViewBox: true, allowDuplicate: true })
 		assert.equal(saved.entry.viewBox, '0 0 48 48')
 		assert.ok(saved.svg.includes('x="16"'), 'the shape keeps its position inside that canvas')
+	})
+
+	await test('a single-colour paste is stored as currentColor', async () => {
+		const io = memIo({})
+		const store = createStore(io)
+		const source = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" fill="#1A1A1A"/></svg>'
+
+		const inspected = await store.inspect({ svg: source, preserveViewBox: true })
+		assert.ok(!/1a1a1a/iu.test(inspected.svg), 'the preview already follows the text colour')
+		assert.ok(inspected.svg.includes('currentColor'), 'the colour is rewritten to currentColor')
+
+		const saved = await store.save({ name: 'pasted', svg: inspected.svg, viewBox: inspected.viewBox, preserveViewBox: true, allowDuplicate: true })
+		assert.ok(!/1a1a1a/iu.test(saved.svg), 'the stored artwork carries no baked colour')
+		const graphic = await store.get('pasted')
+		assert.ok(graphic.svg.includes('currentColor'), 'and neither does the exported document')
+	})
+
+	await test('an agent save of single-colour markup is tinted too', async () => {
+		const store = createStore(memIo({}))
+		const saved = await store.save({ name: 'box', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M2 2h12v12H2z" fill="black"/></svg>' })
+		assert.ok(!/black/iu.test(saved.svg))
+		assert.ok(saved.svg.includes('currentColor'))
+	})
+
+	await test('a multi-colour paste keeps its own paint', async () => {
+		const store = createStore(memIo({}))
+		const source = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2 2h8v8H2z" fill="#ff0000"/><path d="M14 14h8v8h-8z" fill="#0000ff"/></svg>'
+		const inspected = await store.inspect({ svg: source, preserveViewBox: true })
+		assert.ok(inspected.svg.includes('#ff0000') && inspected.svg.includes('#0000ff'))
 	})
 
 	await test('gradients survive normalisation, the editor model, and a re-save', async () => {

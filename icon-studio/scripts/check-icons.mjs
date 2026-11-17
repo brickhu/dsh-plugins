@@ -119,7 +119,8 @@ async function main() {
 		return
 	}
 	const io = nodeIo(options.root)
-	const store = createStore(io)
+	// The audit is read-only: looking at the library must not upgrade it.
+	const store = createStore(io, { migrate: false })
 	let entries
 	try {
 		const listed = await store.list()

@@ -14,6 +14,11 @@
 代码里不写标记：派生就是"画着同一个形状"，由**几何签名**索引——颜色和线宽不参与
 匹配，所以同一个形状在 A 处是 `#ff00ff`、在 B 处是 `#000ff0`，仍是同一个形状的两条派生。
 
+单色图形入库即清洗为 `currentColor`：只改 paint（`fill`/`stroke` 属性、`style`、
+`<style>` 规则），结构、id、画布、`<defs>` 一个字节不动；mask / clipPath / filter
+内部的绘制、渐变与多色图形保留原样。旧库按 `formatVersion` 在读入时一次性升级
+（只读的 `check-icons` 不写回）。
+
 ## 入库：一个窗口，四个来源
 
 粘贴、本地 `.svg`、远程供给库、AI 生成，打开的是**同一个** `AddIconDialog`：

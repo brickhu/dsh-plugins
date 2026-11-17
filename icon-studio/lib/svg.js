@@ -3,8 +3,9 @@
  *
  * One graphic = one svg file. Everything this module produces is a *clean*
  * document: no transform, no style attribute, no class references, one
- * `<path>` per selectable element and a trimmed viewBox; single-colour imports
- * get `currentColor` so they follow the text colour.
+ * `<path>` per selectable element and a trimmed viewBox; single-colour art is
+ * stored with `currentColor` so it follows the text colour (authored markup
+ * keeps its structure — only its paint is flattened).
  *
  * Pipeline used by every import path:
  *
@@ -1149,7 +1150,9 @@ const GRADIENT_TAGS = new Set(['linearGradient', 'radialGradient', 'pattern'])
  *   `viewBox` pins a canvas (editor saves); `preserveViewBox` keeps the
  *   document's declared canvas (clipboard paste); without either the art is
  *   trimmed to its content and single-colour paint becomes `currentColor`.
- * @returns {{ svg: string, elements: object[], viewBox: string, width: number, height: number, palette: string[], hash: string, warnings: string[] }}
+ * @returns {{ svg: string, elements: object[], viewBox: string, width: number, height: number, palette: string[], tintable: boolean, hash: string, warnings: string[] }}
+ *   `tintable` says whether this drawing is single-colour art, i.e. whether
+ *   `preserveSvg(..., { tint: true })` should rewrite its authored paint too.
  */
 export function parseViewBox(value) {
 	if (typeof value !== 'string') return null
@@ -1323,7 +1326,11 @@ export function normalizeSvg(text, options = {}) {
 	// must keep its paint. Editor saves pin a canvas and keep explicit colours.
 	const tint = options.tint === undefined ? options.viewBox === undefined : options.tint === true
 	const alreadyTinted = elements.some((element) => element.fill === 'currentColor' || element.stroke === 'currentColor')
-	if (tint && palette.size <= 1 && !alreadyTinted) {
+	// `url(#…)` is paint of its own (a gradient or pattern): art that uses one is
+	// never single-colour, even when only one solid colour sits beside it.
+	const gradientPaint = elements.some((element) => /^url\(/iu.test(element.fill ?? '') || /^url\(/iu.test(element.stroke ?? ''))
+	const tintable = palette.size <= 1 && !alreadyTinted && !gradientPaint
+	if (tint && tintable) {
 		for (const element of elements) {
 			if (isConcreteColor(element.fill)) element.fill = 'currentColor'
 			if (isConcreteColor(element.stroke)) element.stroke = 'currentColor'
@@ -1413,6 +1420,10 @@ export function normalizeSvg(text, options = {}) {
 		width,
 		height,
 		palette: [...palette].sort(),
+		// True when this drawing is single-colour art: a caller that stores the
+		// authored markup verbatim (`preserveSvg`) can flatten its paint the same
+		// way this normalised form was flattened.
+		tintable,
 		warnings,
 	}
 	graphic.svg = serializeGraphic(graphic)
@@ -1611,14 +1622,105 @@ function serializeRaw(node) {
 }
 
 /**
+ * Paint a mask/clip/filter implements rather than draws: rewriting a white mask
+ * fill to currentColor would change what the mask hides, so that subtree is
+ * left alone. Gradients and patterns keep their stops for the same reason.
+ */
+const TINT_SKIP_TAGS = new Set(['mask', 'clipPath', 'filter'])
+
+/** A concrete colour becomes `currentColor`; anything else stays as authored. */
+function tintedPaint(value) {
+	return isConcreteColor(canonicalColor(value)) ? 'currentColor' : value
+}
+
+/** Visit every `fill:` / `stroke:` declaration value in a style text. */
+function forEachPaintDeclaration(text, visit) {
+	for (const match of String(text).matchAll(/(^|[{;])(\s*)(fill|stroke)(\s*:\s*)([^;}]+)/giu)) {
+		const value = match[5]
+		const important = /\s*!important\s*$/iu.exec(value)?.[0] ?? ''
+		visit(value.slice(0, value.length - important.length))
+	}
+}
+
+/**
+ * Every paint an authored document actually mentions. The caller's judgement is
+ * not enough on its own: a `<style>` rule this reader cannot match may still
+ * paint a colour, and rewriting it would flatten a multi-colour drawing.
+ */
+function authoredPaints(root) {
+	const paints = new Set()
+	const note = (value) => {
+		const colour = canonicalColor(value)
+		if (typeof colour === 'string' && /^url\(/iu.test(colour)) paints.add(`url:${colour}`)
+		else if (isConcreteColor(colour)) paints.add(colour)
+	}
+	const walkPaint = (node) => {
+		if (!node || node.tag === '#text' || TINT_SKIP_TAGS.has(node.tag)) return
+		for (const key of ['fill', 'stroke']) {
+			if (typeof node.attrs[key] === 'string') note(node.attrs[key])
+		}
+		if (typeof node.attrs.style === 'string') forEachPaintDeclaration(node.attrs.style, note)
+		for (const child of node.children) {
+			if (child.tag === '#text') {
+				if (node.tag === 'style') forEachPaintDeclaration(child.text, note)
+				continue
+			}
+			walkPaint(child)
+		}
+	}
+	walkPaint(root)
+	return paints
+}
+
+/**
+ * Rewrite `fill:` / `stroke:` inside a declaration list (a `style` attribute or
+ * a `<style>` block). Selector, spacing and `!important` stay byte-identical,
+ * so the authored document still diffs cleanly.
+ */
+function tintDeclarations(text) {
+	return String(text).replace(
+		/(^|[{;])(\s*)(fill|stroke)(\s*:\s*)([^;}]+)/giu,
+		(whole, lead, space, key, colon, value) => {
+			const important = /\s*!important\s*$/iu.exec(value)?.[0] ?? ''
+			const colour = canonicalColor(value.slice(0, value.length - important.length))
+			if (!isConcreteColor(colour)) return whole
+			return `${lead}${space}${key}${colon}currentColor${important}`
+		},
+	)
+}
+
+/** Flatten the paint of one parsed node and everything it draws. */
+function tintNode(node) {
+	if (!node || node.tag === '#text' || TINT_SKIP_TAGS.has(node.tag)) return
+	for (const key of ['fill', 'stroke']) {
+		if (typeof node.attrs[key] === 'string') node.attrs[key] = tintedPaint(node.attrs[key])
+	}
+	if (typeof node.attrs.style === 'string') node.attrs.style = tintDeclarations(node.attrs.style)
+	for (const child of node.children) {
+		if (child.tag === '#text') {
+			if (node.tag === 'style') child.text = tintDeclarations(child.text)
+			continue
+		}
+		tintNode(child)
+	}
+}
+
+/**
  * IconifyIcon-style storage: keep the authored markup verbatim and only pin the
  * canvas. Nothing is flattened, so `<defs>`, gradients, `<mask>`, `<clipPath>`,
  * filters and `<g>` transforms survive exactly as written.
+ *
+ * `options.tint` rewrites the paint as well, and only paint: pass it when the
+ * drawing is single-colour art (`normalizeSvg(...).tintable`) so the authored
+ * copy follows the text colour instead of keeping the colour it was drawn in.
  */
 export function preserveSvg(text, options = {}) {
 	const source = String(text ?? '')
 	const root = findFirst(parseXml(source), (node) => node.tag === 'svg')
 	if (!root) throw Object.assign(new Error('no svg root'), { code: 'invalid-svg' })
+	// Only monochrome documents are flattened; a drawing that mentions another
+	// paint (or a gradient) keeps every byte it was authored with.
+	if (options.tint === true && authoredPaints(root).size <= 1) tintNode(root)
 	let viewBox = typeof root.attrs.viewBox === 'string' ? root.attrs.viewBox.trim() : ''
 	const fallback = viewBox === '' ? normalizeSvg(source, { viewBox: options.viewBox }) : null
 	if (viewBox === '') viewBox = fallback ? fallback.viewBox : (options.viewBox || '0 0 24 24')

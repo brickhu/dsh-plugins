@@ -75,6 +75,8 @@ npx --yes --package dsh-icon-library dsh-icon-library-install --dry-run
 | 删图标 | 卡片 `⋯` → Delete；有派生时会提示会破坏几处 |
 | 更新插件 | 有新版本时，面板底部版本号旁出现 **可更新 x.y.z**，点一下直接打开插件面板的该插件页 |
 
+单色 SVG 入库时颜色会清洗为 `currentColor`：只改 paint（`fill`/`stroke`、`style`、`<style>` 规则），结构、id、画布原样保留；多色图形保留自己的配色。旧图标库在首次打开时按同一规则自动升级。
+
 第一次使用某个工作区时，面板会显示初始化页——点 **初始化图标库**，它只会在项目根目录创建 `.icons.json`，不会改你的业务代码。
 
 ## 图标数据在哪
