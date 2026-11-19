@@ -685,6 +685,40 @@
           }
         }
       ]
+    },
+    {
+      "name": "dsh-english-dictation",
+      "title": {
+        "en": "English Dictation",
+        "zh": "英文听写"
+      },
+      "description": {
+        "en": "Practice English dictation with short texts between the agent's tasks.",
+        "zh": "Agent工作的间隙，用英语短文练听写。"
+      },
+      "icon": "https://raw.githubusercontent.com/brickhu/dsh-plugins/main/dictation/icon.svg",
+      "author": "brickhu",
+      "homepage": "https://github.com/brickhu/dsh-plugins/tree/main/dictation",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/brickhu/dsh-plugins.git",
+        "directory": "dictation"
+      },
+      "metadata": {
+        "category": "tools"
+      },
+      "versions": [
+        {
+          "version": "0.48.0",
+          "publishTimestamp": 1795091589,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": ">=0.2.2-rc.1 <0.3.0"
+          }
+        }
+      ]
     }
   ]
 }
