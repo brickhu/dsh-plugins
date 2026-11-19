@@ -6741,14 +6741,24 @@ window.__ModuleLoader__.load({
 							: null
 						const unitAt = editable[position]
 						setPeekUnit(unitAt)
-						const alreadyRight = matchesTarget(answers[unitAt], units[unitAt] ? units[unitAt].plain : '')
-						const stats = peekStats.current[unitAt]
-						if (stats) {
-							if (String(answers[unitAt] || '') === '') stats.beforeInput += 1
-							if ((attempts[unitAt] || 0) > 0) stats.afterWrong += 1
-							if (alreadyRight) stats.onCorrect += 1
+						if (Number.isInteger(unitAt)) {
+							const answer = String(answers[unitAt] || '')
+							if (answer === '') {
+								// Looking a word up from an empty box is a miss. Count it now;
+								// it is an attempt, not an additional hint multiplier, so a
+								// later correct answer lands on X2 (base 0.6), not X1 × 0.25.
+								setAttempts((previous) => previous.map((count, spot) => (spot === unitAt ? (count || 0) + 1 : count)))
+								setWrong((previous) => units.map((unit, spot) => (spot === unitAt ? true : previous[spot] === true)))
+							} else {
+								const alreadyRight = matchesTarget(answer, units[unitAt] ? units[unitAt].plain : '')
+								const stats = peekStats.current[unitAt]
+								if (stats) {
+									if ((attempts[unitAt] || 0) > 0) stats.afterWrong += 1
+									if (alreadyRight) stats.onCorrect += 1
+								}
+								setPeeks((previous) => previous.map((count, spot) => (spot === unitAt ? count + 1 : count)))
+							}
 						}
-						setPeeks((previous) => previous.map((count, spot) => (spot === unitAt ? count + 1 : count)))
 					}
 					return
 				}

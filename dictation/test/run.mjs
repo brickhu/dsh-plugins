@@ -4023,8 +4023,8 @@ check(() => {
 
 
 check(() => {
-	// Pressing Up peeks at the focused box's word immediately; only a wrong box
-	// counts as a miss, a box that already holds the right word is free.
+	// Pressing Up peeks at the focused box's word immediately. Looking it up from
+	// a blank box is a miss; a box that already holds the right word is free.
 	const source = fs.readFileSync(path.join(root, 'lib', 'client.js'), 'utf8')
 	const start = source.indexOf('function ArticleSentence')
 	const end = source.indexOf('/* ───────────────────────────── Dashboard', start)
@@ -4034,9 +4034,88 @@ check(() => {
 	assert.ok(body.includes('dsh-de-peek-inplace-word'), 'the peek replaces the input in place')
 	assert.ok(body.includes('onKeyUp'), 'releasing the key hides the peek')
 	assert.ok(body.includes('peekCaret'), 'holding Up preserves the caret')
-	assert.ok(!body.includes('spot === unitAt && !units[spot].given'), 'a peek is a hint, not a scoring attempt')
+	assert.ok(body.includes('Looking a word up from an empty box is a miss'), 'a blank box peek is a miss')
+	assert.ok(body.includes('setAttempts((previous) => previous.map((count, spot) => (spot === unitAt ? (count || 0) + 1 : count)))'), 'the blank peek increments attempts')
+	assert.equal(body.includes('stats.beforeInput += 1'), false, 'a blank peek is not also charged the before-input hint')
 	assert.ok(body.includes('alreadyRight') && body.includes('matchesTarget('), 'a correct box is excluded from the miss')
 	assert.equal(body.includes("event.key === 'Alt'"), false, 'the old Alt sentence peek is gone')
+	checks += 1
+})
+
+check(() => {
+	// Blank peek at the first word, then type the sentence correctly: that word
+	// carries two attempts (the lookup + the successful check), the rest one.
+	const stateful = createStatefulReact()
+	const client = definition.factory((name) => {
+		assert.equal(name, 'react')
+		return stateful.React
+	})
+	const t = (key, vars) => client.__test.fill(client.__test.LOCALE_ZH[key] || key, vars)
+	const props = {
+		t,
+		sentence: 'He is happy.',
+		zh: '他很开心。',
+		index: 0,
+		total: 1,
+		onNext: () => {},
+		onReplay: () => {},
+		onPhase: () => {},
+	}
+	let tree = null
+	const render = () => {
+		stateful.cursor = 0
+		tree = client.__test.ArticleSentence(props)
+	}
+	const inputs = () => {
+		const found = []
+		const stack = [tree]
+		while (stack.length > 0) {
+			const node = stack.pop()
+			if (!node) continue
+			if (Array.isArray(node)) {
+				for (const child of node) stack.push(child)
+				continue
+			}
+			if (typeof node !== 'object') continue
+			if (node.args && node.args[0] === 'input') found.push(node.args[1])
+			for (const child of node.args ? node.args.slice(2) : []) stack.push(child)
+		}
+		return found.reverse()
+	}
+	const press = (box, key) => {
+		box.onKeyDown({
+			key,
+			preventDefault() {},
+			currentTarget: { selectionStart: 0, selectionEnd: 0 },
+			target: null,
+		})
+		render()
+	}
+	render()
+	press(inputs()[0], 'ArrowUp')
+	inputs()[0].onChange({ target: { value: 'He' } })
+	inputs()[1].onChange({ target: { value: 'is' } })
+	inputs()[2].onChange({ target: { value: 'happy' } })
+	render()
+	press(inputs()[0], 'Enter')
+	const texts = []
+	const stack = [tree]
+	while (stack.length > 0) {
+		const node = stack.pop()
+		if (!node) continue
+		if (Array.isArray(node)) {
+			for (const child of node) stack.push(child)
+			continue
+		}
+		if (typeof node === 'string') {
+			texts.push(node)
+			continue
+		}
+		if (typeof node !== 'object') continue
+		for (const child of node.args ? node.args.slice(2) : []) stack.push(child)
+	}
+	const counts = texts.filter((line) => /^X\d+$/.test(line)).sort()
+	assert.deepEqual(counts, ['X1', 'X1', 'X2'], 'a blank lookup is one miss, then the correct check')
 	checks += 1
 })
 
