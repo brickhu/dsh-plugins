@@ -1,0 +1,104 @@
+name: Publish dsh-english-dictation
+
+# Auto-release: a push to main that touches dictation/ runs the offline tests,
+# picks a new patch version, publishes it with npm Trusted Publishing (OIDC),
+# and commits the version bump back to main with [skip ci].
+#
+# One-time setup on npm: package Settings → Trusted publishing → GitHub Actions
+#   repository: brickhu/dsh-plugins
+#   workflow:   publish-dictation.yml
+#   environment: (leave blank)
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'dictation/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Release dsh-english-dictation
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # commit the version bump back to main
+      id-token: write # npm trusted publishing
+    defaults:
+      run:
+        working-directory: dictation
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          # No registry-url: setup-node would write an .npmrc with a placeholder
+          # NODE_AUTH_TOKEN, which overrides the OIDC credential npm 11 obtains.
+          node-version: '22.x'
+
+      - name: Upgrade npm for OIDC trusted publishing
+        run: npm install -g npm@^11
+
+      - name: Resolve the latest published version
+        run: |
+          latest=""
+          for attempt in 1 2 3; do
+            latest=$(npm view dsh-english-dictation version --registry https://registry.npmjs.org/ 2>/dev/null || true)
+            if [ -n "$latest" ]; then break; fi
+            echo "npm latest unavailable (attempt ${attempt}), retrying"
+            sleep 5
+          done
+          if [ -z "$latest" ]; then
+            echo "could not resolve the latest npm version"
+            exit 1
+          fi
+          echo "NPM_LATEST=${latest}" >> "$GITHUB_ENV"
+
+      - name: Pick the next version
+        run: node scripts/bump-version.mjs
+
+      - name: Run the offline test suite
+        run: node test/run.mjs
+
+      - name: Show the package that will be published
+        run: npm pack --dry-run
+
+
+      - name: Publish via OIDC trusted publishing
+        run: npm publish --access public --provenance --registry https://registry.npmjs.org/
+
+      - name: Persist the version bump
+        working-directory: ${{ github.workspace }}
+        # Publish first: if npm rejects the package, the repository must not
+        # claim a version that does not exist. If this push loses a race, retry
+        # the rebase a few times.
+        run: |
+          if git diff --quiet -- dictation/package.json dictation/lib/index.js dictation/lib/client.js; then
+            echo "version already in the repository"
+            exit 0
+          fi
+          version=$(node -p "require('./dictation/package.json').version")
+          git checkout -B main
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dictation/package.json dictation/lib/index.js dictation/lib/client.js
+          git commit -m "chore(dictation): release v${version} [skip ci]"
+          for attempt in 1 2 3; do
+            git pull --rebase origin main
+            if git push origin HEAD:main; then exit 0; fi
+            echo "push failed (attempt ${attempt}), retrying"
+            sleep 3
+          done
+          exit 1
+

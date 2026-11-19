@@ -1,0 +1,90 @@
+{
+	"name": "dsh-english-dictation",
+	"version": "0.48.1",
+	"description": "English dictation for DeepSeek Harness: a home dashboard with an exercise book, a time-ordered feed from open sources (NASA, NOAA, NIST, WHO, Our World in Data, PLOS, Frontiers), CEFR rewriting, whole-sentence dictation, Edge/local/system speech, local scoring and progress. DSH 英文听写插件。",
+	"license": "MIT",
+	"author": "brickhu",
+	"type": "module",
+	"main": "lib/index.js",
+	"exports": {
+		".": "./lib/index.js",
+		"./client": {
+			"default": "./lib/client.js"
+		},
+		"./rules": "./lib/rules.js",
+		"./package.json": "./package.json",
+		"./locale/*.json": "./locale/*.json",
+		"./icon": "./icon.svg"
+	},
+	"files": [
+		"lib/index.js",
+		"lib/edge-tts.js",
+		"lib/local-tts.js",
+		"lib/rules.js",
+		"lib/prompts.js",
+		"lib/store.js",
+		"lib/corpus.js",
+		"lib/client.js",
+		"cordis.patch.yml",
+		"scripts/install.mjs",
+		"locale/*.json",
+		"icon.svg",
+		"README.md",
+		"DESIGN.md",
+		"lib/tags.js",
+		"data/categories.json",
+		"data/core-words.json",
+		"scripts/prototype-category.mjs",
+		"lib/article.js",
+		"lib/rss.js",
+		"lib/dictionary.js",
+		"scripts/build-wordpool.mjs",
+		"lib/sources.js",
+		"lib/rewrite.js",
+		"lib/generate.js",
+		"lib/feed.js",
+		"lib/favicon.js",
+		"lib/first-practice.js",
+		"lib/archive.js",
+		"lib/score.js"
+	],
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/brickhu/dsh-plugins.git",
+		"directory": "dictation"
+	},
+	"homepage": "https://github.com/brickhu/dsh-plugins/tree/main/dictation",
+	"bugs": {
+		"url": "https://github.com/brickhu/dsh-plugins/issues"
+	},
+	"engines": {
+		"dsh": ">=0.2.2-rc.1 <0.3.0"
+	},
+	"dsh": {
+		"bundle": {
+			"patch": "./cordis.patch.yml"
+		},
+		"client": {
+			"platform": "web",
+			"inject": [
+				"@deepseek-ai/dsh-client-locale",
+				"@deepseek-ai/dsh-client-ui-slots",
+				"@deepseek-ai/dsh-client-ui-layout",
+				"@deepseek-ai/dsh-client-ui-sidebar"
+			]
+		}
+	},
+	"keywords": [
+		"dsh",
+		"dsh-plugin",
+		"deepseek-harness",
+		"english",
+		"dictation",
+		"listening",
+		"sidebar"
+	],
+	"scripts": {
+		"test": "node test/run.mjs",
+		"install:desktop": "node scripts/install.mjs"
+	}
+}

@@ -59,3 +59,17 @@ jobs:
           console.log('valid format', index.format, '-', index.plugins.length, 'plugin(s)');
           "
 
+
+
+  test-dictation:
+    name: Offline test suite (dsh-english-dictation)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dictation
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node test/run.mjs

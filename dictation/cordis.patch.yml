@@ -1,0 +1,6 @@
+# 以 bundle 形式把这个插件插进 profile 的 Loader 树：
+# 一条 insert 让 host 侧加载 lib/index.js（档案 + HTTP 路由 + 出题/复盘），
+# client 侧加载 lib/client.js（左栏「英文听写」入口 + 中心栏 Dashboard / 听写页）。
+- insert:
+    - id: dsh-english-dictation
+      name: 'dsh-english-dictation'
