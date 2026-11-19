@@ -78,13 +78,24 @@ jobs:
       - name: Publish via OIDC trusted publishing
         run: npm publish --access public --provenance --registry https://registry.npmjs.org/
 
+      - name: Refresh the plugin market index
+        working-directory: ${{ github.workspace }}
+        # npm may report "being processed" for a few minutes; poll before giving up.
+        run: |
+          for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            if node scripts/update-market-index.mjs --plugin dictation; then exit 0; fi
+            echo "registry not updated yet (attempt ${attempt}), waiting 20s"
+            sleep 20
+          done
+          node scripts/update-market-index.mjs --plugin dictation
+
       - name: Persist the version bump
         working-directory: ${{ github.workspace }}
         # Publish first: if npm rejects the package, the repository must not
         # claim a version that does not exist. If this push loses a race, retry
         # the rebase a few times.
         run: |
-          if git diff --quiet -- dictation/package.json dictation/lib/index.js dictation/lib/client.js; then
+          if git diff --quiet -- dictation/package.json dictation/lib/index.js dictation/lib/client.js market/index.json; then
             echo "version already in the repository"
             exit 0
           fi
@@ -92,7 +103,7 @@ jobs:
           git checkout -B main
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add dictation/package.json dictation/lib/index.js dictation/lib/client.js
+          git add dictation/package.json dictation/lib/index.js dictation/lib/client.js market/index.json
           git commit -m "chore(dictation): release v${version} [skip ci]"
           for attempt in 1 2 3; do
             git pull --rebase origin main

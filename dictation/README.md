@@ -307,9 +307,10 @@ node test/run.mjs
 
 ## 自动发布
 
-- `.github/workflows/publish-dictation.yml` 会在 **push 到 main 且改动 `dictation/**`** 时运行：跑离线测试 → 读取 npm 最新版本 → 自动选下一个版本 → `npm publish` → 把版本号改动提交回 main（提交信息带 `[skip ci]`，不会自我循环）。发布失败时不会提交版本号，重跑会继续尝试同一个版本。
+- `.github/workflows/publish-dictation.yml` 会在 **push 到 main 且改动 `dictation/**`** 时运行：跑离线测试 → 读取 npm 最新版本 → 自动选下一个版本 → `npm publish` → 把该版本写入 `market/index.json` → 把版本号和市场条目提交回 main（提交信息带 `[skip ci]`，不会自我循环）。发布失败时不会提交版本号，重跑会继续尝试同一个版本。
 - 版本策略：仓库版本高于 npm 时直接发布该版本（手动升版有效）；否则在 npm `latest` 上自动 `patch + 1`。每次改插件都会得到一个不可变的小版本。
 - 首次使用需在 npm 包设置里配置 **Trusted Publishing**：GitHub 仓库 `brickhu/dsh-plugins`，workflow 文件名 `publish-dictation.yml`，environment 留空。之后不需要 `NPM_TOKEN`，也不需要 OTP。
 - 自动提交版本号需要 GitHub Actions 有 main 的写权限；如果 main 开了分支保护，需要允许 `github-actions[bot]` 推送或把该 workflow 加入 bypass。
 - 手写版本号也可以：只要仓库版本高于 npm 上最新版，workflow 会直接发布它，不再自动加一。
 - 也可以在 Actions 里手动运行 **Publish dsh-english-dictation** 来补发/重试。
+- 上架的市场索引：`https://raw.githubusercontent.com/brickhu/dsh-plugins/main/market/index.json`，在 DSH 的「插件市场 → 添加索引源」里填这个地址。
