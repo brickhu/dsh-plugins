@@ -34,7 +34,7 @@ window.__ModuleLoader__.load({
 		/** Host route prefix; keep in sync with `API_PREFIX` in lib/rules.js. */
 		const API = '/api/dsh-english-dictation'
 		/** Running build stamp; the offline test keeps it in sync with package.json. */
-		const VERSION = 'v0.48.1'
+		const VERSION = 'v0.48.2'
 		/**
 		 * How long the page waits for `POST /run/next` before it offers a retry.
 		 *
