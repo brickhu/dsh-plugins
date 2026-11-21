@@ -2,7 +2,9 @@
 
 > 在 Agent 工作的间隙，用一篇短文练英语听写。
 
-这是一个给 [DeepSeek Harness](https://github.com/deepseek-harness) 用的英语听写插件。它会把 NASA、WHO、Our World in Data 等公开文章，改写成适合你当前等级（A1–C2）的短文，让你逐词听写，并在结束后给出分数和 AI 答疑。
+这是一个给 [DeepSeek Harness](https://github.com/deepseek-harness) 用的英语听写插件。它会把公开文章改写成适合你当前等级（A1–C2）的短文，让你逐词听写，并在结束后给出分数和 AI 答疑。
+
+内置 NASA、NOAA、NIST、WHO、Our World in Data、PLOS ONE、Frontiers 七个来源；**也可以直接粘贴你自己的文章 URL**，不必局限在这些源里。
 
 ![首页](https://raw.githubusercontent.com/brickhu/dsh-plugins/main/dictation/design/implemented-home.png)
 
@@ -16,6 +18,7 @@
 ## 功能
 
 - **文章变练习**：从公开文章生成整篇听写练习，每个词一个输入框；
+- **自己的文章**：粘贴任意有正文的公开 URL，抓取后按你的等级生成；
 - **按水平改写**：A1–C2 可选，按句法和词汇控制难度；
 - **逐词判分**：拼写准确度 + 听辨流畅度，完成整篇后有总分；
 - **AI 答疑**：结束后可直接问语法、词汇、指代、翻译问题；
@@ -74,9 +77,23 @@ npm install dsh-english-dictation
 
 ![添加文章](https://raw.githubusercontent.com/brickhu/dsh-plugins/main/dictation/design/implemented-add-dialog.png)
 
-- 文章来自 NASA、NOAA、NIST、WHO、Our World in Data、PLOS ONE、Frontiers 等公开来源；
-- 可以按话题筛选、按标题搜索；
-- 也可以直接粘贴一个公开文章 URL，让插件抓取正文；
+### 自带来源
+
+NASA、NOAA、NIST、WHO、Our World in Data、PLOS ONE、Frontiers。可以按话题筛选、按标题搜索，点行尾 `+` 选择等级后生成。
+
+### 自己的文章 URL
+
+不只是上面这些源：在顶部搜索框粘贴一个**公开可访问的文章 URL**，下方会出现 `+ URL`，点它就会抓取正文并打开等级弹窗。之后和内置来源完全一样：选等级、生成、加入练习簿。
+
+适合新闻、博客、教程、公开文档等有正常正文的页面。以下情况通常抓不到：
+
+- 需要登录或付费的页面；
+- 只靠 JavaScript 渲染、没有服务端正文的页面；
+- 明确禁止抓取或有反爬验证的站点；
+- `localhost`、内网地址等非公开地址（会被拒绝）。
+
+### 生成
+
 - 点 `+` 选择这次生成的等级（默认上次选的等级）；
 - 在「选项」里可以单独设置这篇文章的语音和语速；
 - 生成完成后直接加入练习列表，不会跳走；失败会提示原因，文章仍留在列表里。
@@ -200,6 +217,10 @@ npm install dsh-english-dictation
 **支持哪些等级？**
 
 A1、A2、B1、B2、C1、C2。每次添加文章时选择，默认使用上次选的等级。
+
+**可以添加自己的文章吗？**
+
+可以。在添加页顶部粘贴公开文章 URL，点出现的 `+ URL` 即可；不要求文章来自内置来源。需要登录、付费或纯前端渲染的页面可能抓不到正文。
 
 ## 反馈
 
