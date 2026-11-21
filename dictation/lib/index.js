@@ -201,7 +201,7 @@ async function generateTagItem(ctx, category, state, store, core) {
 }
 
 /** Build stamp compared by the offline test with package.json. */
-export const BUILD = 'v0.48.2'
+export const BUILD = 'v0.48.3'
 
 /** The one credential this plugin reads; the LLM route uses the same name. */
 

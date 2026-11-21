@@ -1,6 +1,6 @@
 {
 	"name": "dsh-english-dictation",
-	"version": "0.48.2",
+	"version": "0.48.3",
 	"description": "English dictation for DeepSeek Harness: a home dashboard with an exercise book, a time-ordered feed from open sources (NASA, NOAA, NIST, WHO, Our World in Data, PLOS, Frontiers), CEFR rewriting, whole-sentence dictation, Edge/local/system speech, local scoring and progress. DSH 英文听写插件。",
 	"license": "MIT",
 	"author": "brickhu",
